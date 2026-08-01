@@ -21,9 +21,20 @@ const trackSchema = z.object({
 });
 
 function apiError(code: string, message: string, details?: unknown) { return { error: { code, message, ...(details === undefined ? {} : { details }) } }; }
-function safeOrigin(origin: string | undefined) {
+function firstHeader(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value?.split(',')[0]?.trim();
+}
+
+function safeOrigin(origin: string | undefined, host: string | undefined, forwardedHost: string | string[] | undefined) {
   if (!origin) return true;
-  try { const url = new URL(origin); return ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname); } catch { return false; }
+  try {
+    const url = new URL(origin);
+    if (['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) return true;
+    const allowedHosts = [host, firstHeader(forwardedHost)].filter((value): value is string => Boolean(value)).map(value => value.toLowerCase());
+    if (allowedHosts.includes(url.host.toLowerCase())) return true;
+    const configuredOrigins = (process.env.APP_ORIGIN || '').split(',').map(value => value.trim()).filter(Boolean);
+    return configuredOrigins.includes(url.origin);
+  } catch { return false; }
 }
 
 export interface AppOptions { db?: Db; staticDir?: string; logger?: boolean; }
@@ -34,8 +45,8 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   await app.register(cookie);
 
   app.addHook('onRequest', async (request, reply) => {
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !safeOrigin(request.headers.origin)) {
-      return reply.code(403).send(apiError('ORIGIN_REJECTED', '只接受来自本机页面的写入请求。'));
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !safeOrigin(request.headers.origin, request.headers.host, request.headers['x-forwarded-host'])) {
+      return reply.code(403).send(apiError('ORIGIN_REJECTED', '只接受来自同源页面的写入请求。'));
     }
   });
   app.setErrorHandler((error, _request, reply) => {

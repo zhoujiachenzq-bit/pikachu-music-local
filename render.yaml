@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: pikachu-music-local
+    runtime: docker
+    plan: starter
+    branch: main
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PIKACHU_DB_PATH
+        value: /var/data/pikachu-music.sqlite
+      - key: COOKIE_SECURE
+        value: "true"
+    disk:
+      name: pikachu-data
+      mountPath: /var/data
+      sizeGB: 1

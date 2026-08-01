@@ -29,14 +29,18 @@ export function createSession(db: Db, userId: string) {
   return token;
 }
 
+function useSecureCookies() {
+  return process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production';
+}
+
 export function setSessionCookie(reply: FastifyReply, token: string) {
   reply.setCookie(SESSION_COOKIE, token, {
-    path: '/', httpOnly: true, sameSite: 'strict', secure: false, maxAge: SESSION_MS / 1000
+    path: '/', httpOnly: true, sameSite: 'strict', secure: useSecureCookies(), maxAge: SESSION_MS / 1000
   });
 }
 
 export function clearSessionCookie(reply: FastifyReply) {
-  reply.clearCookie(SESSION_COOKIE, { path: '/' });
+  reply.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, sameSite: 'strict', secure: useSecureCookies() });
 }
 
 export function getSessionUser(db: Db, request: FastifyRequest): User | null {

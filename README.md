@@ -1,6 +1,6 @@
 # 音乐小屋
 
-一个只监听本机地址的全栈音乐播放器。界面参考原“皮卡丘的音乐站”，增加本地账户、SQLite 持久化、收藏、自建歌单、四源公开歌单导入、手动同步和 JSON 备份恢复。
+一个可在本机运行或用容器部署的全栈音乐播放器。界面参考原“皮卡丘的音乐站”，增加本地账户、SQLite 持久化、收藏、自建歌单、四源公开歌单导入、手动同步和 JSON 备份恢复。
 
 当前版本：`v0.1`。这是首个可用版本，包含本地账户、四源搜索与歌单导入、收藏持久化、歌词时间定位和霓虹交互动效。
 
@@ -53,11 +53,25 @@ QQ      https://y.qq.com/n/ryqq/playlist/7011264340
 ## 本地数据与安全
 
 - SQLite 数据库位于 `data/pikachu-music.sqlite`；`data/` 已加入 `.gitignore`。
-- 密码使用随机盐和 `scrypt` 哈希；会话 Cookie 为 HTTP-only、SameSite=Strict，服务只绑定 `127.0.0.1`。
+- 密码使用随机盐和 `scrypt` 哈希；会话 Cookie 为 HTTP-only、SameSite=Strict。
+- 本地运行默认只绑定 `127.0.0.1`；容器部署通过 `HOST=0.0.0.0` 接收平台反向代理流量，生产 Cookie 仅通过 HTTPS 发送。
 - 歌单链接仅允许四个平台的域名，短链接最多跟随四次且每一跳都重新校验域名，避免访问本机或任意网络地址。
 - 不读取平台账户 Cookie，不支持私人歌单、付费或 DRM 内容，也不会绕过会员限制。
 
 第三方公开接口可能临时限流或变化。每个平台适配器均独立设置超时、单次重试和错误报告，单一来源故障不会影响本地资料或其他来源。
+
+## 部署到 Render
+
+仓库内已经包含 `Dockerfile` 和 `render.yaml`。由于账户、收藏和歌单保存在 SQLite，部署必须挂载持久磁盘；Render 的免费 Web Service 没有持久磁盘，不能满足本项目的数据持久化要求。
+
+1. 登录 Render，并连接保存此项目的 GitHub 账户。
+2. 新建 Blueprint，选择 `zhoujiachenzq-bit/pikachu-music-local` 仓库。
+3. 检查预览中的 `Starter` Web Service 和 1 GB `pikachu-data` 磁盘，确认费用后创建。
+4. 等待健康检查通过，打开 Render 分配的 HTTPS 地址。
+
+Blueprint 会在 GitHub 检查通过后自动部署 `main` 分支，并将数据库保存到 `/var/data/pikachu-music.sqlite`。首次打开公网地址时注册站内账户即可。若以后绑定自定义域名，可选设置 `APP_ORIGIN=https://你的域名`；多个域名用英文逗号分隔。
+
+上线前建议先在本地账户菜单导出 JSON 备份。公开部署只支持四个平台无需登录的公开内容，平台接口是否允许数据中心网络访问仍取决于对方当时的策略。
 
 ## 项目结构
 

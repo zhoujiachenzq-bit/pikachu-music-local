@@ -38,4 +38,22 @@ describe('local API integration', () => {
     expect(changed.statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/api/favorites', headers: { cookie } })).statusCode).toBe(401);
   });
+
+  it('accepts public same-origin writes and rejects cross-origin writes', async () => {
+    db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+    const accepted = await app.inject({
+      method: 'POST', url: '/api/auth/register',
+      headers: { host: 'music.example.com', origin: 'https://music.example.com' },
+      payload: { username: 'Serena', password: 'Sylveon-2026' }
+    });
+    expect(accepted.statusCode).toBe(201);
+
+    const rejected = await app.inject({
+      method: 'POST', url: '/api/auth/register',
+      headers: { host: 'music.example.com', origin: 'https://evil.example' },
+      payload: { username: 'Dawn', password: 'Piplup-2026' }
+    });
+    expect(rejected.statusCode).toBe(403);
+    expect(rejected.json().error.code).toBe('ORIGIN_REJECTED');
+  });
 });
