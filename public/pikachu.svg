@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="皮卡丘风格闪电鼠">
+  <defs><radialGradient id="g"><stop stop-color="#fffbd1"/><stop offset="1" stop-color="#f2cf55"/></radialGradient><filter id="s"><feGaussianBlur stdDeviation="4"/></filter></defs>
+  <circle cx="80" cy="80" r="72" fill="#f7dd68" opacity=".28" filter="url(#s)"/><circle cx="80" cy="80" r="62" fill="url(#g)"/>
+  <path d="M54 60 39 25 63 48M104 50l22-27-9 39" fill="#f4cc31" stroke="#372b2f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M51 58c-7 13-7 38 4 50 13 15 39 15 52 0 11-13 10-37 2-51-13-8-45-8-58 1Z" fill="#f4d33f" stroke="#372b2f" stroke-width="4"/>
+  <ellipse cx="64" cy="79" rx="5" ry="7" fill="#2a2430"/><ellipse cx="98" cy="79" rx="5" ry="7" fill="#2a2430"/>
+  <circle cx="54" cy="94" r="9" fill="#e94d52"/><circle cx="109" cy="94" r="9" fill="#e94d52"/>
+  <path d="M76 89h10l-5 4Z" fill="#372b2f"/><path d="M70 98c7 7 15 7 22 0" fill="none" stroke="#372b2f" stroke-width="3" stroke-linecap="round"/>
+  <path d="m111 104 17-4-6 13 15 7-27 17 7-18-13-4Z" fill="#f2c62d" stroke="#372b2f" stroke-width="4" stroke-linejoin="round"/>
+</svg>
