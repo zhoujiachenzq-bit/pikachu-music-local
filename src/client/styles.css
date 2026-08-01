@@ -101,6 +101,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .track-row { display: flex; align-items: stretch; min-height: 48px; border-bottom: 1px solid rgba(255,255,255,.055); border-radius: 9px; transition: .18s ease; }
 .track-row:hover, .track-row.active { background: linear-gradient(90deg, rgba(77,104,190,.16), rgba(255,214,86,.07)); }
 .track-row.active { box-shadow: inset 2px 0 var(--gold); }
+.track-row.pending:not(.active) { background: linear-gradient(90deg, rgba(79,207,255,.13), rgba(213,87,255,.08)); box-shadow: inset 2px 0 #5ad7ff; }
+.track-row.pending .track-source { animation: pulse .65s ease-in-out infinite alternate; }
 .track-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 4px; text-align: left; border: 0; background: transparent; cursor: pointer; }
 .track-source { width: 23px; height: 23px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--source-color), #111 55%); border: 1px solid var(--source-color); box-shadow: 0 0 8px color-mix(in srgb, var(--source-color), transparent 50%); font-size: 9px; }
 .track-copy { min-width: 0; display: block; flex: 1; }

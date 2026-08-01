@@ -120,12 +120,12 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
 
   app.post('/api/tracks/:id/resolve', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
-    const params = z.object({ id: z.string() }).parse(request.params); const body = z.object({ track: trackSchema.optional() }).parse(request.body || {});
+    const params = z.object({ id: z.string() }).parse(request.params); const body = z.object({ track: trackSchema.optional(), refresh: z.boolean().default(false) }).parse(request.body || {});
     let input: Track | null = body.track ? { ...body.track, id: body.track.id || `${body.track.source}:${body.track.sourceTrackId}`, coverUrl: body.track.coverUrl || null, sourceUrl: body.track.sourceUrl || null } : null;
     if (input) input = upsertTrack(db, input);
     if (!input) { const row = db.prepare('SELECT * FROM tracks WHERE id=?').get(params.id) as Record<string, unknown> | undefined; if (row) input = rowToTrack(row); }
     if (!input) return reply.code(404).send(apiError('TRACK_NOT_FOUND', '歌曲不存在。'));
-    const resolved = await resolveTrackWithFallback(input, db); return { track: resolved };
+    const resolved = await resolveTrackWithFallback(input, db, body.refresh); return { track: resolved };
   });
   app.get('/api/tracks/:id/lyrics', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;

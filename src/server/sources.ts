@@ -248,10 +248,18 @@ export function matchScore(target: Track, candidate: Track): number {
   return titleScore + artistScore + durationScore;
 }
 
-export async function resolveTrackWithFallback(input: Track, db?: Db): Promise<ResolvedTrack> {
+export function isAmbiguousFallback(first: { candidate: Track; score: number }, second?: { candidate: Track; score: number }) {
+  if (!second || first.score - second.score >= 0.05) return false;
+  return normalizeMatch(first.candidate.title) !== normalizeMatch(second.candidate.title)
+    || normalizeMatch(first.candidate.artist) !== normalizeMatch(second.candidate.artist);
+}
+
+export async function resolveTrackWithFallback(input: Track, db?: Db, forceRefresh = false): Promise<ResolvedTrack> {
   const cacheKey = `resolve:${input.source}:${input.sourceTrackId}`;
+  const lyricCacheKey = `lyric:${input.source}:${input.sourceTrackId}`;
+  const rememberedLyric = db ? getCached<{ lyric: string }>(db, lyricCacheKey)?.lyric || null : null;
   const cached = db ? getCached<ResolvedTrack>(db, cacheKey) : null;
-  if (cached?.audioUrl) return { ...cached, id: input.id };
+  if (!forceRefresh && cached?.audioUrl) return { ...cached, id: input.id, lyric: cached.lyric || rememberedLyric };
   let resolved: ResolvedTrack;
   try { resolved = await resolveOriginal(input); }
   catch (originalError) {
@@ -259,15 +267,25 @@ export async function resolveTrackWithFallback(input: Track, db?: Db): Promise<R
     const settled = await Promise.allSettled(others.map(source => searchSource(source, `${input.title} ${input.artist}`, 5)));
     const ranked = settled.flatMap(result => result.status === 'fulfilled' ? result.value : [])
       .map(candidate => ({ candidate, score: matchScore(input, candidate) })).sort((a, b) => b.score - a.score);
-    if (!ranked[0] || ranked[0].score < 0.8 || (ranked[1] && ranked[0].score - ranked[1].score < 0.05)) {
+    if (!ranked[0] || ranked[0].score < 0.8 || isAmbiguousFallback(ranked[0], ranked[1])) {
       throw new SourceError('FALLBACK_CONFIRM_REQUIRED', '原音源不可播放，未找到足够可信的自动替代版本。', {
         original: originalError instanceof Error ? originalError.message : String(originalError), candidates: ranked.slice(0, 5)
       });
     }
-    const fallback = await resolveOriginal(ranked[0].candidate);
+    const topTitle = normalizeMatch(ranked[0].candidate.title); const topArtist = normalizeMatch(ranked[0].candidate.artist); const failures: string[] = [];
+    let fallback: ResolvedTrack | null = null;
+    for (const item of ranked.filter(item => item.score >= 0.8 && normalizeMatch(item.candidate.title) === topTitle && normalizeMatch(item.candidate.artist) === topArtist).slice(0, 5)) {
+      try { fallback = await resolveOriginal(item.candidate); break; }
+      catch (error) { failures.push(`${item.candidate.source}: ${error instanceof Error ? error.message : String(error)}`); }
+    }
+    if (!fallback) throw new SourceError('UNPLAYABLE', '已找到匹配歌曲，但备用来源暂时都无法播放。', { failures });
     resolved = { ...fallback, id: input.id, fallback: true };
   }
-  if (db) setCached(db, cacheKey, resolved, 5 * 60_000);
+  if (!resolved.lyric && rememberedLyric) resolved = { ...resolved, lyric: rememberedLyric };
+  if (db) {
+    setCached(db, cacheKey, resolved, 5 * 60_000);
+    if (resolved.lyric) setCached(db, lyricCacheKey, { lyric: resolved.lyric }, 7 * 24 * 60 * 60_000);
+  }
   return resolved;
 }
 

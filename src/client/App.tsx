@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError, json } from './api';
+import { PlaybackCache } from './playerCache';
 import { SOURCES, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 
 type Lang = 'zh' | 'en';
@@ -17,7 +18,7 @@ const copy = {
     createAccount: '创建本地账户', welcome: '欢迎回来', accountHint: '所有收藏与歌单只保存在这台电脑。', logout: '退出', settings: '账户设置', changePassword: '修改密码', deleteAccount: '删除账户',
     source: '音乐源', publicLink: '公开歌单链接或 ID', startImport: '开始导入', importing: '正在导入', close: '关闭', create: '创建', cancel: '取消', name: '歌单名称',
     add: '加入歌单', searchInList: '搜索歌单内歌曲…', exportData: '导出数据', restoreData: '恢复数据', footer: '本站仅作为学习演示，音乐版权归各平台与原作者所有。',
-    noResults: '没有找到歌曲，音乐源可能暂时不可用。', failed: '操作失败', playingFallback: '正在使用替代音源', listMode: '列表循环', loopMode: '单曲循环', shuffleMode: '随机播放', seekTo: '定位到', seeking: '正在定位', seekUnsupported: '当前音源暂不支持时间定位'
+    noResults: '没有找到歌曲，音乐源可能暂时不可用。', failed: '操作失败', playingFallback: '正在使用替代音源', loadingTrack: '正在缓冲', listMode: '列表循环', loopMode: '单曲循环', shuffleMode: '随机播放', seekTo: '定位到', seeking: '正在定位', seekUnsupported: '当前音源暂不支持时间定位'
   },
   en: {
     shortcuts: 'Shortcuts: Space play/pause · ←/→ seek · ↑/↓ volume · N/P track · F favorite',
@@ -28,7 +29,7 @@ const copy = {
     createAccount: 'Create local account', welcome: 'Welcome back', accountHint: 'Favorites and playlists stay on this computer.', logout: 'Sign out', settings: 'Account', changePassword: 'Change password', deleteAccount: 'Delete account',
     source: 'Source', publicLink: 'Public playlist URL or ID', startImport: 'Import', importing: 'Importing', close: 'Close', create: 'Create', cancel: 'Cancel', name: 'Playlist name',
     add: 'Add to playlist', searchInList: 'Search in playlist…', exportData: 'Export', restoreData: 'Restore', footer: 'For learning only. Music rights belong to their platforms and creators.',
-    noResults: 'No tracks found. A source may be temporarily unavailable.', failed: 'Action failed', playingFallback: 'Using fallback source', listMode: 'List loop', loopMode: 'Repeat one', shuffleMode: 'Shuffle', seekTo: 'Seek to', seeking: 'Seeking', seekUnsupported: 'This source does not currently support seeking'
+    noResults: 'No tracks found. A source may be temporarily unavailable.', failed: 'Action failed', playingFallback: 'Using fallback source', loadingTrack: 'Buffering', listMode: 'List loop', loopMode: 'Repeat one', shuffleMode: 'Shuffle', seekTo: 'Seek to', seeking: 'Seeking', seekUnsupported: 'This source does not currently support seeking'
   }
 } as const;
 
@@ -53,6 +54,21 @@ function normalizeTrack(value: Track): Track {
   return { ...value, id: value.id || `${value.source}:${value.sourceTrackId}`, coverUrl: value.coverUrl || null, sourceUrl: value.sourceUrl || null };
 }
 
+function waitForAudioReady(element: HTMLAudioElement, timeoutMs: number): Promise<void> {
+  if (element.readyState >= 1) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const finish = () => { cleanup(); resolve(); };
+    const fail = () => { cleanup(); reject(new Error('音频地址暂时无法加载，请稍后重试。')); };
+    const timer = window.setTimeout(() => { cleanup(); reject(new Error('音频加载超时，正在尝试刷新地址。')); }, timeoutMs);
+    const cleanup = () => { window.clearTimeout(timer); element.removeEventListener('loadedmetadata', finish); element.removeEventListener('canplay', finish); element.removeEventListener('error', fail); };
+    element.addEventListener('loadedmetadata', finish, { once: true }); element.addEventListener('canplay', finish, { once: true }); element.addEventListener('error', fail, { once: true });
+  });
+}
+
+function disposeAudio(element: HTMLAudioElement) {
+  element.pause(); element.removeAttribute('src'); element.load();
+}
+
 function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login'); const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const submit = async (event: FormEvent) => { event.preventDefault(); setError(''); setBusy(true); try { const result = await api<{ user: User }>(`/api/auth/${mode}`, json('POST', { username, password })); onAuth(result.user); } catch (err) { setError(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); } };
@@ -72,11 +88,11 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
   </main>;
 }
 
-function TrackRow({ item, active, draggable, onPlay, onFavorite, favorite, onAdd, onRemove, onDragStart, onDrop }: {
-  item: Track; active?: boolean; draggable?: boolean; favorite?: boolean; onPlay: () => void; onFavorite: () => void; onAdd?: () => void; onRemove?: () => void; onDragStart?: () => void; onDrop?: () => void;
+function TrackRow({ item, active, pending, draggable, onPlay, onWarm, onFavorite, favorite, onAdd, onRemove, onDragStart, onDrop }: {
+  item: Track; active?: boolean; pending?: boolean; draggable?: boolean; favorite?: boolean; onPlay: () => void; onWarm?: () => void; onFavorite: () => void; onAdd?: () => void; onRemove?: () => void; onDragStart?: () => void; onDrop?: () => void;
 }) {
-  return <div className={`track-row ${active ? 'active' : ''}`} draggable={draggable} onDragStart={onDragStart} onDragOver={event => draggable && event.preventDefault()} onDrop={onDrop}>
-    <button className="track-main" onClick={onPlay} title="播放">
+  return <div className={`track-row ${active ? 'active' : ''} ${pending ? 'pending' : ''}`} draggable={draggable} onDragStart={onDragStart} onDragOver={event => draggable && event.preventDefault()} onDrop={onDrop}>
+    <button className="track-main" onClick={onPlay} onPointerEnter={onWarm} onFocus={onWarm} title="播放">
       <span className="track-source" style={{ '--source-color': sourceColors[item.source] } as React.CSSProperties}>{sourceNames[item.source].slice(0, 1)}</span>
       <span className="track-copy"><strong>{item.title}</strong><small>{item.artist}{item.album ? ` · ${item.album}` : ''}</small></span>
       {item.duration > 0 && <time>{formatTime(item.duration / 1000)}</time>}
@@ -93,9 +109,9 @@ export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined); const lang: Lang = user?.language || 'zh'; const t = copy[lang];
   const [query, setQuery] = useState(''); const [sources, setSources] = useState<MusicSource[]>([...SOURCES]); const [limit, setLimit] = useState(10); const [results, setResults] = useState<Track[]>([]); const [searching, setSearching] = useState(false); const [searchErrors, setSearchErrors] = useState<Record<string, string>>({});
   const [favorites, setFavorites] = useState<Track[]>([]); const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]); const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistDetail | null>(null); const [tab, setTab] = useState<Tab>('results'); const [playlistFilter, setPlaylistFilter] = useState('');
-  const [current, setCurrent] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null);
+  const [current, setCurrent] = useState<Track | null>(null); const [pendingTrack, setPendingTrack] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false); const [newName, setNewName] = useState(''); const [importOpen, setImportOpen] = useState(false); const [importSource, setImportSource] = useState<MusicSource>('netease'); const [importInput, setImportInput] = useState(''); const [importJob, setImportJob] = useState<ImportJob | null>(null); const [accountOpen, setAccountOpen] = useState(false); const [addTrack, setAddTrack] = useState<Track | null>(null);
-  const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const resolvedCache = useRef(new Map<string, { track: ResolvedTrack; expiresAt: number }>()); const pendingLyricSeek = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
+  const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const pendingLyricSeek = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
   const lyrics = useMemo(() => parseLrc(resolved?.lyric || null), [resolved?.lyric]);
   const activeLyric = useMemo(() => Math.max(0, lyrics.findLastIndex(line => line.time <= currentTime)), [lyrics, currentTime]);
   const favoriteIds = useMemo(() => new Set(favorites.map(item => item.id)), [favorites]);
@@ -129,7 +145,10 @@ export default function App() {
   useEffect(() => { if (user) refreshLibrary().catch(() => undefined); }, [user, refreshLibrary]);
   useEffect(() => { if (!selectedPlaylist) return; api<{ playlist: PlaylistDetail }>(`/api/playlists/${encodeURIComponent(selectedPlaylist.id)}`).then(v => setSelectedPlaylist(v.playlist)).catch(() => setSelectedPlaylist(null)); }, [playlists]);
   useEffect(() => { if (lyricBox.current) lyricBox.current.querySelector(`[data-line="${activeLyric}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, [activeLyric]);
-  useEffect(() => () => { if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current); }, []);
+  useEffect(() => () => {
+    if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current);
+    warmedAudio.current.forEach(entry => disposeAudio(entry.element)); warmedAudio.current.clear();
+  }, []);
 
   const doSearch = async (append = false) => {
     if (!query.trim() || !sources.length) return; setSearching(true); if (!append) { setResults([]); setSearchErrors({}); }
@@ -138,18 +157,78 @@ export default function App() {
   };
 
   const queue = useMemo(() => tab === 'favorites' ? favorites : tab === 'playlists' && selectedPlaylist ? selectedPlaylist.tracks.filter(item => !item.excluded) : results, [tab, favorites, selectedPlaylist, results]);
-  const playTrack = useCallback(async (item: Track) => {
-    const requestId = ++activeRequest.current; lyricSeekSequence.current += 1; pendingLyricSeek.current = null; setLyricSeekTarget(null); if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current); lyricSeekTimer.current = null; const normalized = normalizeTrack(item); setCurrent(normalized); setResolving(true); setResolved(null);
+  const resolveTrack = useCallback((item: Track, refresh = false) => {
+    const normalized = normalizeTrack(item); const requestKey = refresh ? `${normalized.id}:refresh` : normalized.id;
+    if (!refresh) { const cached = playbackCache.getResolved(normalized.id); if (cached) return Promise.resolve(cached); }
+    else playbackCache.forgetResolved(normalized.id);
+    const active = resolveRequests.current.get(requestKey); if (active) return active;
+    const request = api<{ track: ResolvedTrack }>(`/api/tracks/${encodeURIComponent(normalized.id)}/resolve`, json('POST', { track: normalized, refresh }))
+      .then(data => { const next = playbackCache.withRememberedLyric({ ...data.track, id: normalized.id }); playbackCache.rememberResolved(next); return next; })
+      .finally(() => { if (resolveRequests.current.get(requestKey) === request) resolveRequests.current.delete(requestKey); });
+    resolveRequests.current.set(requestKey, request); return request;
+  }, [playbackCache]);
+  const warmTrack = useCallback(async (item: Track) => {
+    const normalized = normalizeTrack(item); const existing = warmedAudio.current.get(normalized.id);
+    if (existing) { existing.usedAt = Date.now(); return; }
+    if (resolveRequests.current.size >= 2 && !resolveRequests.current.has(normalized.id)) return;
     try {
-      const cached = resolvedCache.current.get(normalized.id); let next: ResolvedTrack;
-      if (cached && cached.expiresAt > Date.now()) next = cached.track;
-      else { if (cached) resolvedCache.current.delete(normalized.id); const data = await api<{ track: ResolvedTrack }>(`/api/tracks/${encodeURIComponent(normalized.id)}/resolve`, json('POST', { track: normalized })); next = data.track; resolvedCache.current.set(normalized.id, { track: next, expiresAt: Date.now() + 5 * 60_000 }); }
-      if (requestId !== activeRequest.current) return; setResolved(next); setResolving(false); const element = audio.current; if (element) { element.src = next.audioUrl; element.volume = user?.volume ?? 0.8; await element.play(); }
+      const next = await resolveTrack(normalized); if (warmedAudio.current.has(normalized.id)) return;
+      const element = new Audio(); element.preload = 'auto'; element.src = next.audioUrl;
+      const entry = { element, url: next.audioUrl, usedAt: Date.now() }; warmedAudio.current.set(normalized.id, entry);
+      if (warmedAudio.current.size > 4) {
+        const oldest = [...warmedAudio.current.entries()].filter(([id]) => id !== normalized.id).sort((a, b) => a[1].usedAt - b[1].usedAt)[0];
+        if (oldest) { warmedAudio.current.delete(oldest[0]); disposeAudio(oldest[1].element); }
+      }
+      element.addEventListener('error', () => { if (warmedAudio.current.get(normalized.id) === entry) { warmedAudio.current.delete(normalized.id); disposeAudio(element); } }, { once: true });
+      element.load();
+    } catch { /* Preloading is best-effort and must never interrupt normal use. */ }
+  }, [resolveTrack]);
+  const playTrack = useCallback(async (item: Track) => {
+    const requestId = ++activeRequest.current; lyricSeekSequence.current += 1; pendingLyricSeek.current = null; setLyricSeekTarget(null); if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current); lyricSeekTimer.current = null;
+    const inFlightAudio = audio.current; if (inFlightAudio && inFlightAudio.dataset.requestId && inFlightAudio.dataset.trackId !== committedTrackId.current) inFlightAudio.pause();
+    const normalized = normalizeTrack(item); requestedTrack.current = normalized; setPendingTrack(normalized); setResolving(true);
+    try {
+      let next = await resolveTrack(normalized); if (requestId !== activeRequest.current) return;
+      const element = audio.current; if (!element) throw new Error('播放器尚未准备好。');
+      const previous = { url: element.currentSrc, time: element.currentTime, shouldPlay: !element.paused, trackId: committedTrackId.current };
+      const restorePrevious = async () => {
+        if (!previous.url) { element.removeAttribute('src'); element.load(); return; }
+        element.src = previous.url; element.dataset.requestId = ''; element.dataset.trackId = previous.trackId || ''; const ready = waitForAudioReady(element, 4000); element.load(); await ready.catch(() => undefined);
+        try { element.currentTime = previous.time; } catch { /* The restored source may not be seekable yet. */ }
+        if (previous.shouldPlay) await element.play().catch(() => undefined);
+      };
+      const activate = async (candidate: ResolvedTrack) => {
+        element.pause(); setPlaying(false); element.preload = 'auto'; element.dataset.requestId = String(requestId); element.dataset.trackId = ''; element.src = candidate.audioUrl;
+        const ready = waitForAudioReady(element, 8000); element.load();
+        await ready;
+        if (requestId !== activeRequest.current) { if (element.dataset.requestId === String(requestId)) await restorePrevious(); return false; }
+        element.volume = user?.volume ?? 0.8; element.dataset.trackId = normalized.id; committedTrackId.current = normalized.id;
+        setCurrent(normalized); setResolved(candidate); setCurrentTime(0); setDuration(Number.isFinite(element.duration) ? element.duration : 0); setPendingTrack(null); requestedTrack.current = null; setResolving(false); setPlaying(false);
+        const playAttempt = element.play().then(() => ({ ok: true as const })).catch(error => ({ ok: false as const, error }));
+        void playAttempt.then(result => { if (requestId !== activeRequest.current) return; if (result.ok) { setPlaying(true); return; } if ((result.error as DOMException)?.name !== 'AbortError') showToast('歌曲已加载，点击播放按钮即可继续。'); });
+        return true;
+      };
+
+      try { if (await activate(next)) return; }
+      catch {
+        playbackCache.forgetResolved(normalized.id); const expired = warmedAudio.current.get(normalized.id); if (expired) { warmedAudio.current.delete(normalized.id); disposeAudio(expired.element); }
+        next = await resolveTrack(normalized, true); if (requestId !== activeRequest.current) return;
+        try { if (await activate(next)) return; }
+        catch (error) { if (requestId === activeRequest.current && element.dataset.requestId === String(requestId)) await restorePrevious(); throw error; }
+      }
+      if (requestId === activeRequest.current && element.dataset.requestId === String(requestId)) await restorePrevious();
     }
-    catch (error) { if (requestId === activeRequest.current) showToast(error instanceof Error ? error.message : t.failed); } finally { if (requestId === activeRequest.current) setResolving(false); }
-  }, [showToast, t.failed, user?.volume]);
-  const playRelative = useCallback((direction: 1 | -1) => { if (!queue.length) return; const index = current ? queue.findIndex(item => item.id === current.id) : -1; let next = index + direction; if (user?.playMode === 'shuffle') next = Math.floor(Math.random() * queue.length); if (next < 0) next = queue.length - 1; if (next >= queue.length) next = 0; void playTrack(queue[next]); }, [queue, current, user?.playMode, playTrack]);
+    catch (error) { if (requestId === activeRequest.current) showToast(error instanceof Error ? error.message : t.failed); }
+    finally { if (requestId === activeRequest.current) { setResolving(false); setPendingTrack(null); requestedTrack.current = null; } }
+  }, [resolveTrack, showToast, t.failed, user?.volume]);
+  const playRelative = useCallback((direction: 1 | -1) => { if (!queue.length) return; const base = requestedTrack.current || current; const index = base ? queue.findIndex(item => item.id === base.id) : -1; let next = index + direction; if (user?.playMode === 'shuffle') next = Math.floor(Math.random() * queue.length); if (next < 0) next = queue.length - 1; if (next >= queue.length) next = 0; void playTrack(queue[next]); }, [queue, current, user?.playMode, playTrack]);
   const togglePlay = useCallback(() => { const element = audio.current; if (!element) return; if (!current && queue[0]) return void playTrack(queue[0]); if (element.paused) void element.play(); else element.pause(); }, [current, queue, playTrack]);
+  useEffect(() => {
+    if (!queue.length) return;
+    const base = requestedTrack.current || current; const index = base ? queue.findIndex(item => item.id === base.id) : -1;
+    const candidates = index >= 0 ? [queue[(index + 1) % queue.length], queue[(index - 1 + queue.length) % queue.length]] : queue.slice(0, 2);
+    candidates.filter((item): item is Track => Boolean(item && item.id !== base?.id)).forEach(item => { void warmTrack(item); });
+  }, [queue, current, warmTrack]);
   const applyPendingLyricSeek = useCallback((element: HTMLAudioElement) => {
     const requested = pendingLyricSeek.current; if (requested === null || element.readyState < 1) return;
     const target = Number.isFinite(element.duration) && element.duration > 0 ? Math.min(requested, Math.max(0, element.duration - .05)) : requested;
@@ -199,6 +278,7 @@ export default function App() {
   if (!user) return <AuthScreen onAuth={setUser}/>;
 
   const visiblePlaylistTracks = selectedPlaylist?.tracks.filter(item => !item.excluded && `${item.title} ${item.artist}`.toLowerCase().includes(playlistFilter.toLowerCase())) || [];
+  const displayTrack = current && resolved ? { ...current, title: resolved.title || current.title, artist: resolved.artist || current.artist, album: resolved.album || current.album, coverUrl: resolved.coverUrl || current.coverUrl } : current;
   const modeLabel = user.playMode === 'list' ? t.listMode : user.playMode === 'loop' ? t.loopMode : t.shuffleMode;
   return <div className="app-shell">
     <div className="particle-field" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--y': `${(i * 61) % 100}%`, '--d': `${5 + (i % 7)}s`, '--s': `${2 + (i % 4)}px` } as React.CSSProperties}/>)}</div>
@@ -213,21 +293,21 @@ export default function App() {
         <form className="search-box" onSubmit={event => { event.preventDefault(); void doSearch(); }}><span>🔍</span><input aria-label={t.placeholder} value={query} onChange={event => setQuery(event.target.value)} placeholder={t.placeholder}/><button className="btn gold" disabled={searching}>{searching ? '…' : t.search}</button></form>
         <div className="source-grid">{SOURCES.map(source => <label key={source} className={sources.includes(source) ? 'checked' : ''} style={{ '--source-color': sourceColors[source] } as React.CSSProperties}><input type="checkbox" checked={sources.includes(source)} onChange={() => setSources(currentSources => currentSources.includes(source) ? currentSources.filter(v => v !== source) : [...currentSources, source])}/><i/>{sourceNames[source]}</label>)}</div>
         <div className="load-row"><span>{t.each}</span><select value={limit} onChange={event => setLimit(Number(event.target.value))}><option>5</option><option>10</option><option>20</option><option>30</option></select><span>首结果</span><button className="btn ghost" onClick={() => void doSearch(true)}>{t.more}</button></div>
-        <div className="search-mini-list">{!results.length ? <div className="empty-state"><span>✦</span><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.slice(0, 14).map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
+        <div className="search-mini-list">{!results.length ? <div className="empty-state"><span>✦</span><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.slice(0, 14).map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playTrack(item)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
       </section>
 
       <section className="player-panel panel">
-        <div className="panel-heading player-heading"><h2><span>🎧</span>{t.now}</h2><small>{resolved?.fallback ? t.playingFallback : t.lyricFx}</small></div>
-        <div className="now-card">
-          <div className={`record-wrap ${playing ? 'spinning' : ''}`}><div className="record">{current?.coverUrl ? <img src={current.coverUrl} alt=""/> : <div className="record-center"/>}</div></div>
-          <div className="track-hero"><h3>{current?.title || t.noTrack}</h3><p>{current ? `${current.artist}${resolved?.fallback ? ` · ${sourceNames[resolved.actualSource]}` : ''}` : t.pick}</p>
+        <div className="panel-heading player-heading"><h2><span>🎧</span>{t.now}</h2><small>{resolving && pendingTrack ? `${t.loadingTrack}：${pendingTrack.title}` : resolved?.fallback ? t.playingFallback : t.lyricFx}</small></div>
+        <div className="now-card" data-track-id={current?.id || ''} data-pending-track-id={pendingTrack?.id || ''}>
+          <div className={`record-wrap ${playing ? 'spinning' : ''}`}><div className="record">{displayTrack?.coverUrl ? <img src={displayTrack.coverUrl} alt=""/> : <div className="record-center"/>}</div></div>
+          <div className="track-hero"><h3>{displayTrack?.title || t.noTrack}</h3><p>{displayTrack ? `${displayTrack.artist}${resolved?.fallback ? ` · ${sourceNames[resolved.actualSource]}` : ''}` : t.pick}</p>
             <div className="progress-row"><time>{formatTime(currentTime)}</time><input type="range" min="0" max={duration || 0} step="0.1" value={Math.min(currentTime, duration || 0)} onChange={event => { if (audio.current) audio.current.currentTime = Number(event.target.value); }}/><time>{formatTime(duration)}</time></div>
             <div className="transport"><button onClick={() => playRelative(-1)}>⏮</button><button className="play-main" onClick={togglePlay}>{resolving ? '…' : playing ? '❚❚' : '▶'}</button><button onClick={() => playRelative(1)}>⏭</button><span className="volume">🔊<input aria-label="音量" type="range" min="0" max="1" step="0.01" value={user.volume} onChange={event => { const volume = Number(event.target.value); if (audio.current) audio.current.volume = volume; void setPreference({ volume }); }}/></span></div>
           </div>
-          <div className="hero-actions"><button className={current && favoriteIds.has(current.id) ? 'active' : ''} onClick={() => current && void toggleFavorite(current)}>♥</button><button onClick={() => current && window.open(`/api/tracks/${encodeURIComponent(current.id)}/download`, '_blank')}>⬇</button><span>{resolving ? '解析中' : playing ? '播放中' : '空闲'}</span></div>
+          <div className="hero-actions"><button className={current && favoriteIds.has(current.id) ? 'active' : ''} onClick={() => current && void toggleFavorite(current)}>♥</button><button onClick={() => current && window.open(`/api/tracks/${encodeURIComponent(current.id)}/download`, '_blank')}>⬇</button><span>{resolving && pendingTrack ? `${t.loadingTrack} ${pendingTrack.title}` : playing ? '播放中' : '空闲'}</span></div>
         </div>
         <div className="lyrics"><div className="lyrics-effects" aria-hidden="true"/>{lyricSeekTarget !== null && <div className="lyric-seek-status" role="status">{t.seeking} {formatTime(lyricSeekTarget)}…</div>}<div className={`lyrics-scroll ${lyrics.length ? '' : 'is-empty'}`} ref={lyricBox}>{lyrics.length ? lyrics.map((line, index) => { const seekable = Number.isFinite(line.time); return <button type="button" key={`${line.time}-${index}`} data-line={index} data-seekable={seekable} className={`lyric-line ${index === activeLyric ? 'active' : ''}`} aria-label={seekable ? `${formatTime(line.time)} ${line.text}` : line.text} title={seekable ? `${t.seekTo} ${formatTime(line.time)}` : undefined} onClick={() => seekToLyric(line.time)}><time aria-hidden="true">{seekable ? formatTime(line.time) : ''}</time><span>{line.text}</span></button>; }) : <div className="empty-lyrics"><span>♫</span>{t.emptyLyrics}</div>}</div></div>
-        <audio ref={audio} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onLoadedMetadata={event => applyPendingLyricSeek(event.currentTarget)} onCanPlay={event => applyPendingLyricSeek(event.currentTarget)} onSeeked={event => { finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; setCurrentTime(element.currentTime); }} onDurationChange={event => { setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); }} onEnded={() => { if (user.playMode === 'loop' && audio.current) { audio.current.currentTime = 0; void audio.current.play(); } else playRelative(1); }}/>
+        <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) setPlaying(true); }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) setPlaying(false); }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; setCurrentTime(element.currentTime); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; if (user.playMode === 'loop' && audio.current) { audio.current.currentTime = 0; void audio.current.play(); } else playRelative(1); }}/>
       </section>
 
       <section className="playlist-panel panel">
@@ -238,10 +318,10 @@ export default function App() {
           {tab === 'playlists' && <div><button title={t.newList} onClick={() => setCreateOpen(true)}>＋</button><button title={t.import} onClick={() => { setImportOpen(true); setImportJob(null); }}>⇩</button><button title={t.backup} onClick={() => void exportBackup()}>⤓</button><label className="icon-upload" title={t.restoreData}>⤒<input type="file" accept="application/json" onChange={event => event.target.files?.[0] && void restoreBackup(event.target.files[0])}/></label>{selectedPlaylist?.source && <button title={t.sync} onClick={() => void syncPlaylist()}>↻</button>}</div>}
         </div>
         <div className="playlist-content">
-          {tab === 'results' && (results.length ? results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>⌁</span><p>{t.empty}</p></div>)}
-          {tab === 'favorites' && (favorites.length ? favorites.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} favorite onPlay={() => void playTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>♡</span><p>{t.empty}</p></div>)}
+          {tab === 'results' && (results.length ? results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playTrack(item)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>⌁</span><p>{t.empty}</p></div>)}
+          {tab === 'favorites' && (favorites.length ? favorites.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite onPlay={() => void playTrack(item)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>♡</span><p>{t.empty}</p></div>)}
           {tab === 'playlists' && <>{playlists.length ? <div className="playlist-cards">{playlists.map(item => <button key={item.id} className={selectedPlaylist?.id === item.id ? 'active' : ''} onClick={() => void openPlaylist(item)}>{item.coverUrl ? <img src={item.coverUrl} alt=""/> : <span>♫</span>}<b>{item.name}</b><small>{item.trackCount} 首 {item.source ? `· ${sourceNames[item.source]}` : ''}</small></button>)}</div> : <div className="empty-state"><span>＋</span><p>{t.empty}</p></div>}
-            {selectedPlaylist && <><input className="playlist-search" value={playlistFilter} onChange={event => setPlaylistFilter(event.target.value)} placeholder={t.searchInList}/><div className="selected-tracks">{visiblePlaylistTracks.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} favorite={favoriteIds.has(item.id)} draggable onDragStart={() => { draggedTrack.current = item.id; }} onDrop={() => void reorder(item.id)} onPlay={() => void playTrack(item)} onFavorite={() => void toggleFavorite(item)} onRemove={() => void removeFromPlaylist(item.id)}/>)}</div></>}
+            {selectedPlaylist && <><input className="playlist-search" value={playlistFilter} onChange={event => setPlaylistFilter(event.target.value)} placeholder={t.searchInList}/><div className="selected-tracks">{visiblePlaylistTracks.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} draggable onDragStart={() => { draggedTrack.current = item.id; }} onDrop={() => void reorder(item.id)} onPlay={() => void playTrack(item)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onRemove={() => void removeFromPlaylist(item.id)}/>)}</div></>}
           </>}
         </div>
         <div className="play-modes"><button className={user.playMode === 'list' ? 'active' : ''} title={t.listMode} onClick={() => void setPreference({ playMode: 'list' })}>🔁</button><button className={user.playMode === 'loop' ? 'active' : ''} title={t.loopMode} onClick={() => void setPreference({ playMode: 'loop' })}>🔂</button><button className={user.playMode === 'shuffle' ? 'active' : ''} title={t.shuffleMode} onClick={() => void setPreference({ playMode: 'shuffle' })}>🔀</button><span>{modeLabel}</span></div>

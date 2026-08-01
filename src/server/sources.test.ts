@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchScore, parsePlaylistInput, resolveTrackWithFallback, SourceError } from './sources.js';
+import { isAmbiguousFallback, matchScore, parsePlaylistInput, resolveTrackWithFallback, SourceError } from './sources.js';
 import { createDatabase, setCached } from './db.js';
 import type { Track } from '../shared/types.js';
 
@@ -30,6 +30,11 @@ describe('cross-source match scoring', () => {
   it('does not auto-match unrelated songs', () => {
     expect(matchScore(base, { ...base, id: 'qq:3', source: 'qq', sourceTrackId: '3', title: '江南', artist: '其他歌手', duration: 200_000 })).toBeLessThan(.8);
   });
+  it('does not treat the same exact song from two platforms as ambiguous', () => {
+    const qq = { ...base, id: 'qq:2', source: 'qq' as const, sourceTrackId: '2' }; const kuwo = { ...base, id: 'kuwo:3', source: 'kuwo' as const, sourceTrackId: '3' };
+    expect(isAmbiguousFallback({ candidate: qq, score: .9 }, { candidate: kuwo, score: .9 })).toBe(false);
+    expect(isAmbiguousFallback({ candidate: qq, score: .9 }, { candidate: { ...kuwo, title: '江南' }, score: .9 })).toBe(true);
+  });
 });
 
 describe('temporary playback cache', () => {
@@ -38,6 +43,15 @@ describe('temporary playback cache', () => {
     const input: Track = { id: 'netease:1', source: 'netease', sourceTrackId: '1', title: '修炼爱情', artist: '林俊杰', album: '', duration: 267_000, coverUrl: null, sourceUrl: null };
     setCached(db, 'resolve:netease:1', { ...input, audioUrl: 'https://example.com/public.mp3', lyric: '[00:00.00]测试歌词', actualSource: 'netease', fallback: false }, 60_000);
     await expect(resolveTrackWithFallback(input, db)).resolves.toMatchObject({ audioUrl: 'https://example.com/public.mp3', lyric: '[00:00.00]测试歌词' });
+    db.close();
+  });
+
+  it('keeps reusable lyrics longer than the temporary media response', async () => {
+    const db = createDatabase(':memory:');
+    const input: Track = { id: 'netease:2', source: 'netease', sourceTrackId: '2', title: '缓存歌词', artist: '测试歌手', album: '', duration: 180_000, coverUrl: null, sourceUrl: null };
+    setCached(db, 'resolve:netease:2', { ...input, audioUrl: 'https://example.com/temporary.mp3', lyric: null, actualSource: 'netease', fallback: false }, 60_000);
+    setCached(db, 'lyric:netease:2', { lyric: '[00:01.00]长期歌词缓存' }, 60_000);
+    await expect(resolveTrackWithFallback(input, db)).resolves.toMatchObject({ lyric: '[00:01.00]长期歌词缓存' });
     db.close();
   });
 });
