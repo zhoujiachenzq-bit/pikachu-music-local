@@ -148,7 +148,8 @@ input[type='range'] { height: 4px; accent-color: var(--gold); cursor: pointer; }
 .lyrics-effects::before { inset: -55%; background: conic-gradient(from 0deg, rgba(255,214,102,.08), rgba(255,214,102,.38), rgba(104,184,255,.38), rgba(186,132,255,.4), rgba(255,214,102,.08)); opacity: .46; filter: blur(14px); animation: lyrics-glow 16s linear infinite; }
 .lyrics-effects::after { top: -50%; left: -70%; width: 55%; height: 200%; background: linear-gradient(120deg, rgba(255,248,170,0), rgba(255,248,170,.38), rgba(161,233,255,.08), rgba(161,233,255,0)); transform: skewX(-18deg) translateX(0); animation: lyrics-sweep 7s linear infinite; opacity: .95; }
 .lyric-seek-status { position: absolute; z-index: 3; top: 10px; right: 12px; padding: 4px 9px; border: 1px solid rgba(255,226,119,.38); border-radius: 20px; color: #fff3b0; background: rgba(9,13,27,.8); box-shadow: 0 0 14px rgba(246,206,85,.2); font-size: 9px; pointer-events: none; }
-.lyrics-scroll { position: absolute; inset: 0; z-index: 1; overflow-y: auto; overflow-x: hidden; padding: 45% 24px; scroll-behavior: smooth; }
+.lyrics-scroll { position: absolute; inset: 0; z-index: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 45% 24px; scroll-behavior: smooth; }
+.lyric-follow-button { position: absolute; z-index: 4; left: 50%; bottom: 12px; translate: -50% 0; padding: 7px 12px; border: 1px solid rgba(255,226,119,.45); border-radius: 20px; color: #fff5b8; background: rgba(9,13,27,.88); box-shadow: 0 0 18px rgba(246,206,85,.25); cursor: pointer; font-size: 10px; }
 @keyframes lyrics-glow { to { transform: rotate(360deg); } }
 @keyframes lyrics-sweep { 0% { transform: skewX(-18deg) translateX(0); } 50%, 100% { transform: skewX(-18deg) translateX(330%); } }
 .lyrics-scroll.is-empty { padding: 24px; }
@@ -211,7 +212,7 @@ footer { height: 31px; display: flex; align-items: center; justify-content: flex
 .add-list button { display: grid; grid-template-columns: 35px 1fr auto; align-items: center; gap: 8px; text-align: left; padding: 7px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(20,27,47,.7); cursor: pointer; }
 .add-list button > span { width: 35px; height: 35px; display: grid; place-items: center; border-radius: 8px; background: #252e52; }
 .add-list b { font-size: 11px; }.add-list small { color: #79809d; font-size: 9px; }
-.account-card { text-align: center; }.account-card p { color: #8e96b2; font-size: 11px; }.account-logout { margin-top: 8px; }.avatar-large { width: 70px; height: 70px; margin: 4px auto 10px; border-radius: 50%; display: grid; place-items: center; color: #2d2109; background: linear-gradient(135deg, #fff39a, #c38f2a); box-shadow: 0 0 24px rgba(255,215,78,.42); font-size: 28px; font-weight: 800; }.danger-link { border: 0; background: none; color: #e36c7b; cursor: pointer; margin-top: 15px; font-size: 10px; }
+.account-card { text-align: center; }.account-card p { color: #8e96b2; font-size: 11px; }.install-app { margin-bottom: 8px; }.account-logout { margin-top: 8px; }.avatar-large { width: 70px; height: 70px; margin: 4px auto 10px; border-radius: 50%; display: grid; place-items: center; color: #2d2109; background: linear-gradient(135deg, #fff39a, #c38f2a); box-shadow: 0 0 24px rgba(255,215,78,.42); font-size: 28px; font-weight: 800; }.danger-link { border: 0; background: none; color: #e36c7b; cursor: pointer; margin-top: 15px; font-size: 10px; }
 .toast { position: fixed; z-index: 80; left: 50%; bottom: 28px; translate: -50% 0; max-width: min(520px, calc(100vw - 30px)); padding: 10px 16px; border: 1px solid rgba(255,226,119,.45); border-radius: 30px; color: #fff7ca; background: rgba(16,18,27,.94); box-shadow: 0 10px 40px #000, 0 0 20px rgba(255,213,82,.23); font-size: 11px; animation: toast-in .25s ease; }
 @keyframes toast-in { from { opacity: 0; translate: -50% 10px; } }
 
@@ -238,7 +239,7 @@ footer { height: 31px; display: flex; align-items: center; justify-content: flex
 }
 
 @media (max-width: 760px) {
-  .app-shell { padding: 10px; }
+  .app-shell { padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
   .topbar { padding: 9px 10px; margin-bottom: 8px; border-radius: 15px; }
   .logo-ring { width: 52px; height: 52px; }.brand { min-width: 0; }.brand h1 { font-size: 16px; }.brand p { font-size: 9px; }
   .header-actions { gap: 5px; }.profile-button { font-size: 0; padding: 3px; }.profile-button span { font-size: 11px; }.language button { padding: 4px 7px; }

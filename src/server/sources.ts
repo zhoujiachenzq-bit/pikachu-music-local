@@ -254,6 +254,48 @@ export function isAmbiguousFallback(first: { candidate: Track; score: number }, 
     || normalizeMatch(first.candidate.artist) !== normalizeMatch(second.candidate.artist);
 }
 
+export function hasTimedLyric(lyric: string | null | undefined) {
+  return Boolean(lyric && /\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/.test(lyric));
+}
+
+function timedLyricCacheKey(input: Track) {
+  return `timed-lyric:${normalizeMatch(input.title)}:${normalizeMatch(input.artist)}`;
+}
+
+export async function resolveTimedLyric(input: Track, db?: Db) {
+  const cacheKey = timedLyricCacheKey(input);
+  const cached = db ? getCached<{ lyric: string | null; actualSource: MusicSource; exact: boolean }>(db, cacheKey) : null;
+  if (cached) return cached;
+
+  const original = await resolveTrackWithFallback(input, db);
+  if (hasTimedLyric(original.lyric)) {
+    const result = { lyric: original.lyric, actualSource: original.actualSource, exact: true };
+    if (db) setCached(db, cacheKey, result, 7 * 24 * 60 * 60_000);
+    return result;
+  }
+
+  const others = SOURCES.filter(source => source !== original.actualSource);
+  const settled = await Promise.allSettled(others.map(source => searchSource(source, `${input.title} ${input.artist}`, 5)));
+  const priority: Record<MusicSource, number> = { kuwo: 0, netease: 1, migu: 2, qq: 3 };
+  const ranked = settled.flatMap(result => result.status === 'fulfilled' ? result.value : [])
+    .map(candidate => ({ candidate, score: matchScore(input, candidate) }))
+    .filter(item => item.score >= .8)
+    .sort((a, b) => b.score - a.score || priority[a.candidate.source] - priority[b.candidate.source]);
+  const candidates = others.map(source => ranked.find(item => item.candidate.source === source)).filter((item): item is { candidate: Track; score: number } => Boolean(item));
+  const alternatives = await Promise.allSettled(candidates.map(item => resolveOriginal(item.candidate)));
+  for (let index = 0; index < alternatives.length; index += 1) {
+    const candidate = alternatives[index];
+    if (candidate.status !== 'fulfilled' || !hasTimedLyric(candidate.value.lyric)) continue;
+    const result = { lyric: candidate.value.lyric, actualSource: candidate.value.actualSource, exact: true };
+    if (db) setCached(db, cacheKey, result, 7 * 24 * 60 * 60_000);
+    return result;
+  }
+
+  const result = { lyric: original.lyric, actualSource: original.actualSource, exact: false };
+  if (db) setCached(db, cacheKey, result, 10 * 60_000);
+  return result;
+}
+
 export async function resolveTrackWithFallback(input: Track, db?: Db, forceRefresh = false): Promise<ResolvedTrack> {
   const cacheKey = `resolve:${input.source}:${input.sourceTrackId}`;
   const lyricCacheKey = `lyric:${input.source}:${input.sourceTrackId}`;

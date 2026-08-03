@@ -9,7 +9,7 @@ import type { Db } from './db.js';
 import { createDatabase, createLocalPlaylist, getPlaylist, listFavorites, listPlaylists, rowToTrack, rowToUser, transaction, upsertTrack } from './db.js';
 import { clearSessionCookie, createSession, createUserId, getSessionUser, hashPassword, requireUser, revokeToken, SESSION_COOKIE, setSessionCookie, verifyPassword } from './auth.js';
 import { createImportJob, createSyncJob, getImportJob, listImportJobs, retryImportJob, runImportJob } from './imports.js';
-import { resolvePlaylistInput, resolveTrackWithFallback, searchAll, SourceError } from './sources.js';
+import { resolvePlaylistInput, resolveTimedLyric, resolveTrackWithFallback, searchAll, SourceError } from './sources.js';
 import { SOURCES, type MusicSource, type PlaylistDetail, type Track } from '../shared/types.js';
 
 const credentialsSchema = z.object({ username: z.string().trim().min(2).max(24).regex(/^[\p{L}\p{N}_.-]+$/u), password: z.string().min(8).max(72) });
@@ -131,7 +131,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     const user = requireUser(db, request, reply); if (!user) return;
     const params = z.object({ id: z.string() }).parse(request.params); const row = db.prepare('SELECT * FROM tracks WHERE id=?').get(params.id) as Record<string, unknown> | undefined;
     if (!row) return reply.code(404).send(apiError('TRACK_NOT_FOUND', '歌曲不存在。'));
-    const resolved = await resolveTrackWithFallback(rowToTrack(row), db); return { lyric: resolved.lyric, actualSource: resolved.actualSource };
+    return resolveTimedLyric(rowToTrack(row), db);
   });
   app.get('/api/tracks/:id/download', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;

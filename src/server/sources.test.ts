@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAmbiguousFallback, matchScore, parsePlaylistInput, resolveTrackWithFallback, SourceError } from './sources.js';
+import { hasTimedLyric, isAmbiguousFallback, matchScore, parsePlaylistInput, resolveTrackWithFallback, SourceError } from './sources.js';
 import { createDatabase, setCached } from './db.js';
 import type { Track } from '../shared/types.js';
 
@@ -53,5 +53,13 @@ describe('temporary playback cache', () => {
     setCached(db, 'lyric:netease:2', { lyric: '[00:01.00]长期歌词缓存' }, 60_000);
     await expect(resolveTrackWithFallback(input, db)).resolves.toMatchObject({ lyric: '[00:01.00]长期歌词缓存' });
     db.close();
+  });
+});
+
+describe('timed lyric detection', () => {
+  it('distinguishes LRC timelines from plain lyric text', () => {
+    expect(hasTimedLyric('[00:05.12]第一句\n[00:10.00]第二句')).toBe(true);
+    expect(hasTimedLyric('第一句\n第二句')).toBe(false);
+    expect(hasTimedLyric(null)).toBe(false);
   });
 });

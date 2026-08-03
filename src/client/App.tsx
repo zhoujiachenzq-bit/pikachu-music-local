@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError, json } from './api';
+import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyricCenterOffset, parseLrc } from './lyrics';
+import { installMediaSessionControls, syncMediaSession, updateMediaMetadata } from './mediaSession';
 import { PlaybackCache } from './playerCache';
+import { PlaybackQueue } from './playerQueue';
 import { SOURCES, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 
 type Lang = 'zh' | 'en';
 type Tab = 'results' | 'favorites' | 'playlists';
+interface BeforeInstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
 
 const sourceNames: Record<MusicSource, string> = { migu: '咪咕', netease: '网易云', qq: 'QQ', kuwo: '酷我' };
 const sourceColors: Record<MusicSource, string> = { migu: '#ff9d2e', netease: '#ff4d65', qq: '#38d9f3', kuwo: '#d757ff' };
@@ -18,7 +22,7 @@ const copy = {
     createAccount: '创建本地账户', welcome: '欢迎回来', accountHint: '所有收藏与歌单只保存在这台电脑。', logout: '退出', settings: '账户设置', changePassword: '修改密码', deleteAccount: '删除账户',
     source: '音乐源', publicLink: '公开歌单链接或 ID', startImport: '开始导入', importing: '正在导入', close: '关闭', create: '创建', cancel: '取消', name: '歌单名称',
     add: '加入歌单', searchInList: '搜索歌单内歌曲…', exportData: '导出数据', restoreData: '恢复数据', footer: '本站仅作为学习演示，音乐版权归各平台与原作者所有。',
-    noResults: '没有找到歌曲，音乐源可能暂时不可用。', failed: '操作失败', playingFallback: '正在使用替代音源', loadingTrack: '正在缓冲', listMode: '列表循环', loopMode: '单曲循环', shuffleMode: '随机播放', seekTo: '定位到', seeking: '正在定位', seekUnsupported: '当前音源暂不支持时间定位'
+    noResults: '没有找到歌曲，音乐源可能暂时不可用。', failed: '操作失败', playingFallback: '正在使用替代音源', loadingTrack: '正在缓冲', listMode: '列表循环', loopMode: '单曲循环', shuffleMode: '随机播放', seekTo: '定位到', estimatedSeekTo: '估算定位到', findingTimedLyrics: '正在从其他音乐源查找精确时间轴…', exactLyricFound: '已补充精确时间轴', estimatedLyricHint: '未找到精确时间轴，将从第一句歌词开始估算位置', estimatedLyricToast: '该歌词无时间轴，已从第一句歌词开始估算定位', seeking: '正在定位', seekUnsupported: '当前音源暂不支持时间定位', returnToLyric: '回到当前歌词', installApp: '安装音乐小屋'
   },
   en: {
     shortcuts: 'Shortcuts: Space play/pause · ←/→ seek · ↑/↓ volume · N/P track · F favorite',
@@ -29,25 +33,12 @@ const copy = {
     createAccount: 'Create local account', welcome: 'Welcome back', accountHint: 'Favorites and playlists stay on this computer.', logout: 'Sign out', settings: 'Account', changePassword: 'Change password', deleteAccount: 'Delete account',
     source: 'Source', publicLink: 'Public playlist URL or ID', startImport: 'Import', importing: 'Importing', close: 'Close', create: 'Create', cancel: 'Cancel', name: 'Playlist name',
     add: 'Add to playlist', searchInList: 'Search in playlist…', exportData: 'Export', restoreData: 'Restore', footer: 'For learning only. Music rights belong to their platforms and creators.',
-    noResults: 'No tracks found. A source may be temporarily unavailable.', failed: 'Action failed', playingFallback: 'Using fallback source', loadingTrack: 'Buffering', listMode: 'List loop', loopMode: 'Repeat one', shuffleMode: 'Shuffle', seekTo: 'Seek to', seeking: 'Seeking', seekUnsupported: 'This source does not currently support seeking'
+    noResults: 'No tracks found. A source may be temporarily unavailable.', failed: 'Action failed', playingFallback: 'Using fallback source', loadingTrack: 'Buffering', listMode: 'List loop', loopMode: 'Repeat one', shuffleMode: 'Shuffle', seekTo: 'Seek to', estimatedSeekTo: 'Estimated seek to', findingTimedLyrics: 'Looking for an exact timeline from other sources…', exactLyricFound: 'Exact lyric timeline found', estimatedLyricHint: 'No exact timeline found; clicks use an estimated position', estimatedLyricToast: 'No lyric timeline; position was estimated from the line number', seeking: 'Seeking', seekUnsupported: 'This source does not currently support seeking', returnToLyric: 'Follow current lyric', installApp: 'Install Music Cottage'
   }
 } as const;
 
 function formatTime(value: number) {
   if (!Number.isFinite(value)) return '00:00'; const minutes = Math.floor(value / 60); const seconds = Math.floor(value % 60); return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}
-
-function parseLrc(raw: string | null) {
-  if (!raw) return [] as Array<{ time: number; text: string }>;
-  const lines: Array<{ time: number; text: string }> = [];
-  raw.split(/\r?\n/).forEach(line => {
-    const words = line.replace(/\[[a-z]+:.*?\]/gi, '').replace(/\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/g, '').trim();
-    if (!words) return;
-    for (const match of line.matchAll(/\[(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\]/g)) lines.push({ time: Number(match[1]) * 60 + Number(match[2]), text: words });
-  });
-  const timed = lines.filter(line => line.text).sort((a, b) => a.time - b.time);
-  if (timed.length) return timed;
-  return raw.split(/\r?\n/).filter(line => !/^\[(ar|ti|al|by|offset):/i.test(line.trim())).map(line => line.replace(/^\[[^\]]+\]\s*/, '').trim()).filter(Boolean).map(text => ({ time: Number.POSITIVE_INFINITY, text }));
 }
 
 function normalizeTrack(value: Track): Track {
@@ -109,19 +100,34 @@ export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined); const lang: Lang = user?.language || 'zh'; const t = copy[lang];
   const [query, setQuery] = useState(''); const [sources, setSources] = useState<MusicSource[]>([...SOURCES]); const [limit, setLimit] = useState(10); const [results, setResults] = useState<Track[]>([]); const [searching, setSearching] = useState(false); const [searchErrors, setSearchErrors] = useState<Record<string, string>>({});
   const [favorites, setFavorites] = useState<Track[]>([]); const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]); const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistDetail | null>(null); const [tab, setTab] = useState<Tab>('results'); const [playlistFilter, setPlaylistFilter] = useState('');
-  const [current, setCurrent] = useState<Track | null>(null); const [pendingTrack, setPendingTrack] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null);
+  const [current, setCurrent] = useState<Track | null>(null); const [pendingTrack, setPendingTrack] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null); const [lyricFollowing, setLyricFollowing] = useState(true); const [findingTimedLyricsFor, setFindingTimedLyricsFor] = useState<string | null>(null); const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [createOpen, setCreateOpen] = useState(false); const [newName, setNewName] = useState(''); const [importOpen, setImportOpen] = useState(false); const [importSource, setImportSource] = useState<MusicSource>('netease'); const [importInput, setImportInput] = useState(''); const [importJob, setImportJob] = useState<ImportJob | null>(null); const [accountOpen, setAccountOpen] = useState(false); const [addTrack, setAddTrack] = useState<Track | null>(null);
-  const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const pendingLyricSeek = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
+  const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
   const lyrics = useMemo(() => parseLrc(resolved?.lyric || null), [resolved?.lyric]);
-  const activeLyric = useMemo(() => Math.max(0, lyrics.findLastIndex(line => line.time <= currentTime)), [lyrics, currentTime]);
+  const activeLyric = useMemo(() => findActiveLyric(lyrics, currentTime), [lyrics, currentTime]);
+  const hasTimedLyrics = useMemo(() => lyrics.some(line => Number.isFinite(line.time)), [lyrics]);
+  const untimedLyricStart = useMemo(() => findUntimedLyricStart(lyrics), [lyrics]);
   const favoriteIds = useMemo(() => new Set(favorites.map(item => item.id)), [favorites]);
 
   const showToast = useCallback((message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2600); }, []);
   const refreshLibrary = useCallback(async () => {
     const [fav, lists] = await Promise.all([api<{ tracks: Track[] }>('/api/favorites'), api<{ playlists: PlaylistSummary[] }>('/api/playlists')]); setFavorites(fav.tracks); setPlaylists(lists.playlists);
   }, []);
+  const centerLyricLine = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
+    const container = lyricBox.current; if (!container || index < 0) return;
+    const target = container.querySelector<HTMLElement>(`[data-line="${index}"]`); if (!target) return;
+    const top = lyricCenterOffset(target.offsetTop, target.offsetHeight, container.clientHeight, container.scrollHeight);
+    container.scrollTo({ top, behavior });
+  }, []);
+  const centerActiveLyric = useCallback((behavior: ScrollBehavior = 'smooth') => centerLyricLine(pendingLyricLine.current ?? activeLyric, behavior), [activeLyric, centerLyricLine]);
   useEffect(() => { api<{ user: User | null }>('/api/auth/me').then(result => setUser(result.user)).catch(() => setUser(null)); }, []);
   useEffect(() => { document.title = user ? `${user.username}的音乐小屋` : '音乐小屋'; }, [user]);
+  useEffect(() => {
+    const capturePrompt = (event: Event) => { event.preventDefault(); setInstallPrompt(event as BeforeInstallPromptEvent); };
+    const installed = () => setInstallPrompt(null);
+    window.addEventListener('beforeinstallprompt', capturePrompt); window.addEventListener('appinstalled', installed);
+    return () => { window.removeEventListener('beforeinstallprompt', capturePrompt); window.removeEventListener('appinstalled', installed); };
+  }, []);
   useEffect(() => {
     const timers = new Set<number>();
     const createRipple = (event: PointerEvent) => {
@@ -143,8 +149,37 @@ export default function App() {
     return () => { document.removeEventListener('pointerdown', createRipple); timers.forEach(window.clearTimeout); document.querySelectorAll('.ripple-circle, .ripple-circle-inner').forEach(node => node.remove()); };
   }, []);
   useEffect(() => { if (user) refreshLibrary().catch(() => undefined); }, [user, refreshLibrary]);
+  useEffect(() => {
+    if (!current || !resolved || !lyrics.length || hasTimedLyrics || timedLyricLookups.current.has(current.id)) return;
+    const trackId = current.id; let cancelled = false; timedLyricLookups.current.add(trackId); setFindingTimedLyricsFor(trackId);
+    api<{ lyric: string | null; actualSource: MusicSource; exact: boolean }>(`/api/tracks/${encodeURIComponent(trackId)}/lyrics`)
+      .then(result => {
+        if (cancelled || !result.exact || !result.lyric || !parseLrc(result.lyric).some(line => Number.isFinite(line.time))) return;
+        setResolved(previous => {
+          if (!previous || previous.id !== trackId) return previous;
+          const next = { ...previous, lyric: result.lyric }; playbackCache.rememberResolved(next); return next;
+        });
+        showToast(`${sourceNames[result.actualSource]} · ${t.exactLyricFound}`);
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setFindingTimedLyricsFor(previous => previous === trackId ? null : previous); });
+    return () => { cancelled = true; };
+  }, [current, resolved, lyrics, hasTimedLyrics, playbackCache, showToast, t.exactLyricFound]);
   useEffect(() => { if (!selectedPlaylist) return; api<{ playlist: PlaylistDetail }>(`/api/playlists/${encodeURIComponent(selectedPlaylist.id)}`).then(v => setSelectedPlaylist(v.playlist)).catch(() => setSelectedPlaylist(null)); }, [playlists]);
-  useEffect(() => { if (lyricBox.current) lyricBox.current.querySelector(`[data-line="${activeLyric}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, [activeLyric]);
+  useEffect(() => { if (lyricFollowing) centerActiveLyric(); }, [activeLyric, centerActiveLyric, lyricFollowing]);
+  useEffect(() => {
+    if (!user || !window.matchMedia('(max-width: 760px)').matches) return;
+    const key = `pikachu:mobile-scroll:${user.id}`; const previousRestoration = history.scrollRestoration; history.scrollRestoration = 'manual'; let restoring = true; let saveTimer = 0;
+    const save = () => window.localStorage.setItem(key, JSON.stringify({ y: window.scrollY, updatedAt: Date.now() }));
+    const onScroll = () => { if (restoring) return; window.clearTimeout(saveTimer); saveTimer = window.setTimeout(save, 120); };
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      let target = 0;
+      try { const stored = JSON.parse(window.localStorage.getItem(key) || 'null') as { y?: number } | null; if (Number.isFinite(stored?.y)) target = Number(stored?.y); } catch { /* Ignore malformed local state. */ }
+      window.scrollTo({ top: Math.min(Math.max(0, target), Math.max(0, document.documentElement.scrollHeight - window.innerHeight)), behavior: 'auto' }); restoring = false;
+    }));
+    window.addEventListener('scroll', onScroll, { passive: true }); window.addEventListener('pagehide', save);
+    return () => { window.clearTimeout(saveTimer); save(); history.scrollRestoration = previousRestoration; window.removeEventListener('scroll', onScroll); window.removeEventListener('pagehide', save); };
+  }, [user?.id]);
   useEffect(() => () => {
     if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current);
     warmedAudio.current.forEach(entry => disposeAudio(entry.element)); warmedAudio.current.clear();
@@ -184,11 +219,11 @@ export default function App() {
     } catch { /* Preloading is best-effort and must never interrupt normal use. */ }
   }, [resolveTrack]);
   const playTrack = useCallback(async (item: Track) => {
-    const requestId = ++activeRequest.current; lyricSeekSequence.current += 1; pendingLyricSeek.current = null; setLyricSeekTarget(null); if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current); lyricSeekTimer.current = null;
+    const requestId = ++activeRequest.current; lyricSeekSequence.current += 1; pendingLyricSeek.current = null; pendingLyricLine.current = null; setLyricSeekTarget(null); if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current); lyricSeekTimer.current = null;
     const inFlightAudio = audio.current; if (inFlightAudio && inFlightAudio.dataset.requestId && inFlightAudio.dataset.trackId !== committedTrackId.current) inFlightAudio.pause();
     const normalized = normalizeTrack(item); requestedTrack.current = normalized; setPendingTrack(normalized); setResolving(true);
     try {
-      let next = await resolveTrack(normalized); if (requestId !== activeRequest.current) return;
+      let next = await resolveTrack(normalized); if (requestId !== activeRequest.current) return false;
       const element = audio.current; if (!element) throw new Error('播放器尚未准备好。');
       const previous = { url: element.currentSrc, time: element.currentTime, shouldPlay: !element.paused, trackId: committedTrackId.current };
       const restorePrevious = async () => {
@@ -202,53 +237,89 @@ export default function App() {
         const ready = waitForAudioReady(element, 8000); element.load();
         await ready;
         if (requestId !== activeRequest.current) { if (element.dataset.requestId === String(requestId)) await restorePrevious(); return false; }
-        element.volume = user?.volume ?? 0.8; element.dataset.trackId = normalized.id; committedTrackId.current = normalized.id;
-        setCurrent(normalized); setResolved(candidate); setCurrentTime(0); setDuration(Number.isFinite(element.duration) ? element.duration : 0); setPendingTrack(null); requestedTrack.current = null; setResolving(false); setPlaying(false);
+        element.volume = user?.volume ?? 0.8; element.loop = user?.playMode === 'loop'; element.dataset.trackId = normalized.id; committedTrackId.current = normalized.id;
+        setCurrent(normalized); setResolved(candidate); setCurrentTime(0); setDuration(Number.isFinite(element.duration) ? element.duration : 0); setPendingTrack(null); requestedTrack.current = null; setResolving(false); setPlaying(false); setLyricFollowing(true);
         const playAttempt = element.play().then(() => ({ ok: true as const })).catch(error => ({ ok: false as const, error }));
         void playAttempt.then(result => { if (requestId !== activeRequest.current) return; if (result.ok) { setPlaying(true); return; } if ((result.error as DOMException)?.name !== 'AbortError') showToast('歌曲已加载，点击播放按钮即可继续。'); });
         return true;
       };
 
-      try { if (await activate(next)) return; }
+      try { if (await activate(next)) return true; }
       catch {
         playbackCache.forgetResolved(normalized.id); const expired = warmedAudio.current.get(normalized.id); if (expired) { warmedAudio.current.delete(normalized.id); disposeAudio(expired.element); }
-        next = await resolveTrack(normalized, true); if (requestId !== activeRequest.current) return;
-        try { if (await activate(next)) return; }
+        next = await resolveTrack(normalized, true); if (requestId !== activeRequest.current) return false;
+        try { if (await activate(next)) return true; }
         catch (error) { if (requestId === activeRequest.current && element.dataset.requestId === String(requestId)) await restorePrevious(); throw error; }
       }
       if (requestId === activeRequest.current && element.dataset.requestId === String(requestId)) await restorePrevious();
+      return false;
     }
-    catch (error) { if (requestId === activeRequest.current) showToast(error instanceof Error ? error.message : t.failed); }
+    catch (error) { if (requestId === activeRequest.current) showToast(error instanceof Error ? error.message : t.failed); return false; }
     finally { if (requestId === activeRequest.current) { setResolving(false); setPendingTrack(null); requestedTrack.current = null; } }
-  }, [resolveTrack, showToast, t.failed, user?.volume]);
-  const playRelative = useCallback((direction: 1 | -1) => { if (!queue.length) return; const base = requestedTrack.current || current; const index = base ? queue.findIndex(item => item.id === base.id) : -1; let next = index + direction; if (user?.playMode === 'shuffle') next = Math.floor(Math.random() * queue.length); if (next < 0) next = queue.length - 1; if (next >= queue.length) next = 0; void playTrack(queue[next]); }, [queue, current, user?.playMode, playTrack]);
-  const togglePlay = useCallback(() => { const element = audio.current; if (!element) return; if (!current && queue[0]) return void playTrack(queue[0]); if (element.paused) void element.play(); else element.pause(); }, [current, queue, playTrack]);
+  }, [resolveTrack, showToast, t.failed, user?.playMode, user?.volume]);
+  const playFromQueue = useCallback((item: Track, sourceQueue: Track[]) => { playbackQueue.current.reset(sourceQueue.map(normalizeTrack), item.id); return playTrack(item); }, [playTrack]);
+  const playRelative = useCallback(async (direction: 1 | -1) => {
+    if (!playbackQueue.current.size && queue.length) playbackQueue.current.reset(queue.map(normalizeTrack), (requestedTrack.current || current || queue[0]).id);
+    const attempts = playbackQueue.current.size; if (!attempts) return;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const next = playbackQueue.current.move(direction, user?.playMode || 'list'); if (!next) return;
+      if (await playTrack(next)) return;
+      playbackQueue.current.drop(next.id);
+    }
+  }, [queue, current, user?.playMode, playTrack]);
+  const togglePlay = useCallback(() => { const element = audio.current; if (!element) return; if (!current && queue[0]) return void playFromQueue(queue[0], queue); if (element.paused) void element.play(); else element.pause(); }, [current, queue, playFromQueue]);
   useEffect(() => {
-    if (!queue.length) return;
-    const base = requestedTrack.current || current; const index = base ? queue.findIndex(item => item.id === base.id) : -1;
-    const candidates = index >= 0 ? [queue[(index + 1) % queue.length], queue[(index - 1 + queue.length) % queue.length]] : queue.slice(0, 2);
-    candidates.filter((item): item is Track => Boolean(item && item.id !== base?.id)).forEach(item => { void warmTrack(item); });
-  }, [queue, current, warmTrack]);
+    const candidates = [playbackQueue.current.peek(1, user?.playMode || 'list'), playbackQueue.current.peek(-1, user?.playMode || 'list')];
+    candidates.filter((item): item is Track => Boolean(item && item.id !== current?.id)).forEach(item => { void warmTrack(item); });
+  }, [current, user?.playMode, warmTrack]);
+  useEffect(() => { if (audio.current) audio.current.loop = user?.playMode === 'loop'; }, [user?.playMode]);
+  useEffect(() => updateMediaMetadata(current, resolved), [current, resolved]);
+  useEffect(() => installMediaSessionControls({
+    play: () => { if (audio.current?.paused) void audio.current.play(); },
+    pause: () => audio.current?.pause(),
+    next: () => { void playRelative(1); }, previous: () => { void playRelative(-1); },
+    seek: time => { if (audio.current) audio.current.currentTime = Math.min(Math.max(0, time), Number.isFinite(audio.current.duration) ? audio.current.duration : time); },
+    seekBy: offset => { if (audio.current) audio.current.currentTime = Math.max(0, audio.current.currentTime + offset); },
+  }), [playRelative]);
+  useEffect(() => {
+    let frame = 0; let lastUpdate = 0;
+    const sync = () => {
+      const element = audio.current; if (!element || element.dataset.trackId !== committedTrackId.current) return;
+      if (pendingLyricSeek.current === null) setCurrentTime(element.currentTime);
+      if (Number.isFinite(element.duration)) setDuration(element.duration);
+      setPlaying(!element.paused && !element.ended); syncMediaSession(element, !element.paused && !element.ended);
+    };
+    const tick = (stamp: number) => { frame = 0; if (stamp - lastUpdate >= 200) { lastUpdate = stamp; sync(); } if (playing && document.visibilityState === 'visible') frame = requestAnimationFrame(tick); };
+    const visibility = () => { if (frame) { cancelAnimationFrame(frame); frame = 0; } sync(); if (document.visibilityState === 'visible' && playing) frame = requestAnimationFrame(tick); };
+    sync(); if (playing && document.visibilityState === 'visible') frame = requestAnimationFrame(tick);
+    document.addEventListener('visibilitychange', visibility); window.addEventListener('focus', sync);
+    return () => { cancelAnimationFrame(frame); document.removeEventListener('visibilitychange', visibility); window.removeEventListener('focus', sync); };
+  }, [playing]);
   const applyPendingLyricSeek = useCallback((element: HTMLAudioElement) => {
     const requested = pendingLyricSeek.current; if (requested === null || element.readyState < 1) return;
     const target = Number.isFinite(element.duration) && element.duration > 0 ? Math.min(requested, Math.max(0, element.duration - .05)) : requested;
     if (target !== requested) { pendingLyricSeek.current = target; setLyricSeekTarget(target); }
-    try { const fastSeek = (element as HTMLAudioElement & { fastSeek?: (value: number) => void }).fastSeek; if (typeof fastSeek === 'function') fastSeek.call(element, target); else element.currentTime = target; }
-    catch { /* loadedmetadata/canplay will retry while the target remains pending */ }
+    try { element.currentTime = target; }
+    catch {
+      try { const fastSeek = (element as HTMLAudioElement & { fastSeek?: (value: number) => void }).fastSeek; if (typeof fastSeek === 'function') fastSeek.call(element, target); }
+      catch { /* loadedmetadata/canplay will retry while the target remains pending */ }
+    }
   }, []);
   const finishLyricSeek = useCallback((element: HTMLAudioElement) => {
     const target = pendingLyricSeek.current; if (target === null || Math.abs(element.currentTime - target) > 1.5) return false;
-    pendingLyricSeek.current = null; setLyricSeekTarget(null); if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current); lyricSeekTimer.current = null; setCurrentTime(element.currentTime); return true;
+    pendingLyricSeek.current = null; pendingLyricLine.current = null; setLyricSeekTarget(null); if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current); lyricSeekTimer.current = null; setCurrentTime(element.currentTime); return true;
   }, []);
-  const seekToLyric = (time: number) => {
+  const seekToLyric = (time: number, index: number, estimated = false) => {
     const element = audio.current; if (!Number.isFinite(time) || !element || !element.currentSrc) return;
-    const sequence = ++lyricSeekSequence.current; pendingLyricSeek.current = time; setLyricSeekTarget(time); setCurrentTime(time); applyPendingLyricSeek(element);
+    const sequence = ++lyricSeekSequence.current; pendingLyricSeek.current = time; pendingLyricLine.current = index; centerLyricLine(index, 'auto'); setLyricSeekTarget(time); setCurrentTime(time); setLyricFollowing(true); applyPendingLyricSeek(element);
+    if (estimated) showToast(t.estimatedLyricToast);
     if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current);
-    lyricSeekTimer.current = window.setTimeout(() => { const active = audio.current; if (sequence !== lyricSeekSequence.current || !active || pendingLyricSeek.current === null) return; applyPendingLyricSeek(active); window.setTimeout(() => { const latest = audio.current; if (sequence !== lyricSeekSequence.current || !latest || pendingLyricSeek.current === null || finishLyricSeek(latest)) return; pendingLyricSeek.current = null; setLyricSeekTarget(null); setCurrentTime(latest.currentTime); showToast(t.seekUnsupported); }, 900); }, 11_000);
+    lyricSeekTimer.current = window.setTimeout(() => { const active = audio.current; if (sequence !== lyricSeekSequence.current || !active || pendingLyricSeek.current === null) return; applyPendingLyricSeek(active); window.setTimeout(() => { const latest = audio.current; if (sequence !== lyricSeekSequence.current || !latest || pendingLyricSeek.current === null || finishLyricSeek(latest)) return; pendingLyricSeek.current = null; pendingLyricLine.current = null; setLyricSeekTarget(null); setCurrentTime(latest.currentTime); showToast(t.seekUnsupported); }, 900); }, 11_000);
   };
 
   const toggleFavorite = async (item: Track) => { try { if (favoriteIds.has(item.id)) await api(`/api/favorites/${encodeURIComponent(item.id)}`, json('DELETE')); else await api('/api/favorites', json('POST', item)); await refreshLibrary(); showToast(favoriteIds.has(item.id) ? '已取消收藏' : '已添加到收藏'); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } };
   const setPreference = async (patch: Partial<Pick<User, 'language' | 'volume' | 'playMode'>>) => { if (!user) return; setUser({ ...user, ...patch }); await api<{ user: User }>('/api/auth/preferences', json('PATCH', patch)).catch(() => undefined); };
+  const installApp = async () => { if (!installPrompt) return; await installPrompt.prompt(); const choice = await installPrompt.userChoice; if (choice.outcome === 'accepted') setInstallPrompt(null); };
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -293,21 +364,21 @@ export default function App() {
         <form className="search-box" onSubmit={event => { event.preventDefault(); void doSearch(); }}><span>🔍</span><input aria-label={t.placeholder} value={query} onChange={event => setQuery(event.target.value)} placeholder={t.placeholder}/><button className="btn gold" disabled={searching}>{searching ? '…' : t.search}</button></form>
         <div className="source-grid">{SOURCES.map(source => <label key={source} className={sources.includes(source) ? 'checked' : ''} style={{ '--source-color': sourceColors[source] } as React.CSSProperties}><input type="checkbox" checked={sources.includes(source)} onChange={() => setSources(currentSources => currentSources.includes(source) ? currentSources.filter(v => v !== source) : [...currentSources, source])}/><i/>{sourceNames[source]}</label>)}</div>
         <div className="load-row"><span>{t.each}</span><select value={limit} onChange={event => setLimit(Number(event.target.value))}><option>5</option><option>10</option><option>20</option><option>30</option></select><span>首结果</span><button className="btn ghost" onClick={() => void doSearch(true)}>{t.more}</button></div>
-        <div className="search-mini-list">{!results.length ? <div className="empty-state"><span>✦</span><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.slice(0, 14).map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playTrack(item)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
+        <div className="search-mini-list">{!results.length ? <div className="empty-state"><span>✦</span><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.slice(0, 14).map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
       </section>
 
       <section className="player-panel panel">
-        <div className="panel-heading player-heading"><h2><span>🎧</span>{t.now}</h2><small>{resolving && pendingTrack ? `${t.loadingTrack}：${pendingTrack.title}` : resolved?.fallback ? t.playingFallback : t.lyricFx}</small></div>
+        <div className="panel-heading player-heading"><h2><span>🎧</span>{t.now}</h2><small>{resolving && pendingTrack ? `${t.loadingTrack}：${pendingTrack.title}` : resolved?.fallback ? t.playingFallback : lyrics.length && !hasTimedLyrics ? findingTimedLyricsFor === current?.id ? t.findingTimedLyrics : t.estimatedLyricHint : t.lyricFx}</small></div>
         <div className="now-card" data-track-id={current?.id || ''} data-pending-track-id={pendingTrack?.id || ''}>
           <div className={`record-wrap ${playing ? 'spinning' : ''}`}><div className="record">{displayTrack?.coverUrl ? <img src={displayTrack.coverUrl} alt=""/> : <div className="record-center"/>}</div></div>
           <div className="track-hero"><h3>{displayTrack?.title || t.noTrack}</h3><p>{displayTrack ? `${displayTrack.artist}${resolved?.fallback ? ` · ${sourceNames[resolved.actualSource]}` : ''}` : t.pick}</p>
             <div className="progress-row"><time>{formatTime(currentTime)}</time><input type="range" min="0" max={duration || 0} step="0.1" value={Math.min(currentTime, duration || 0)} onChange={event => { if (audio.current) audio.current.currentTime = Number(event.target.value); }}/><time>{formatTime(duration)}</time></div>
-            <div className="transport"><button onClick={() => playRelative(-1)}>⏮</button><button className="play-main" onClick={togglePlay}>{resolving ? '…' : playing ? '❚❚' : '▶'}</button><button onClick={() => playRelative(1)}>⏭</button><span className="volume">🔊<input aria-label="音量" type="range" min="0" max="1" step="0.01" value={user.volume} onChange={event => { const volume = Number(event.target.value); if (audio.current) audio.current.volume = volume; void setPreference({ volume }); }}/></span></div>
+            <div className="transport"><button onClick={() => void playRelative(-1)}>⏮</button><button className="play-main" onClick={togglePlay}>{resolving ? '…' : playing ? '❚❚' : '▶'}</button><button onClick={() => void playRelative(1)}>⏭</button><span className="volume">🔊<input aria-label="音量" type="range" min="0" max="1" step="0.01" value={user.volume} onChange={event => { const volume = Number(event.target.value); if (audio.current) audio.current.volume = volume; void setPreference({ volume }); }}/></span></div>
           </div>
           <div className="hero-actions"><button className={current && favoriteIds.has(current.id) ? 'active' : ''} onClick={() => current && void toggleFavorite(current)}>♥</button><button onClick={() => current && window.open(`/api/tracks/${encodeURIComponent(current.id)}/download`, '_blank')}>⬇</button><span>{resolving && pendingTrack ? `${t.loadingTrack} ${pendingTrack.title}` : playing ? '播放中' : '空闲'}</span></div>
         </div>
-        <div className="lyrics"><div className="lyrics-effects" aria-hidden="true"/>{lyricSeekTarget !== null && <div className="lyric-seek-status" role="status">{t.seeking} {formatTime(lyricSeekTarget)}…</div>}<div className={`lyrics-scroll ${lyrics.length ? '' : 'is-empty'}`} ref={lyricBox}>{lyrics.length ? lyrics.map((line, index) => { const seekable = Number.isFinite(line.time); return <button type="button" key={`${line.time}-${index}`} data-line={index} data-seekable={seekable} className={`lyric-line ${index === activeLyric ? 'active' : ''}`} aria-label={seekable ? `${formatTime(line.time)} ${line.text}` : line.text} title={seekable ? `${t.seekTo} ${formatTime(line.time)}` : undefined} onClick={() => seekToLyric(line.time)}><time aria-hidden="true">{seekable ? formatTime(line.time) : ''}</time><span>{line.text}</span></button>; }) : <div className="empty-lyrics"><span>♫</span>{t.emptyLyrics}</div>}</div></div>
-        <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) setPlaying(true); }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) setPlaying(false); }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; setCurrentTime(element.currentTime); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; if (user.playMode === 'loop' && audio.current) { audio.current.currentTime = 0; void audio.current.play(); } else playRelative(1); }}/>
+        <div className="lyrics"><div className="lyrics-effects" aria-hidden="true"/>{lyricSeekTarget !== null && <div className="lyric-seek-status" role="status">{t.seeking} {formatTime(lyricSeekTarget)}…</div>}{!lyricFollowing && activeLyric >= 0 && <button className="lyric-follow-button" onClick={() => { setLyricFollowing(true); centerActiveLyric(); }}>{t.returnToLyric}</button>}<div className={`lyrics-scroll ${lyrics.length ? '' : 'is-empty'}`} ref={lyricBox} onPointerDown={event => { if (event.pointerType === 'mouse' && event.target === event.currentTarget && lyrics.length) setLyricFollowing(false); }} onTouchMove={() => lyrics.length && setLyricFollowing(false)} onWheel={() => lyrics.length && setLyricFollowing(false)}>{lyrics.length ? lyrics.map((line, index) => { const exact = Number.isFinite(line.time); const targetTime = exact ? line.time : estimateUntimedLyricTime(index, lyrics.length, duration, untimedLyricStart); const seekable = Number.isFinite(targetTime); return <button type="button" key={`${line.time}-${index}`} data-line={index} data-seekable={seekable} data-estimated={!exact && seekable} className={`lyric-line ${index === activeLyric ? 'active' : ''}`} aria-label={seekable ? `${exact ? '' : '约 '}${formatTime(targetTime)} ${line.text}` : line.text} title={seekable ? `${exact ? t.seekTo : t.estimatedSeekTo} ${formatTime(targetTime)}` : undefined} onClick={() => seekToLyric(targetTime, index, !exact)}><time aria-hidden="true">{seekable ? `${exact ? '' : '≈'}${formatTime(targetTime)}` : ''}</time><span>{line.text}</span></button>; }) : <div className="empty-lyrics"><span>♫</span>{t.emptyLyrics}</div>}</div></div>
+        <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { setPlaying(true); syncMediaSession(event.currentTarget, true); } }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { setPlaying(false); syncMediaSession(event.currentTarget, false); } }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; setCurrentTime(element.currentTime); syncMediaSession(element, !element.paused && !element.ended); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); syncMediaSession(event.currentTarget, !event.currentTarget.paused && !event.currentTarget.ended); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; void playRelative(1); }}/>
       </section>
 
       <section className="playlist-panel panel">
@@ -318,10 +389,10 @@ export default function App() {
           {tab === 'playlists' && <div><button title={t.newList} onClick={() => setCreateOpen(true)}>＋</button><button title={t.import} onClick={() => { setImportOpen(true); setImportJob(null); }}>⇩</button><button title={t.backup} onClick={() => void exportBackup()}>⤓</button><label className="icon-upload" title={t.restoreData}>⤒<input type="file" accept="application/json" onChange={event => event.target.files?.[0] && void restoreBackup(event.target.files[0])}/></label>{selectedPlaylist?.source && <button title={t.sync} onClick={() => void syncPlaylist()}>↻</button>}</div>}
         </div>
         <div className="playlist-content">
-          {tab === 'results' && (results.length ? results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playTrack(item)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>⌁</span><p>{t.empty}</p></div>)}
-          {tab === 'favorites' && (favorites.length ? favorites.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite onPlay={() => void playTrack(item)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>♡</span><p>{t.empty}</p></div>)}
+          {tab === 'results' && (results.length ? results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>⌁</span><p>{t.empty}</p></div>)}
+          {tab === 'favorites' && (favorites.length ? favorites.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite onPlay={() => void playFromQueue(item, favorites)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>♡</span><p>{t.empty}</p></div>)}
           {tab === 'playlists' && <>{playlists.length ? <div className="playlist-cards">{playlists.map(item => <button key={item.id} className={selectedPlaylist?.id === item.id ? 'active' : ''} onClick={() => void openPlaylist(item)}>{item.coverUrl ? <img src={item.coverUrl} alt=""/> : <span>♫</span>}<b>{item.name}</b><small>{item.trackCount} 首 {item.source ? `· ${sourceNames[item.source]}` : ''}</small></button>)}</div> : <div className="empty-state"><span>＋</span><p>{t.empty}</p></div>}
-            {selectedPlaylist && <><input className="playlist-search" value={playlistFilter} onChange={event => setPlaylistFilter(event.target.value)} placeholder={t.searchInList}/><div className="selected-tracks">{visiblePlaylistTracks.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} draggable onDragStart={() => { draggedTrack.current = item.id; }} onDrop={() => void reorder(item.id)} onPlay={() => void playTrack(item)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onRemove={() => void removeFromPlaylist(item.id)}/>)}</div></>}
+            {selectedPlaylist && <><input className="playlist-search" value={playlistFilter} onChange={event => setPlaylistFilter(event.target.value)} placeholder={t.searchInList}/><div className="selected-tracks">{visiblePlaylistTracks.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} draggable onDragStart={() => { draggedTrack.current = item.id; }} onDrop={() => void reorder(item.id)} onPlay={() => void playFromQueue(item, selectedPlaylist.tracks.filter(track => !track.excluded))} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onRemove={() => void removeFromPlaylist(item.id)}/>)}</div></>}
           </>}
         </div>
         <div className="play-modes"><button className={user.playMode === 'list' ? 'active' : ''} title={t.listMode} onClick={() => void setPreference({ playMode: 'list' })}>🔁</button><button className={user.playMode === 'loop' ? 'active' : ''} title={t.loopMode} onClick={() => void setPreference({ playMode: 'loop' })}>🔂</button><button className={user.playMode === 'shuffle' ? 'active' : ''} title={t.shuffleMode} onClick={() => void setPreference({ playMode: 'shuffle' })}>🔀</button><span>{modeLabel}</span></div>
@@ -332,7 +403,7 @@ export default function App() {
     {createOpen && <Modal title={t.newList} onClose={() => setCreateOpen(false)}><label className="modal-label">{t.name}<input autoFocus value={newName} onChange={event => setNewName(event.target.value)} onKeyDown={event => event.key === 'Enter' && void createPlaylist()}/></label><div className="modal-actions"><button className="btn ghost" onClick={() => setCreateOpen(false)}>{t.cancel}</button><button className="btn primary" onClick={() => void createPlaylist()}>{t.create}</button></div></Modal>}
     {importOpen && <Modal title={t.import} onClose={() => setImportOpen(false)} wide><div className="source-pickers">{SOURCES.map(source => <button key={source} className={importSource === source ? 'active' : ''} style={{ '--source-color': sourceColors[source] } as React.CSSProperties} onClick={() => setImportSource(source)}><i/>{sourceNames[source]}</button>)}</div><label className="modal-label">{t.publicLink}<input value={importInput} onChange={event => setImportInput(event.target.value)} placeholder="https://… 或数字 ID"/></label>{importJob && <div className={`import-progress ${importJob.status}`}><div><span style={{ width: `${importJob.progress}%` }}/></div><strong>{importJob.message}</strong><small>{importJob.processed}/{importJob.total || '?'} · {importJob.status}</small>{importJob.failures.length > 0 && <details><summary>失败详情</summary>{importJob.failures.map((item, i) => <p key={i}>{item.track ? `${item.track}: ` : ''}{item.reason}</p>)}</details>}</div>}<div className="modal-actions"><button className="btn ghost" onClick={() => setImportOpen(false)}>{t.close}</button><button className="btn primary" disabled={!importInput.trim() || importJob?.status === 'running'} onClick={() => void startImport()}>{importJob?.status === 'running' ? t.importing : t.startImport}</button></div></Modal>}
     {addTrack && <Modal title={t.add} onClose={() => setAddTrack(null)}><div className="add-list">{playlists.length ? playlists.map(item => <button key={item.id} onClick={() => void addToPlaylist(item.id)}><span>♫</span><b>{item.name}</b><small>{item.trackCount} 首</small></button>) : <p>{t.empty}</p>}</div><div className="modal-actions"><button className="btn ghost" onClick={() => setAddTrack(null)}>{t.cancel}</button><button className="btn primary" onClick={() => { setAddTrack(null); setCreateOpen(true); }}>{t.newList}</button></div></Modal>}
-    {accountOpen && <Modal title={t.settings} onClose={() => setAccountOpen(false)}><div className="account-card"><div className="avatar-large">{user.username.slice(0, 1).toUpperCase()}</div><h3>{user.username}</h3><p>{t.accountHint}</p><button className="btn ghost wide" onClick={async () => { const currentPassword = window.prompt('请输入当前密码'); if (!currentPassword) return; const newPassword = window.prompt('请输入新密码（8–72 位）'); if (!newPassword) return; try { await api('/api/auth/password', json('PATCH', { currentPassword, newPassword })); setUser(null); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } }}>{t.changePassword}</button><button className="btn ghost wide account-logout" onClick={async () => { await api('/api/auth/logout', json('POST')); setUser(null); }}>{t.logout}</button><button className="danger-link" onClick={async () => { const password = window.prompt('请输入当前密码以删除本地账户'); if (!password) return; try { await api('/api/auth/account', json('DELETE', { password })); setUser(null); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } }}>{t.deleteAccount}</button></div></Modal>}
+    {accountOpen && <Modal title={t.settings} onClose={() => setAccountOpen(false)}><div className="account-card"><div className="avatar-large">{user.username.slice(0, 1).toUpperCase()}</div><h3>{user.username}</h3><p>{t.accountHint}</p>{installPrompt && <button className="btn primary wide install-app" onClick={() => void installApp()}>{t.installApp}</button>}<button className="btn ghost wide" onClick={async () => { const currentPassword = window.prompt('请输入当前密码'); if (!currentPassword) return; const newPassword = window.prompt('请输入新密码（8–72 位）'); if (!newPassword) return; try { await api('/api/auth/password', json('PATCH', { currentPassword, newPassword })); setUser(null); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } }}>{t.changePassword}</button><button className="btn ghost wide account-logout" onClick={async () => { await api('/api/auth/logout', json('POST')); setUser(null); }}>{t.logout}</button><button className="danger-link" onClick={async () => { const password = window.prompt('请输入当前密码以删除本地账户'); if (!password) return; try { await api('/api/auth/account', json('DELETE', { password })); setUser(null); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } }}>{t.deleteAccount}</button></div></Modal>}
     {toast && <div className="toast" role="status">⚡ {toast}</div>}
   </div>;
 }
