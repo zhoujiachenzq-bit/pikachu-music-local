@@ -14,6 +14,7 @@ export interface Track {
   keyword?: string;
   displayIndex?: number;
   quality?: string | null;
+  canonicalKey?: string;
 }
 
 export interface ResolvedTrack extends Track {
@@ -21,6 +22,7 @@ export interface ResolvedTrack extends Track {
   lyric: string | null;
   actualSource: MusicSource;
   fallback: boolean;
+  backupProvider?: 'go-music-api';
   sourceUrl: string | null;
 }
 
@@ -71,11 +73,27 @@ export interface ImportJob {
   total: number;
   playlistId: string | null;
   message: string;
-  failures: Array<{ track?: string; reason: string }>;
+  failures: Array<{ trackId?: string; track?: string; reason: string }>;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface ApiErrorShape {
   error: { code: string; message: string; details?: unknown };
+}
+
+export interface RecommendedTrack extends Track {
+  rank: number;
+  score: number;
+  reason: string;
+  kind: 'familiar' | 'explore';
+}
+
+export interface DailyRecommendation {
+  id: string;
+  date: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  generatedAt: string | null;
+  message: string;
+  tracks: RecommendedTrack[];
 }

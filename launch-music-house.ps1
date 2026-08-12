@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $appUrl = 'http://127.0.0.1:3000/'
 $healthUrl = 'http://127.0.0.1:3000/api/health'
+$backupApiUrl = 'http://127.0.0.1:8080'
+$backupExecutable = Join-Path $projectRoot 'data\tools\go-music-api\go-music-api-loopback.exe'
 
 function Test-MusicHouse {
   try {
@@ -11,6 +13,23 @@ function Test-MusicHouse {
   } catch {
     return $false
   }
+}
+
+function Test-BackupMusicApi {
+  try {
+    $response = Invoke-WebRequest -UseBasicParsing -Uri "$backupApiUrl/api/v1/system/cookies" -TimeoutSec 2
+    return $response.StatusCode -eq 200
+  } catch {
+    return $false
+  }
+}
+
+if (Test-Path -LiteralPath $backupExecutable) {
+  if (-not (Test-BackupMusicApi)) {
+    Start-Process -FilePath $backupExecutable -WorkingDirectory (Split-Path $backupExecutable) -WindowStyle Hidden
+    for ($attempt = 0; $attempt -lt 20 -and -not (Test-BackupMusicApi); $attempt++) { Start-Sleep -Milliseconds 250 }
+  }
+  if (Test-BackupMusicApi) { $env:GO_MUSIC_API_URL = $backupApiUrl }
 }
 
 if (-not (Test-MusicHouse)) {

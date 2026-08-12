@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasTimedLyric, isAmbiguousFallback, matchScore, parsePlaylistInput, resolveTrackWithFallback, SourceError } from './sources.js';
+import { hasTimedLyric, isAmbiguousFallback, isLikelyKuwoRestrictionAudio, matchScore, parseLegacyKuwoSearch, parsePlaylistInput, resolveTrackWithFallback, SourceError } from './sources.js';
 import { createDatabase, setCached } from './db.js';
 import type { Track } from '../shared/types.js';
 
@@ -30,6 +30,10 @@ describe('cross-source match scoring', () => {
   it('does not auto-match unrelated songs', () => {
     expect(matchScore(base, { ...base, id: 'qq:3', source: 'qq', sourceTrackId: '3', title: '江南', artist: '其他歌手', duration: 200_000 })).toBeLessThan(.8);
   });
+  it('accepts a platform title with a descriptive suffix when artist matches exactly', () => {
+    const qualified = { ...base, title: `${base.title}-电影主题曲`, duration: 0 };
+    expect(matchScore(qualified, { ...base, id: 'qq:qualified', source: 'qq', sourceTrackId: 'qualified', duration: 0 })).toBeGreaterThanOrEqual(.8);
+  });
   it('does not treat the same exact song from two platforms as ambiguous', () => {
     const qq = { ...base, id: 'qq:2', source: 'qq' as const, sourceTrackId: '2' }; const kuwo = { ...base, id: 'kuwo:3', source: 'kuwo' as const, sourceTrackId: '3' };
     expect(isAmbiguousFallback({ candidate: qq, score: .9 }, { candidate: kuwo, score: .9 })).toBe(false);
@@ -37,11 +41,18 @@ describe('cross-source match scoring', () => {
   });
 });
 
+describe('Kuwo legacy search response', () => {
+  it('normalizes its object-literal payload without evaluating source text', () => {
+    const raw = `{'abslist':[{'DC_TARGETID':'474678847','DURATION':'210','NAME':'花海','ARTIST':'周杰伦','ALBUM':'魔杰座','payInfo':{'play':'0'}}]}`;
+    expect(parseLegacyKuwoSearch(raw)).toEqual([{ id: '474678847', title: '花海', artist: '周杰伦', album: '魔杰座', duration: 210000 }]);
+  });
+});
+
 describe('temporary playback cache', () => {
   it('reuses a resolved public media URL without contacting the source again', async () => {
     const db = createDatabase(':memory:');
     const input: Track = { id: 'netease:1', source: 'netease', sourceTrackId: '1', title: '修炼爱情', artist: '林俊杰', album: '', duration: 267_000, coverUrl: null, sourceUrl: null };
-    setCached(db, 'resolve:netease:1', { ...input, audioUrl: 'https://example.com/public.mp3', lyric: '[00:00.00]测试歌词', actualSource: 'netease', fallback: false }, 60_000);
+    setCached(db, 'resolve:v2:netease:1', { ...input, audioUrl: 'https://example.com/public.mp3', lyric: '[00:00.00]测试歌词', actualSource: 'netease', fallback: false }, 60_000);
     await expect(resolveTrackWithFallback(input, db)).resolves.toMatchObject({ audioUrl: 'https://example.com/public.mp3', lyric: '[00:00.00]测试歌词' });
     db.close();
   });
@@ -49,10 +60,18 @@ describe('temporary playback cache', () => {
   it('keeps reusable lyrics longer than the temporary media response', async () => {
     const db = createDatabase(':memory:');
     const input: Track = { id: 'netease:2', source: 'netease', sourceTrackId: '2', title: '缓存歌词', artist: '测试歌手', album: '', duration: 180_000, coverUrl: null, sourceUrl: null };
-    setCached(db, 'resolve:netease:2', { ...input, audioUrl: 'https://example.com/temporary.mp3', lyric: null, actualSource: 'netease', fallback: false }, 60_000);
+    setCached(db, 'resolve:v2:netease:2', { ...input, audioUrl: 'https://example.com/temporary.mp3', lyric: null, actualSource: 'netease', fallback: false }, 60_000);
     setCached(db, 'lyric:netease:2', { lyric: '[00:01.00]长期歌词缓存' }, 60_000);
     await expect(resolveTrackWithFallback(input, db)).resolves.toMatchObject({ lyric: '[00:01.00]长期歌词缓存' });
     db.close();
+  });
+});
+
+describe('Kuwo restriction prompt detection', () => {
+  it('rejects the known tiny platform-only prompt while retaining plausible songs', () => {
+    expect(isLikelyKuwoRestrictionAudio(181_521, 245_000)).toBe(true);
+    expect(isLikelyKuwoRestrictionAudio(3_920_000, 245_000)).toBe(false);
+    expect(isLikelyKuwoRestrictionAudio(684_440, 42_000)).toBe(false);
   });
 });
 

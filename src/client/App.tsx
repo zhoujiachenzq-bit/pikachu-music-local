@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { api, ApiError, json } from './api';
 import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyricCenterOffset, parseLrc } from './lyrics';
 import { installMediaSessionControls, syncMediaSession, updateMediaMetadata } from './mediaSession';
+import { ListeningTracker, type ListeningContext } from './listeningTracker';
 import { PlaybackCache } from './playerCache';
 import { PlaybackQueue } from './playerQueue';
-import { SOURCES, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
+import { SOURCES, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
+import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
 
 type Lang = 'zh' | 'en';
-type Tab = 'results' | 'favorites' | 'playlists';
+type Tab = 'daily' | 'results' | 'favorites' | 'playlists';
 interface BeforeInstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
 
 const sourceNames: Record<MusicSource, string> = { migu: '咪咕', netease: '网易云', qq: 'QQ', kuwo: '酷我' };
@@ -17,28 +19,32 @@ const copy = {
     shortcuts: '快捷键：Space 播放/暂停 · ←/→ 跳转 · ↑/↓ 音量 · N/P 切歌 · F 收藏',
     searchTitle: '歌曲搜索', supports: '支持咪咕 / 网易云 / QQ / 酷我', placeholder: '输入歌名 / 歌手，回车搜索…', search: '搜索', each: '每个源加载', more: '加载更多',
     idle: '尚未搜索，试试输入“林俊杰”？', now: '正在播放', lyricFx: '点击歌词定位 · 炫酷霓虹', pick: '搜索并播放一首歌吧！', noTrack: '暂未选择歌曲',
-    playlist: '播放列表', results: '搜索结果', favorites: '我的收藏', custom: '自建歌单', newList: '新建歌单', import: '导入歌单', backup: '备份', sync: '同步',
+    playlist: '播放列表', daily: '每日推荐', results: '搜索结果', favorites: '我的收藏', custom: '自建歌单', newList: '新建歌单', import: '导入歌单', backup: '备份', sync: '同步',
     emptyLyrics: '暂无歌词，试着播放一首支持歌词的歌曲。', empty: '这里还没有歌曲。', login: '登录', register: '注册', username: '用户名', password: '密码',
     createAccount: '创建本地账户', welcome: '欢迎回来', accountHint: '所有收藏与歌单只保存在这台电脑。', logout: '退出', settings: '账户设置', changePassword: '修改密码', deleteAccount: '删除账户',
     source: '音乐源', publicLink: '公开歌单链接或 ID', startImport: '开始导入', importing: '正在导入', close: '关闭', create: '创建', cancel: '取消', name: '歌单名称',
     add: '加入歌单', searchInList: '搜索歌单内歌曲…', exportData: '导出数据', restoreData: '恢复数据', footer: '本站仅作为学习演示，音乐版权归各平台与原作者所有。',
-    noResults: '没有找到歌曲，音乐源可能暂时不可用。', failed: '操作失败', playingFallback: '正在使用替代音源', loadingTrack: '正在缓冲', listMode: '列表循环', loopMode: '单曲循环', shuffleMode: '随机播放', seekTo: '定位到', estimatedSeekTo: '估算定位到', findingTimedLyrics: '正在从其他音乐源查找精确时间轴…', exactLyricFound: '已补充精确时间轴', estimatedLyricHint: '未找到精确时间轴，将从第一句歌词开始估算位置', estimatedLyricToast: '该歌词无时间轴，已从第一句歌词开始估算定位', seeking: '正在定位', seekUnsupported: '当前音源暂不支持时间定位', returnToLyric: '回到当前歌词', installApp: '安装音乐小屋'
+    noResults: '没有找到歌曲，音乐源可能暂时不可用。', failed: '操作失败', playingFallback: '正在使用替代音源', loadingTrack: '正在缓冲', listMode: '列表循环', loopMode: '单曲循环', shuffleMode: '随机播放', seekTo: '定位到', estimatedSeekTo: '估算定位到', findingTimedLyrics: '正在从其他音乐源查找精确时间轴…', exactLyricFound: '已补充精确时间轴', estimatedLyricHint: '未找到精确时间轴，将从第一句歌词开始估算位置', estimatedLyricToast: '该歌词无时间轴，已从第一句歌词开始估算定位', seeking: '正在定位', seekUnsupported: '当前音源暂不支持时间定位', returnToLyric: '回到当前歌词', installApp: '安装音乐小屋', generatingDaily: '正在生成今日 30 首…', notInterested: '不感兴趣', retryDaily: '重新生成', dailyHistory: '近 7 天'
   },
   en: {
     shortcuts: 'Shortcuts: Space play/pause · ←/→ seek · ↑/↓ volume · N/P track · F favorite',
     searchTitle: 'Song Search', supports: 'Migu / NetEase / QQ / Kuwo', placeholder: 'Song or artist, press Enter…', search: 'Search', each: 'Per source', more: 'Load more',
     idle: 'Search for something you love.', now: 'Now Playing', lyricFx: 'Click lyrics to seek · Neon glow', pick: 'Search and play a song!', noTrack: 'No track selected',
-    playlist: 'Playlists', results: 'Results', favorites: 'Favorites', custom: 'My Playlists', newList: 'Create', import: 'Import', backup: 'Backup', sync: 'Sync',
+    playlist: 'Playlists', daily: 'Daily', results: 'Results', favorites: 'Favorites', custom: 'My Playlists', newList: 'Create', import: 'Import', backup: 'Backup', sync: 'Sync',
     emptyLyrics: 'No lyrics available for this track.', empty: 'Nothing here yet.', login: 'Sign in', register: 'Register', username: 'Username', password: 'Password',
     createAccount: 'Create local account', welcome: 'Welcome back', accountHint: 'Favorites and playlists stay on this computer.', logout: 'Sign out', settings: 'Account', changePassword: 'Change password', deleteAccount: 'Delete account',
     source: 'Source', publicLink: 'Public playlist URL or ID', startImport: 'Import', importing: 'Importing', close: 'Close', create: 'Create', cancel: 'Cancel', name: 'Playlist name',
     add: 'Add to playlist', searchInList: 'Search in playlist…', exportData: 'Export', restoreData: 'Restore', footer: 'For learning only. Music rights belong to their platforms and creators.',
-    noResults: 'No tracks found. A source may be temporarily unavailable.', failed: 'Action failed', playingFallback: 'Using fallback source', loadingTrack: 'Buffering', listMode: 'List loop', loopMode: 'Repeat one', shuffleMode: 'Shuffle', seekTo: 'Seek to', estimatedSeekTo: 'Estimated seek to', findingTimedLyrics: 'Looking for an exact timeline from other sources…', exactLyricFound: 'Exact lyric timeline found', estimatedLyricHint: 'No exact timeline found; clicks use an estimated position', estimatedLyricToast: 'No lyric timeline; position was estimated from the line number', seeking: 'Seeking', seekUnsupported: 'This source does not currently support seeking', returnToLyric: 'Follow current lyric', installApp: 'Install Music Cottage'
+    noResults: 'No tracks found. A source may be temporarily unavailable.', failed: 'Action failed', playingFallback: 'Using fallback source', loadingTrack: 'Buffering', listMode: 'List loop', loopMode: 'Repeat one', shuffleMode: 'Shuffle', seekTo: 'Seek to', estimatedSeekTo: 'Estimated seek to', findingTimedLyrics: 'Looking for an exact timeline from other sources…', exactLyricFound: 'Exact lyric timeline found', estimatedLyricHint: 'No exact timeline found; clicks use an estimated position', estimatedLyricToast: 'No lyric timeline; position was estimated from the line number', seeking: 'Seeking', seekUnsupported: 'This source does not currently support seeking', returnToLyric: 'Follow current lyric', installApp: 'Install Music Cottage', generatingDaily: 'Generating today’s 30 tracks…', notInterested: 'Not interested', retryDaily: 'Regenerate', dailyHistory: 'Last 7 days'
   }
 } as const;
 
 function formatTime(value: number) {
   if (!Number.isFinite(value)) return '00:00'; const minutes = Math.floor(value / 60); const seconds = Math.floor(value % 60); return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function localDateKey(value = new Date()) {
+  const offset = value.getTimezoneOffset() * 60_000; return new Date(value.getTime() - offset).toISOString().slice(0, 10);
 }
 
 function normalizeTrack(value: Track): Track {
@@ -61,8 +67,9 @@ function disposeAudio(element: HTMLAudioElement) {
 }
 
 function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login'); const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
-  const submit = async (event: FormEvent) => { event.preventDefault(); setError(''); setBusy(true); try { const result = await api<{ user: User }>(`/api/auth/${mode}`, json('POST', { username, password })); onAuth(result.user); } catch (err) { setError(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); } };
+  const [mode, setMode] = useState<'login' | 'register'>('login'); const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [inviteCode, setInviteCode] = useState(''); const [registrationOpen, setRegistrationOpen] = useState(true); const [inviteRequired, setInviteRequired] = useState(false); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  useEffect(() => { api<{ registrationOpen: boolean; inviteRequired: boolean }>('/api/config').then(value => { setRegistrationOpen(value.registrationOpen); setInviteRequired(value.inviteRequired); }).catch(() => undefined); }, []);
+  const submit = async (event: FormEvent) => { event.preventDefault(); setError(''); setBusy(true); try { const result = await api<{ user: User }>(`/api/auth/${mode}`, json('POST', { username, password, ...(mode === 'register' && inviteRequired ? { inviteCode } : {}) })); onAuth(result.user); } catch (err) { setError(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); } };
   return <main className="auth-shell">
     <div className="aurora aurora-one"/><div className="aurora aurora-two"/>
     <section className="auth-card panel">
@@ -71,24 +78,25 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
       <form onSubmit={submit}>
         <label>{copy.zh.username}<input autoFocus value={username} onChange={e => setUsername(e.target.value)} minLength={2} maxLength={24} autoComplete="username"/></label>
         <label>{copy.zh.password}<input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength={8} maxLength={72} autoComplete={mode === 'login' ? 'current-password' : 'new-password'}/></label>
+        {mode === 'register' && inviteRequired && <label>邀请码<input value={inviteCode} onChange={event => setInviteCode(event.target.value)} autoComplete="off"/></label>}
         {error && <div className="form-error" role="alert">{error}</div>}
         <button className="btn primary wide" disabled={busy}>{busy ? '…' : mode === 'login' ? copy.zh.login : copy.zh.register}</button>
       </form>
-      <button className="text-button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{mode === 'login' ? '没有账户？创建一个' : '已有账户？返回登录'}</button>
+      {(mode === 'register' || registrationOpen) && <button className="text-button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{mode === 'login' ? '没有账户？创建一个' : '已有账户？返回登录'}</button>}
     </section>
   </main>;
 }
 
-function TrackRow({ item, active, pending, draggable, onPlay, onWarm, onFavorite, favorite, onAdd, onRemove, onDragStart, onDrop }: {
-  item: Track; active?: boolean; pending?: boolean; draggable?: boolean; favorite?: boolean; onPlay: () => void; onWarm?: () => void; onFavorite: () => void; onAdd?: () => void; onRemove?: () => void; onDragStart?: () => void; onDrop?: () => void;
+function TrackRow({ item, active, pending, draggable, onPlay, onWarm, onFavorite, favorite, onAdd, onRemove, onDislike, reason, onDragStart, onDrop }: {
+  item: Track; active?: boolean; pending?: boolean; draggable?: boolean; favorite?: boolean; reason?: string; onPlay: () => void; onWarm?: () => void; onFavorite: () => void; onAdd?: () => void; onRemove?: () => void; onDislike?: () => void; onDragStart?: () => void; onDrop?: () => void;
 }) {
   return <div className={`track-row ${active ? 'active' : ''} ${pending ? 'pending' : ''}`} draggable={draggable} onDragStart={onDragStart} onDragOver={event => draggable && event.preventDefault()} onDrop={onDrop}>
     <button className="track-main" onClick={onPlay} onPointerEnter={onWarm} onFocus={onWarm} title="播放">
       <span className="track-source" style={{ '--source-color': sourceColors[item.source] } as React.CSSProperties}>{sourceNames[item.source].slice(0, 1)}</span>
-      <span className="track-copy"><strong>{item.title}</strong><small>{item.artist}{item.album ? ` · ${item.album}` : ''}</small></span>
+      <span className="track-copy"><strong>{item.title}</strong><small>{item.artist}{item.album ? ` · ${item.album}` : ''}{reason ? ` · ${reason}` : ''}</small></span>
       {item.duration > 0 && <time>{formatTime(item.duration / 1000)}</time>}
     </button>
-    <div className="row-actions"><button onClick={onFavorite} aria-label="收藏">{favorite ? '♥' : '♡'}</button>{onAdd && <button onClick={onAdd} aria-label="加入歌单">＋</button>}{onRemove && <button onClick={onRemove} aria-label="移除">×</button>}</div>
+    <div className="row-actions"><button onClick={onFavorite} aria-label="收藏">{favorite ? '♥' : '♡'}</button>{onAdd && <button onClick={onAdd} aria-label="加入歌单">＋</button>}{onDislike && <button onClick={onDislike} aria-label="不感兴趣">⊘</button>}{onRemove && <button onClick={onRemove} aria-label="移除">×</button>}</div>
   </div>;
 }
 
@@ -100,14 +108,20 @@ export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined); const lang: Lang = user?.language || 'zh'; const t = copy[lang];
   const [query, setQuery] = useState(''); const [sources, setSources] = useState<MusicSource[]>([...SOURCES]); const [limit, setLimit] = useState(10); const [results, setResults] = useState<Track[]>([]); const [searching, setSearching] = useState(false); const [searchErrors, setSearchErrors] = useState<Record<string, string>>({});
   const [favorites, setFavorites] = useState<Track[]>([]); const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]); const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistDetail | null>(null); const [tab, setTab] = useState<Tab>('results'); const [playlistFilter, setPlaylistFilter] = useState('');
+  const [daily, setDaily] = useState<DailyRecommendation | null>(null); const [dailyFallback, setDailyFallback] = useState<DailyRecommendation | null>(null); const [dailyHistory, setDailyHistory] = useState<DailyRecommendation[]>([]); const [dailyDate, setDailyDate] = useState(localDateKey()); const [dailyLoading, setDailyLoading] = useState(false); const [dailyRefresh, setDailyRefresh] = useState(0);
   const [current, setCurrent] = useState<Track | null>(null); const [pendingTrack, setPendingTrack] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null); const [lyricFollowing, setLyricFollowing] = useState(true); const [findingTimedLyricsFor, setFindingTimedLyricsFor] = useState<string | null>(null); const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [createOpen, setCreateOpen] = useState(false); const [newName, setNewName] = useState(''); const [importOpen, setImportOpen] = useState(false); const [importSource, setImportSource] = useState<MusicSource>('netease'); const [importInput, setImportInput] = useState(''); const [importJob, setImportJob] = useState<ImportJob | null>(null); const [accountOpen, setAccountOpen] = useState(false); const [addTrack, setAddTrack] = useState<Track | null>(null);
-  const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
+  const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const recoveringTrackId = useRef<string | null>(null); const importStream = useRef<EventSource | null>(null); const importReconnectTimer = useRef<number | null>(null); const dailyPollTimer = useRef<number | null>(null); const handledDailyRefresh = useRef(0); const queueContext = useRef<ListeningContext>({ type: 'unknown' }); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
+  const listeningTracker = useMemo(() => new ListeningTracker(payload => {
+    void fetch('/api/listening-sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => undefined);
+  }), []);
   const lyrics = useMemo(() => parseLrc(resolved?.lyric || null), [resolved?.lyric]);
   const activeLyric = useMemo(() => findActiveLyric(lyrics, currentTime), [lyrics, currentTime]);
   const hasTimedLyrics = useMemo(() => lyrics.some(line => Number.isFinite(line.time)), [lyrics]);
   const untimedLyricStart = useMemo(() => findUntimedLyricStart(lyrics), [lyrics]);
   const favoriteIds = useMemo(() => new Set(favorites.map(item => item.id)), [favorites]);
+  const displayedDaily = daily?.status === 'completed' ? daily : dailyFallback;
+  const dailyTracks = displayedDaily?.tracks || [];
 
   const showToast = useCallback((message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2600); }, []);
   const refreshLibrary = useCallback(async () => {
@@ -150,7 +164,24 @@ export default function App() {
   }, []);
   useEffect(() => { if (user) refreshLibrary().catch(() => undefined); }, [user, refreshLibrary]);
   useEffect(() => {
-    if (!current || !resolved || !lyrics.length || hasTimedLyrics || timedLyricLookups.current.has(current.id)) return;
+    if (!user || tab !== 'daily') return;
+    let cancelled = false; const regenerate = dailyRefresh > handledDailyRefresh.current; handledDailyRefresh.current = dailyRefresh;
+    const poll = async (force = false) => {
+      try {
+        setDailyLoading(true);
+        const result = await api<{ daily: DailyRecommendation | null; fallback: DailyRecommendation | null }>(`/api/recommendations/daily?date=${dailyDate}${force ? '&regenerate=true' : ''}`);
+        if (cancelled) return; setDaily(result.daily); setDailyFallback(result.fallback);
+        if (result.daily?.status === 'completed') {
+          setDailyLoading(false); const history = await api<{ history: DailyRecommendation[] }>('/api/recommendations/history'); if (!cancelled) setDailyHistory(history.history); return;
+        }
+        dailyPollTimer.current = window.setTimeout(() => { void poll(false); }, 2000);
+      } catch (error) { if (!cancelled) { setDailyLoading(false); showToast(error instanceof Error ? error.message : t.failed); } }
+    };
+    void poll(regenerate);
+    return () => { cancelled = true; if (dailyPollTimer.current !== null) window.clearTimeout(dailyPollTimer.current); dailyPollTimer.current = null; };
+  }, [dailyDate, dailyRefresh, showToast, t.failed, tab, user?.id]);
+  useEffect(() => {
+    if (!current || !resolved || hasTimedLyrics || timedLyricLookups.current.has(current.id)) return;
     const trackId = current.id; let cancelled = false; timedLyricLookups.current.add(trackId); setFindingTimedLyricsFor(trackId);
     api<{ lyric: string | null; actualSource: MusicSource; exact: boolean }>(`/api/tracks/${encodeURIComponent(trackId)}/lyrics`)
       .then(result => {
@@ -182,8 +213,15 @@ export default function App() {
   }, [user?.id]);
   useEffect(() => () => {
     if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current);
+    if (importReconnectTimer.current !== null) window.clearTimeout(importReconnectTimer.current);
+    if (dailyPollTimer.current !== null) window.clearTimeout(dailyPollTimer.current);
+    importStream.current?.close(); importStream.current = null;
     warmedAudio.current.forEach(entry => disposeAudio(entry.element)); warmedAudio.current.clear();
   }, []);
+  useEffect(() => {
+    const finish = () => listeningTracker.finish('pagehide');
+    window.addEventListener('pagehide', finish); return () => { window.removeEventListener('pagehide', finish); finish(); };
+  }, [listeningTracker, user?.id]);
 
   const doSearch = async (append = false) => {
     if (!query.trim() || !sources.length) return; setSearching(true); if (!append) { setResults([]); setSearchErrors({}); }
@@ -191,7 +229,7 @@ export default function App() {
     catch (error) { showToast(error instanceof Error ? error.message : t.failed); } finally { setSearching(false); }
   };
 
-  const queue = useMemo(() => tab === 'favorites' ? favorites : tab === 'playlists' && selectedPlaylist ? selectedPlaylist.tracks.filter(item => !item.excluded) : results, [tab, favorites, selectedPlaylist, results]);
+  const queue = useMemo(() => tab === 'daily' ? dailyTracks : tab === 'favorites' ? favorites : tab === 'playlists' && selectedPlaylist ? selectedPlaylist.tracks.filter(item => !item.excluded) : results, [tab, dailyTracks, favorites, selectedPlaylist, results]);
   const resolveTrack = useCallback((item: Track, refresh = false) => {
     const normalized = normalizeTrack(item); const requestKey = refresh ? `${normalized.id}:refresh` : normalized.id;
     if (!refresh) { const cached = playbackCache.getResolved(normalized.id); if (cached) return Promise.resolve(cached); }
@@ -238,6 +276,7 @@ export default function App() {
         await ready;
         if (requestId !== activeRequest.current) { if (element.dataset.requestId === String(requestId)) await restorePrevious(); return false; }
         element.volume = user?.volume ?? 0.8; element.loop = user?.playMode === 'loop'; element.dataset.trackId = normalized.id; committedTrackId.current = normalized.id;
+        listeningTracker.start(normalized.id, queueContext.current, candidate.actualSource, Number.isFinite(element.duration) ? element.duration * 1000 : normalized.duration);
         setCurrent(normalized); setResolved(candidate); setCurrentTime(0); setDuration(Number.isFinite(element.duration) ? element.duration : 0); setPendingTrack(null); requestedTrack.current = null; setResolving(false); setPlaying(false); setLyricFollowing(true);
         const playAttempt = element.play().then(() => ({ ok: true as const })).catch(error => ({ ok: false as const, error }));
         void playAttempt.then(result => { if (requestId !== activeRequest.current) return; if (result.ok) { setPlaying(true); return; } if ((result.error as DOMException)?.name !== 'AbortError') showToast('歌曲已加载，点击播放按钮即可继续。'); });
@@ -256,8 +295,11 @@ export default function App() {
     }
     catch (error) { if (requestId === activeRequest.current) showToast(error instanceof Error ? error.message : t.failed); return false; }
     finally { if (requestId === activeRequest.current) { setResolving(false); setPendingTrack(null); requestedTrack.current = null; } }
-  }, [resolveTrack, showToast, t.failed, user?.playMode, user?.volume]);
-  const playFromQueue = useCallback((item: Track, sourceQueue: Track[]) => { playbackQueue.current.reset(sourceQueue.map(normalizeTrack), item.id); return playTrack(item); }, [playTrack]);
+  }, [listeningTracker, resolveTrack, showToast, t.failed, user?.playMode, user?.volume]);
+  const playFromQueue = useCallback((item: Track, sourceQueue: Track[], context?: ListeningContext) => {
+    queueContext.current = context || (sourceQueue === favorites ? { type: 'favorites' } : sourceQueue === results ? { type: 'search', id: query.trim() || null } : selectedPlaylist ? { type: 'playlist', id: selectedPlaylist.id } : { type: 'unknown' });
+    playbackQueue.current.reset(sourceQueue.map(normalizeTrack), item.id); return playTrack(item);
+  }, [favorites, playTrack, query, results, selectedPlaylist]);
   const playRelative = useCallback(async (direction: 1 | -1) => {
     if (!playbackQueue.current.size && queue.length) playbackQueue.current.reset(queue.map(normalizeTrack), (requestedTrack.current || current || queue[0]).id);
     const attempts = playbackQueue.current.size; if (!attempts) return;
@@ -267,6 +309,35 @@ export default function App() {
       playbackQueue.current.drop(next.id);
     }
   }, [queue, current, user?.playMode, playTrack]);
+  const recoverPlayback = useCallback(async (element: HTMLAudioElement) => {
+    const track = current;
+    if (!track || element.dataset.trackId !== committedTrackId.current || recoveringTrackId.current === track.id) return;
+    const failedAt = Number.isFinite(element.currentTime) ? element.currentTime : currentTime;
+    recoveringTrackId.current = track.id; setResolving(true);
+    try {
+      playbackCache.forgetResolved(track.id);
+      const refreshed = await resolveTrack(track, true);
+      if (committedTrackId.current !== track.id || current?.id !== track.id) return;
+      element.pause(); element.dataset.trackId = ''; element.src = refreshed.audioUrl;
+      const ready = waitForAudioReady(element, 8000); element.load(); await ready;
+      if (committedTrackId.current !== track.id) return;
+      element.dataset.trackId = track.id;
+      if (failedAt > 0 && Number.isFinite(element.duration)) {
+        try { element.currentTime = Math.min(failedAt, Math.max(0, element.duration - 0.25)); } catch { /* Some live URLs are not seekable. */ }
+      }
+      setResolved(refreshed); listeningTracker.setSource(refreshed.actualSource); setCurrentTime(element.currentTime || failedAt); setDuration(Number.isFinite(element.duration) ? element.duration : 0);
+      await element.play(); showToast('播放地址已刷新，已从中断位置继续。');
+    } catch (error) {
+      if (committedTrackId.current === track.id) {
+        listeningTracker.setError(error instanceof Error ? error.name || 'PLAYBACK_ERROR' : 'PLAYBACK_ERROR'); listeningTracker.finish('error');
+        showToast(error instanceof Error ? `当前歌曲恢复失败：${error.message}` : '当前歌曲恢复失败，正在跳过。');
+        void playRelative(1);
+      }
+    } finally {
+      if (recoveringTrackId.current === track.id) recoveringTrackId.current = null;
+      setResolving(false);
+    }
+  }, [current, currentTime, listeningTracker, playbackCache, playRelative, resolveTrack, showToast]);
   const togglePlay = useCallback(() => { const element = audio.current; if (!element) return; if (!current && queue[0]) return void playFromQueue(queue[0], queue); if (element.paused) void element.play(); else element.pause(); }, [current, queue, playFromQueue]);
   useEffect(() => {
     const candidates = [playbackQueue.current.peek(1, user?.playMode || 'list'), playbackQueue.current.peek(-1, user?.playMode || 'list')];
@@ -318,7 +389,15 @@ export default function App() {
   };
 
   const toggleFavorite = async (item: Track) => { try { if (favoriteIds.has(item.id)) await api(`/api/favorites/${encodeURIComponent(item.id)}`, json('DELETE')); else await api('/api/favorites', json('POST', item)); await refreshLibrary(); showToast(favoriteIds.has(item.id) ? '已取消收藏' : '已添加到收藏'); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } };
-  const setPreference = async (patch: Partial<Pick<User, 'language' | 'volume' | 'playMode'>>) => { if (!user) return; setUser({ ...user, ...patch }); await api<{ user: User }>('/api/auth/preferences', json('PATCH', patch)).catch(() => undefined); };
+  const setPreference = async (patch: Partial<Pick<User, 'language' | 'volume' | 'playMode'>>) => { if (!user) return; const previous = user; setUser({ ...user, ...patch }); try { const result = await api<{ user: User }>('/api/auth/preferences', json('PATCH', patch)); setUser(result.user); } catch (error) { setUser(previous); showToast(error instanceof Error ? error.message : t.failed); } };
+  const dislikeRecommendation = async (item: Track) => {
+    const canonicalKey = item.canonicalKey || canonicalTrackKey(item.title, item.artist);
+    try {
+      await api('/api/recommendations/feedback', json('POST', { canonicalKey, action: 'not_interested', artistKey: normalizeTrackText(item.artist) }));
+      const remove = (value: DailyRecommendation | null) => value ? { ...value, tracks: value.tracks.filter(track => (track.canonicalKey || canonicalTrackKey(track.title, track.artist)) !== canonicalKey) } : value;
+      setDaily(remove); setDailyFallback(remove); showToast(t.notInterested);
+    } catch (error) { showToast(error instanceof Error ? error.message : t.failed); }
+  };
   const installApp = async () => { if (!installPrompt) return; await installPrompt.prompt(); const choice = await installPrompt.userChoice; if (choice.outcome === 'accepted') setInstallPrompt(null); };
 
   useEffect(() => {
@@ -338,7 +417,30 @@ export default function App() {
   const removeFromPlaylist = async (trackId: string) => { if (!selectedPlaylist) return; await api(`/api/playlists/${selectedPlaylist.id}/tracks/${encodeURIComponent(trackId)}`, json('DELETE')); const result = await api<{ playlist: PlaylistDetail }>(`/api/playlists/${selectedPlaylist.id}`); setSelectedPlaylist(result.playlist); await refreshLibrary(); };
   const reorder = async (targetId: string) => { if (!selectedPlaylist || !draggedTrack.current || targetId === draggedTrack.current) return; const ids = selectedPlaylist.tracks.filter(i => !i.excluded).map(i => i.id); const from = ids.indexOf(draggedTrack.current); const to = ids.indexOf(targetId); ids.splice(to, 0, ids.splice(from, 1)[0]); const result = await api<{ playlist: PlaylistDetail }>(`/api/playlists/${selectedPlaylist.id}/reorder`, json('POST', { trackIds: ids })); setSelectedPlaylist(result.playlist); };
 
-  const watchImport = (job: ImportJob) => { setImportJob(job); const stream = new EventSource(`/api/imports/${job.id}/events`); stream.onmessage = async event => { const next = JSON.parse(event.data) as ImportJob; setImportJob(next); if (['completed', 'partial', 'failed'].includes(next.status)) { stream.close(); if (next.status !== 'failed') { await refreshLibrary(); if (next.playlistId) { const detail = await api<{ playlist: PlaylistDetail }>(`/api/playlists/${next.playlistId}`); setSelectedPlaylist(detail.playlist); setTab('playlists'); } } } }; stream.onerror = () => stream.close(); };
+  function watchImport(job: ImportJob, attempt = 0) {
+    setImportJob(job); importStream.current?.close();
+    if (importReconnectTimer.current !== null) window.clearTimeout(importReconnectTimer.current);
+    const finish = async (next: ImportJob) => {
+      setImportJob(next);
+      if (!['completed', 'partial', 'failed'].includes(next.status)) return false;
+      importStream.current?.close(); importStream.current = null;
+      if (next.status !== 'failed') {
+        await refreshLibrary();
+        if (next.playlistId) { const detail = await api<{ playlist: PlaylistDetail }>(`/api/playlists/${next.playlistId}`); setSelectedPlaylist(detail.playlist); setTab('playlists'); }
+      }
+      return true;
+    };
+    const stream = new EventSource(`/api/imports/${job.id}/events`); importStream.current = stream;
+    stream.onmessage = event => { const next = JSON.parse(event.data) as ImportJob; void finish(next); };
+    stream.onerror = () => {
+      stream.close(); if (importStream.current === stream) importStream.current = null;
+      const delay = Math.min(8000, 750 * (2 ** Math.min(attempt, 4)));
+      importReconnectTimer.current = window.setTimeout(async () => {
+        try { const result = await api<{ job: ImportJob }>(`/api/imports/${job.id}`); if (!(await finish(result.job))) watchImport(result.job, attempt + 1); }
+        catch { watchImport(job, attempt + 1); }
+      }, delay);
+    };
+  }
   const startImport = async () => { try { const source = /^\d+$/.test(importInput.trim()) ? importSource : undefined; const result = await api<{ job: ImportJob }>('/api/imports', json('POST', { input: importInput, source })); watchImport(result.job); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } };
   const syncPlaylist = async () => { if (!selectedPlaylist) return; try { const result = await api<{ job: ImportJob }>(`/api/playlists/${selectedPlaylist.id}/sync`, json('POST')); setImportOpen(true); watchImport(result.job); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } };
 
@@ -363,6 +465,7 @@ export default function App() {
         <div className="panel-heading"><h2><span>🔍</span>{t.searchTitle}</h2><small>{t.supports}</small></div>
         <form className="search-box" onSubmit={event => { event.preventDefault(); void doSearch(); }}><span>🔍</span><input aria-label={t.placeholder} value={query} onChange={event => setQuery(event.target.value)} placeholder={t.placeholder}/><button className="btn gold" disabled={searching}>{searching ? '…' : t.search}</button></form>
         <div className="source-grid">{SOURCES.map(source => <label key={source} className={sources.includes(source) ? 'checked' : ''} style={{ '--source-color': sourceColors[source] } as React.CSSProperties}><input type="checkbox" checked={sources.includes(source)} onChange={() => setSources(currentSources => currentSources.includes(source) ? currentSources.filter(v => v !== source) : [...currentSources, source])}/><i/>{sourceNames[source]}</label>)}</div>
+        {results.length > 0 && Object.keys(searchErrors).length > 0 && <div className="source-warning">{Object.entries(searchErrors).map(([source, message]) => `${sourceNames[source as MusicSource]}：${message}`).join(' · ')}</div>}
         <div className="load-row"><span>{t.each}</span><select value={limit} onChange={event => setLimit(Number(event.target.value))}><option>5</option><option>10</option><option>20</option><option>30</option></select><span>首结果</span><button className="btn ghost" onClick={() => void doSearch(true)}>{t.more}</button></div>
         <div className="search-mini-list">{!results.length ? <div className="empty-state"><span>✦</span><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.slice(0, 14).map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
       </section>
@@ -371,24 +474,26 @@ export default function App() {
         <div className="panel-heading player-heading"><h2><span>🎧</span>{t.now}</h2><small>{resolving && pendingTrack ? `${t.loadingTrack}：${pendingTrack.title}` : resolved?.fallback ? t.playingFallback : lyrics.length && !hasTimedLyrics ? findingTimedLyricsFor === current?.id ? t.findingTimedLyrics : t.estimatedLyricHint : t.lyricFx}</small></div>
         <div className="now-card" data-track-id={current?.id || ''} data-pending-track-id={pendingTrack?.id || ''}>
           <div className={`record-wrap ${playing ? 'spinning' : ''}`}><div className="record">{displayTrack?.coverUrl ? <img src={displayTrack.coverUrl} alt=""/> : <div className="record-center"/>}</div></div>
-          <div className="track-hero"><h3>{displayTrack?.title || t.noTrack}</h3><p>{displayTrack ? `${displayTrack.artist}${resolved?.fallback ? ` · ${sourceNames[resolved.actualSource]}` : ''}` : t.pick}</p>
+          <div className="track-hero"><h3>{displayTrack?.title || t.noTrack}</h3><p>{displayTrack ? `${displayTrack.artist}${resolved?.fallback ? ` · ${sourceNames[resolved.actualSource]}${resolved.backupProvider ? ' · go-music-api' : ''}` : ''}` : t.pick}</p>
             <div className="progress-row"><time>{formatTime(currentTime)}</time><input type="range" min="0" max={duration || 0} step="0.1" value={Math.min(currentTime, duration || 0)} onChange={event => { if (audio.current) audio.current.currentTime = Number(event.target.value); }}/><time>{formatTime(duration)}</time></div>
             <div className="transport"><button onClick={() => void playRelative(-1)}>⏮</button><button className="play-main" onClick={togglePlay}>{resolving ? '…' : playing ? '❚❚' : '▶'}</button><button onClick={() => void playRelative(1)}>⏭</button><span className="volume">🔊<input aria-label="音量" type="range" min="0" max="1" step="0.01" value={user.volume} onChange={event => { const volume = Number(event.target.value); if (audio.current) audio.current.volume = volume; void setPreference({ volume }); }}/></span></div>
           </div>
           <div className="hero-actions"><button className={current && favoriteIds.has(current.id) ? 'active' : ''} onClick={() => current && void toggleFavorite(current)}>♥</button><button onClick={() => current && window.open(`/api/tracks/${encodeURIComponent(current.id)}/download`, '_blank')}>⬇</button><span>{resolving && pendingTrack ? `${t.loadingTrack} ${pendingTrack.title}` : playing ? '播放中' : '空闲'}</span></div>
         </div>
         <div className="lyrics"><div className="lyrics-effects" aria-hidden="true"/>{lyricSeekTarget !== null && <div className="lyric-seek-status" role="status">{t.seeking} {formatTime(lyricSeekTarget)}…</div>}{!lyricFollowing && activeLyric >= 0 && <button className="lyric-follow-button" onClick={() => { setLyricFollowing(true); centerActiveLyric(); }}>{t.returnToLyric}</button>}<div className={`lyrics-scroll ${lyrics.length ? '' : 'is-empty'}`} ref={lyricBox} onPointerDown={event => { if (event.pointerType === 'mouse' && event.target === event.currentTarget && lyrics.length) setLyricFollowing(false); }} onTouchMove={() => lyrics.length && setLyricFollowing(false)} onWheel={() => lyrics.length && setLyricFollowing(false)}>{lyrics.length ? lyrics.map((line, index) => { const exact = Number.isFinite(line.time); const targetTime = exact ? line.time : estimateUntimedLyricTime(index, lyrics.length, duration, untimedLyricStart); const seekable = Number.isFinite(targetTime); return <button type="button" key={`${line.time}-${index}`} data-line={index} data-seekable={seekable} data-estimated={!exact && seekable} className={`lyric-line ${index === activeLyric ? 'active' : ''}`} aria-label={seekable ? `${exact ? '' : '约 '}${formatTime(targetTime)} ${line.text}` : line.text} title={seekable ? `${exact ? t.seekTo : t.estimatedSeekTo} ${formatTime(targetTime)}` : undefined} onClick={() => seekToLyric(targetTime, index, !exact)}><time aria-hidden="true">{seekable ? `${exact ? '' : '≈'}${formatTime(targetTime)}` : ''}</time><span>{line.text}</span></button>; }) : <div className="empty-lyrics"><span>♫</span>{t.emptyLyrics}</div>}</div></div>
-        <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { setPlaying(true); syncMediaSession(event.currentTarget, true); } }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { setPlaying(false); syncMediaSession(event.currentTarget, false); } }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; setCurrentTime(element.currentTime); syncMediaSession(element, !element.paused && !element.ended); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); syncMediaSession(event.currentTarget, !event.currentTarget.paused && !event.currentTarget.ended); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; void playRelative(1); }}/>
+        <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.play(event.currentTarget.currentTime); setPlaying(true); syncMediaSession(event.currentTarget, true); } }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.pause(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000); setPlaying(false); syncMediaSession(event.currentTarget, false); } }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; listeningTracker.tick(element.currentTime, (element.duration || 0) * 1000, !element.paused && !element.ended); setCurrentTime(element.currentTime); syncMediaSession(element, !element.paused && !element.ended); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, false); setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); syncMediaSession(event.currentTarget, !event.currentTarget.paused && !event.currentTarget.ended); }} onError={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) void recoverPlayback(event.currentTarget); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, true); listeningTracker.finish('ended'); void playRelative(1); }}/>
       </section>
 
       <section className="playlist-panel panel">
         <div className="panel-heading"><h2><span>📜</span>{t.playlist}</h2></div>
-        <div className="tabs">{(['results', 'favorites', 'playlists'] as Tab[]).map(value => <button key={value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{value === 'results' ? t.results : value === 'favorites' ? t.favorites : t.custom}</button>)}</div>
+        <div className="tabs">{(['daily', 'results', 'favorites', 'playlists'] as Tab[]).map(value => <button key={value} className={tab === value ? 'active' : ''} onClick={() => { if (value === 'daily' && tab !== 'daily') setDailyDate(localDateKey()); setTab(value); }}>{value === 'daily' ? t.daily : value === 'results' ? t.results : value === 'favorites' ? t.favorites : t.custom}</button>)}</div>
         <div className="playlist-toolbar">
-          <strong>{tab === 'results' ? t.results : tab === 'favorites' ? t.favorites : selectedPlaylist?.name || t.custom}</strong>
+          <strong>{tab === 'daily' ? `${t.daily} · ${displayedDaily?.date || dailyDate}` : tab === 'results' ? t.results : tab === 'favorites' ? t.favorites : selectedPlaylist?.name || t.custom}</strong>
+          {tab === 'daily' && <div className="daily-tools"><select aria-label={t.dailyHistory} value={dailyDate} onChange={event => setDailyDate(event.target.value)}><option value={localDateKey()}>{localDateKey()}</option>{dailyHistory.filter(item => item.date !== localDateKey()).map(item => <option key={item.date} value={item.date}>{item.date}</option>)}</select><button title={t.retryDaily} disabled={dailyLoading} onClick={() => { setDailyDate(localDateKey()); setDailyRefresh(value => value + 1); }}>↻</button></div>}
           {tab === 'playlists' && <div><button title={t.newList} onClick={() => setCreateOpen(true)}>＋</button><button title={t.import} onClick={() => { setImportOpen(true); setImportJob(null); }}>⇩</button><button title={t.backup} onClick={() => void exportBackup()}>⤓</button><label className="icon-upload" title={t.restoreData}>⤒<input type="file" accept="application/json" onChange={event => event.target.files?.[0] && void restoreBackup(event.target.files[0])}/></label>{selectedPlaylist?.source && <button title={t.sync} onClick={() => void syncPlaylist()}>↻</button>}</div>}
         </div>
         <div className="playlist-content">
+          {tab === 'daily' && <>{dailyLoading && daily?.status !== 'completed' && <div className="daily-status"><span>⚡</span><strong>{t.generatingDaily}</strong><small>{dailyFallback ? `正在生成，先显示 ${dailyFallback.date} 的推荐` : daily?.message || '首次生成需要连接音乐源，请稍候'}</small></div>}{dailyTracks.length ? dailyTracks.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} reason={item.reason} onPlay={() => void playFromQueue(item, dailyTracks, { type: 'daily', id: displayedDaily?.id })} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)} onDislike={() => void dislikeRecommendation(item)}/>) : !dailyLoading && <div className="empty-state"><span>⚡</span><p>{daily?.message || t.generatingDaily}</p><button className="btn ghost" onClick={() => setDailyRefresh(value => value + 1)}>{t.retryDaily}</button></div>}</>}
           {tab === 'results' && (results.length ? results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>⌁</span><p>{t.empty}</p></div>)}
           {tab === 'favorites' && (favorites.length ? favorites.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite onPlay={() => void playFromQueue(item, favorites)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>♡</span><p>{t.empty}</p></div>)}
           {tab === 'playlists' && <>{playlists.length ? <div className="playlist-cards">{playlists.map(item => <button key={item.id} className={selectedPlaylist?.id === item.id ? 'active' : ''} onClick={() => void openPlaylist(item)}>{item.coverUrl ? <img src={item.coverUrl} alt=""/> : <span>♫</span>}<b>{item.name}</b><small>{item.trackCount} 首 {item.source ? `· ${sourceNames[item.source]}` : ''}</small></button>)}</div> : <div className="empty-state"><span>＋</span><p>{t.empty}</p></div>}

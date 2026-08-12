@@ -1,6 +1,7 @@
 import type { ResolvedTrack } from '../shared/types';
 
-const STORAGE_KEY = 'pikachu-music.playback-cache.v1';
+const STORAGE_KEY = 'pikachu-music.playback-cache.v2';
+const LEGACY_STORAGE_KEY = 'pikachu-music.playback-cache.v1';
 export const RESOLVED_TTL_MS = 15 * 60_000;
 export const LYRIC_TTL_MS = 7 * 24 * 60 * 60_000;
 const MAX_RESOLVED = 24;
@@ -31,7 +32,8 @@ function validEntry<T>(value: unknown, validValue: (candidate: unknown) => candi
 function validResolved(value: unknown): value is ResolvedTrack {
   if (!value || typeof value !== 'object') return false;
   const track = value as Partial<ResolvedTrack>;
-  return typeof track.id === 'string' && typeof track.audioUrl === 'string' && /^https?:\/\//i.test(track.audioUrl);
+  return typeof track.id === 'string' && typeof track.audioUrl === 'string'
+    && (/^https?:\/\//i.test(track.audioUrl) || track.audioUrl.startsWith('/api/backup-media?'));
 }
 
 function restoreMap<T>(value: unknown, validValue: (candidate: unknown) => candidate is T) {
@@ -59,7 +61,11 @@ export class PlaybackCache {
     try {
       const parsed = JSON.parse(storage.getItem(STORAGE_KEY) || 'null') as Partial<StoredPlaybackCache> | null;
       this.resolved = restoreMap(parsed?.resolved, validResolved);
-      this.lyrics = restoreMap(parsed?.lyrics, (value): value is string => typeof value === 'string' && Boolean(value.trim()));
+      if (parsed) this.lyrics = restoreMap(parsed.lyrics, (value): value is string => typeof value === 'string' && Boolean(value.trim()));
+      else {
+        const legacy = JSON.parse(storage.getItem(LEGACY_STORAGE_KEY) || 'null') as Partial<StoredPlaybackCache> | null;
+        this.lyrics = restoreMap(legacy?.lyrics, (value): value is string => typeof value === 'string' && Boolean(value.trim()));
+      }
       this.removeExpired(false);
     } catch {
       this.resolved.clear(); this.lyrics.clear();

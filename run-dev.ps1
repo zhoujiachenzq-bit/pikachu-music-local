@@ -12,6 +12,13 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
 $env:PATH = "$nodeDirectory;$env:PATH"
 $pnpm = if (Get-Command pnpm -ErrorAction SilentlyContinue) { (Get-Command pnpm).Source } elseif (Test-Path $workspacePnpm) { $workspacePnpm } else { throw '需要 pnpm。' }
 
+$backupExecutable = Join-Path $PSScriptRoot 'data\tools\go-music-api\go-music-api-loopback.exe'
+if (Test-Path -LiteralPath $backupExecutable) {
+  try { $backupReady = (Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8080/api/v1/system/cookies' -TimeoutSec 2).StatusCode -eq 200 } catch { $backupReady = $false }
+  if (-not $backupReady) { Start-Process -FilePath $backupExecutable -WorkingDirectory (Split-Path $backupExecutable) -WindowStyle Hidden; Start-Sleep -Seconds 1 }
+  $env:GO_MUSIC_API_URL = 'http://127.0.0.1:8080'
+}
+
 & $pnpm install
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $pnpm dev

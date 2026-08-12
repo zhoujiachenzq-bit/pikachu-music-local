@@ -1,6 +1,12 @@
 import type { Db } from './db.js';
 import { getCached, setCached } from './db.js';
 import { SOURCES, type ImportedPlaylist, type MusicSource, type ResolvedTrack, type Track } from '../shared/types.js';
+import { canonicalTrackKey, stableMetadataId } from '../shared/trackIdentity.js';
+import { withSourceHealth } from './sourceHealth.js';
+import { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
+import { resolveWithGoMusicApi } from './goMusicApi.js';
+
+export { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PikachuMusicLocal/1.0';
 const SOURCE_NAMES: Record<MusicSource, string> = { migu: '咪咕', netease: '网易云', qq: 'QQ', kuwo: '酷我' };
@@ -42,8 +48,51 @@ function track(source: MusicSource, sourceTrackId: unknown, data: Partial<Track>
     id: `${source}:${sid}`, source, sourceTrackId: sid, title: data.title || '未知歌曲',
     artist: data.artist || '未知歌手', album: data.album || '', duration: data.duration || 0,
     coverUrl: data.coverUrl || null, sourceUrl: data.sourceUrl || sourceTrackUrl(source, sid),
-    keyword: data.keyword, displayIndex: data.displayIndex, quality: data.quality || null
+    keyword: data.keyword, displayIndex: data.displayIndex, quality: data.quality || null,
+    canonicalKey: data.canonicalKey || canonicalTrackKey(data.title || '', data.artist || '')
   };
+}
+
+function decodeHtml(value: string): string {
+  return value.replace(/&nbsp;|&#160;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)));
+}
+
+function legacyKuwoValue(object: string, key: string): string {
+  const match = object.match(new RegExp(`['"]${key}['"]\\s*:\\s*'((?:\\\\.|[^'])*)'`, 'i'));
+  return decodeHtml((match?.[1] || '').replace(/\\'/g, "'").replace(/\\\\/g, '\\')).trim();
+}
+
+export function parseLegacyKuwoSearch(raw: string): Array<{ id: string; title: string; artist: string; album: string; duration: number }> {
+  const marker = raw.search(/['"]abslist['"]\s*:\s*\[/i);
+  if (marker < 0) return [];
+  const start = raw.indexOf('[', marker);
+  const objects: string[] = [];
+  let depth = 0; let objectStart = -1; let quote = false; let escaped = false;
+  for (let index = start + 1; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === "'") quote = false;
+      continue;
+    }
+    if (char === "'") { quote = true; continue; }
+    if (char === '{') { if (depth === 0) objectStart = index; depth += 1; }
+    else if (char === '}') { depth -= 1; if (depth === 0 && objectStart >= 0) objects.push(raw.slice(objectStart, index + 1)); }
+    else if (char === ']' && depth === 0) break;
+  }
+  return objects.map(object => {
+    const id = first(legacyKuwoValue(object, 'DC_TARGETID'), legacyKuwoValue(object, 'MUSICRID').replace(/^MUSIC_/, ''));
+    return {
+      id,
+      title: first(legacyKuwoValue(object, 'NAME'), legacyKuwoValue(object, 'SONGNAME')),
+      artist: legacyKuwoValue(object, 'ARTIST'),
+      album: legacyKuwoValue(object, 'ALBUM'),
+      duration: durationMs(legacyKuwoValue(object, 'DURATION'))
+    };
+  }).filter(item => item.id && item.title);
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}, attempts = 2): Promise<Response> {
@@ -72,6 +121,24 @@ async function fetchJson(url: string, init: RequestInit = {}): Promise<any> {
   const cleaned = raw.replace(/^callback\(|^MusicJsonCallback\(/, '').replace(/\);?\s*$/, '');
   try { return JSON.parse(cleaned); }
   catch { throw new SourceError('INVALID_SOURCE_RESPONSE', '音乐源返回了无法识别的数据。'); }
+}
+
+async function validateKuwoAudioUrl(audioUrl: string, trackDurationMs: number): Promise<void> {
+  const headers = { referer: 'https://www.kuwo.cn/' };
+  let response = await fetchWithTimeout(audioUrl, { method: 'HEAD', headers }, 1);
+  let contentLength = Number(response.headers.get('content-length') || 0);
+  if (!contentLength) {
+    response = await fetchWithTimeout(audioUrl, { headers: { ...headers, range: 'bytes=0-0' } }, 1);
+    const contentRange = response.headers.get('content-range');
+    contentLength = Number(contentRange?.match(/\/(\d+)$/)?.[1] || response.headers.get('content-length') || 0);
+  }
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType && !/^(audio\/|application\/octet-stream)/i.test(contentType)) {
+    throw new SourceError('INVALID_MEDIA_RESPONSE', '酷我返回的不是有效音频。');
+  }
+  if (isLikelyKuwoRestrictionAudio(contentLength, trackDurationMs)) {
+    throw new SourceError('SOURCE_RESTRICTION_AUDIO', '酷我仅返回了平台限制提示音，正在尝试其他音乐源。', { contentLength });
+  }
 }
 
 export function sourceTrackUrl(source: MusicSource, id: string) {
@@ -127,16 +194,18 @@ export async function resolvePlaylistInput(input: string, explicitSource?: Music
   }
 }
 
-export async function searchSource(source: MusicSource, query: string, limit = 10): Promise<Track[]> {
+async function searchSourceRaw(source: MusicSource, query: string, limit = 10): Promise<Track[]> {
   const q = query.trim(); if (!q) return [];
   const size = Math.min(Math.max(limit, 1), 30);
   if (source === 'migu') {
     const j = await fetchJson(`https://api.xcvts.cn/api/music/migu?gm=${encodeURIComponent(q)}&n=&num=${size}&type=json`);
     const list = Array.isArray(j.data) ? j.data : [];
-    return list.slice(0, size).map((item: any, index: number) => track('migu', `search-${index + 1}-${encodeURIComponent(q)}`, {
-      title: first(item.title, item.songName), artist: first(item.singer, item.artist), keyword: q, displayIndex: Number(item.n || index + 1),
-      sourceUrl: item.link || null
-    }));
+    return list.slice(0, size).map((item: any, index: number) => {
+      const title = first(item.title, item.songName); const artist = first(item.singer, item.artist);
+      return track('migu', stableMetadataId(title, artist), {
+        title, artist, keyword: q, displayIndex: Number(item.n || index + 1), sourceUrl: item.link || null
+      });
+    });
   }
   if (source === 'netease') {
     const j = await fetchJson(`https://api.vkeys.cn/v2/music/netease?word=${encodeURIComponent(q)}&page=1&num=${size}`);
@@ -151,24 +220,30 @@ export async function searchSource(source: MusicSource, query: string, limit = 1
       title: first(item.song_title, item.title, item.name), artist: first(item.singer_name, item.singer), keyword: q
     })).filter((item: Track) => item.sourceTrackId);
   }
-  const j = await fetchJson(`https://kw-api.cenguigui.cn/?name=${encodeURIComponent(q)}&page=1&limit=${size}`);
-  return (Array.isArray(j.data) ? j.data : []).map((item: any) => track('kuwo', first(item.rid, item.id), {
-    title: first(item.name, item.songName), artist: first(item.artist), album: first(item.album), coverUrl: absolute(first(item.pic)), keyword: q
-  }));
+  const params = new URLSearchParams({ all: q, ft: 'music', itemset: 'web_2013', client: 'kt', pn: '0', rn: String(size), rformat: 'json', encoding: 'utf8' });
+  const response = await fetchWithTimeout(`http://search.kuwo.cn/r.s?${params}`, {}, 1);
+  const list = parseLegacyKuwoSearch(await response.text());
+  if (!list.length) throw new SourceError('INVALID_SOURCE_RESPONSE', '酷我没有返回可识别的搜索结果。');
+  return list.map(item => track('kuwo', item.id, { ...item, keyword: q }));
+}
+
+export async function searchSource(source: MusicSource, query: string, limit = 10, db?: Db): Promise<Track[]> {
+  return withSourceHealth(db, source, 'search', () => searchSourceRaw(source, query, limit));
 }
 
 export async function searchAll(db: Db, query: string, sources: MusicSource[], limit: number) {
-  const key = `search:${sources.sort().join(',')}:${limit}:${query.toLowerCase()}`;
+  const orderedSources = [...sources];
+  const key = `search:${[...orderedSources].sort().join(',')}:${limit}:${query.toLowerCase()}`;
   const cached = getCached<{ tracks: Track[]; errors: Record<string, string> }>(db, key);
   if (cached) return cached;
-  const settled = await Promise.allSettled(sources.map(source => searchSource(source, query, limit)));
+  const settled = await Promise.allSettled(orderedSources.map(source => searchSource(source, query, limit, db)));
   const tracks: Track[] = []; const errors: Record<string, string> = {};
   settled.forEach((result, index) => {
-    const source = sources[index];
+    const source = orderedSources[index];
     if (result.status === 'fulfilled') tracks.push(...result.value.map((item, i) => ({ ...item, displayIndex: item.displayIndex || i + 1 })));
     else errors[source] = result.reason instanceof Error ? result.reason.message : String(result.reason);
   });
-  tracks.sort((a, b) => (a.displayIndex || 0) - (b.displayIndex || 0) || sources.indexOf(a.source) - sources.indexOf(b.source));
+  tracks.sort((a, b) => (a.displayIndex || 0) - (b.displayIndex || 0) || orderedSources.indexOf(a.source) - orderedSources.indexOf(b.source));
   const value = { tracks, errors }; setCached(db, key, value, 5 * 60_000); return value;
 }
 
@@ -176,7 +251,7 @@ function findAudio(value: unknown): string {
   const seen = new Set<unknown>();
   const visit = (item: unknown, depth: number): string => {
     if (depth > 5 || item == null || seen.has(item)) return '';
-    if (typeof item === 'string') return /^https?:\/\/.*\.(mp3|flac|m4a|aac|ogg)(\?|$)/i.test(item) ? item : '';
+    if (typeof item === 'string') return /^https?:\/\/.*\.(mp3|flac|m4a|aac|ogg)(\?|$)/i.test(item) ? absolute(item) || '' : '';
     if (typeof item !== 'object') return '';
     seen.add(item);
     const object = item as Record<string, unknown>;
@@ -203,7 +278,7 @@ function findLyric(value: unknown): string | null {
   return visit(value, 0) || null;
 }
 
-async function resolveOriginal(input: Track): Promise<ResolvedTrack> {
+async function resolveOriginalRaw(input: Track): Promise<ResolvedTrack> {
   if (input.source === 'netease') {
     const [meta, lyricData] = await Promise.all([
       fetchJson(`https://api.qijieya.cn/meting/?type=song&id=${encodeURIComponent(input.sourceTrackId)}`),
@@ -215,11 +290,12 @@ async function resolveOriginal(input: Track): Promise<ResolvedTrack> {
       audioUrl, lyric: findLyric(lyricData), actualSource: 'netease', fallback: false };
   }
   if (input.source === 'kuwo') {
-    const j = await fetchJson(`https://kw-api.cenguigui.cn/?id=${encodeURIComponent(input.sourceTrackId)}&type=song&level=zp&format=json`);
-    const item = asObject(j.data); const audioUrl = findAudio(item);
+    const params = new URLSearchParams({ type: 'convert_url3', rid: `MUSIC_${input.sourceTrackId}`, format: 'mp3', response: 'url' });
+    const j = await fetchJson(`https://antiserver.kuwo.cn/anti.s?${params}`, { headers: { referer: 'https://www.kuwo.cn/' } });
+    const audioUrl = absolute(first(j.url));
     if (!audioUrl) throw new SourceError('UNPLAYABLE', '酷我未返回公开播放地址。');
-    return { ...input, title: first(item.name, input.title), artist: first(item.artist, input.artist), album: first(item.album, input.album),
-      coverUrl: absolute(first(item.pic, input.coverUrl)), audioUrl, lyric: findLyric(item), actualSource: 'kuwo', fallback: false };
+    await validateKuwoAudioUrl(audioUrl, input.duration);
+    return { ...input, audioUrl, lyric: null, actualSource: 'kuwo', fallback: false };
   }
   const query = input.source === 'migu' ? (input.keyword || input.title).trim() : `${input.title} ${input.artist}`.trim();
   if (input.source === 'migu') {
@@ -238,14 +314,18 @@ async function resolveOriginal(input: Track): Promise<ResolvedTrack> {
     coverUrl: absolute(first(item?.cover, item?.pic, input.coverUrl)), audioUrl, lyric: findLyric(item), actualSource: 'qq', fallback: false };
 }
 
+async function resolveOriginal(input: Track, db?: Db): Promise<ResolvedTrack> {
+  return withSourceHealth(db, input.source, 'resolve', () => resolveOriginalRaw(input));
+}
+
 function normalizeMatch(value: string) { return value.toLowerCase().replace(/[\s\-—_()（）【】\[\]'.·,，]/g, ''); }
 export function matchScore(target: Track, candidate: Track): number {
   const a = normalizeMatch(target.title); const b = normalizeMatch(candidate.title);
-  const titleScore = a === b ? 0.55 : a.includes(b) || b.includes(a) ? 0.4 : 0;
+  const titleScore = a === b ? 0.55 : a.startsWith(b) || b.startsWith(a) ? 0.45 : a.includes(b) || b.includes(a) ? 0.4 : 0;
   const aa = normalizeMatch(target.artist); const ba = normalizeMatch(candidate.artist);
   const artistScore = aa && ba && (aa === ba || aa.includes(ba) || ba.includes(aa)) ? 0.25 : 0;
   const durationScore = target.duration && candidate.duration && Math.abs(target.duration - candidate.duration) <= 8000 ? 0.2 : (!target.duration || !candidate.duration ? 0.1 : 0);
-  return titleScore + artistScore + durationScore;
+  return Math.round((titleScore + artistScore + durationScore) * 100) / 100;
 }
 
 export function isAmbiguousFallback(first: { candidate: Track; score: number }, second?: { candidate: Track; score: number }) {
@@ -275,14 +355,14 @@ export async function resolveTimedLyric(input: Track, db?: Db) {
   }
 
   const others = SOURCES.filter(source => source !== original.actualSource);
-  const settled = await Promise.allSettled(others.map(source => searchSource(source, `${input.title} ${input.artist}`, 5)));
+  const settled = await Promise.allSettled(others.map(source => searchSource(source, `${input.title} ${input.artist}`, 5, db)));
   const priority: Record<MusicSource, number> = { kuwo: 0, netease: 1, migu: 2, qq: 3 };
   const ranked = settled.flatMap(result => result.status === 'fulfilled' ? result.value : [])
     .map(candidate => ({ candidate, score: matchScore(input, candidate) }))
     .filter(item => item.score >= .8)
     .sort((a, b) => b.score - a.score || priority[a.candidate.source] - priority[b.candidate.source]);
   const candidates = others.map(source => ranked.find(item => item.candidate.source === source)).filter((item): item is { candidate: Track; score: number } => Boolean(item));
-  const alternatives = await Promise.allSettled(candidates.map(item => resolveOriginal(item.candidate)));
+  const alternatives = await Promise.allSettled(candidates.map(item => resolveOriginal(item.candidate, db)));
   for (let index = 0; index < alternatives.length; index += 1) {
     const candidate = alternatives[index];
     if (candidate.status !== 'fulfilled' || !hasTimedLyric(candidate.value.lyric)) continue;
@@ -297,16 +377,17 @@ export async function resolveTimedLyric(input: Track, db?: Db) {
 }
 
 export async function resolveTrackWithFallback(input: Track, db?: Db, forceRefresh = false): Promise<ResolvedTrack> {
-  const cacheKey = `resolve:${input.source}:${input.sourceTrackId}`;
+  const cacheKey = `resolve:v2:${input.source}:${input.sourceTrackId}`;
   const lyricCacheKey = `lyric:${input.source}:${input.sourceTrackId}`;
   const rememberedLyric = db ? getCached<{ lyric: string }>(db, lyricCacheKey)?.lyric || null : null;
   const cached = db ? getCached<ResolvedTrack>(db, cacheKey) : null;
   if (!forceRefresh && cached?.audioUrl) return { ...cached, id: input.id, lyric: cached.lyric || rememberedLyric };
   let resolved: ResolvedTrack;
-  try { resolved = await resolveOriginal(input); }
+  try { resolved = await resolveOriginal(input, db); }
   catch (originalError) {
-    const others = SOURCES.filter(source => source !== input.source);
-    const settled = await Promise.allSettled(others.map(source => searchSource(source, `${input.title} ${input.artist}`, 5)));
+    try {
+      const others = SOURCES.filter(source => source !== input.source);
+    const settled = await Promise.allSettled(others.map(source => searchSource(source, `${input.title} ${input.artist}`, 5, db)));
     const ranked = settled.flatMap(result => result.status === 'fulfilled' ? result.value : [])
       .map(candidate => ({ candidate, score: matchScore(input, candidate) })).sort((a, b) => b.score - a.score);
     if (!ranked[0] || ranked[0].score < 0.8 || isAmbiguousFallback(ranked[0], ranked[1])) {
@@ -317,11 +398,16 @@ export async function resolveTrackWithFallback(input: Track, db?: Db, forceRefre
     const topTitle = normalizeMatch(ranked[0].candidate.title); const topArtist = normalizeMatch(ranked[0].candidate.artist); const failures: string[] = [];
     let fallback: ResolvedTrack | null = null;
     for (const item of ranked.filter(item => item.score >= 0.8 && normalizeMatch(item.candidate.title) === topTitle && normalizeMatch(item.candidate.artist) === topArtist).slice(0, 5)) {
-      try { fallback = await resolveOriginal(item.candidate); break; }
+      try { fallback = await resolveOriginal(item.candidate, db); break; }
       catch (error) { failures.push(`${item.candidate.source}: ${error instanceof Error ? error.message : String(error)}`); }
     }
     if (!fallback) throw new SourceError('UNPLAYABLE', '已找到匹配歌曲，但备用来源暂时都无法播放。', { failures });
-    resolved = { ...fallback, id: input.id, fallback: true };
+      resolved = { ...fallback, id: input.id, fallback: true };
+    } catch (nativeError) {
+      const backup = await resolveWithGoMusicApi(input, { score: matchScore, ambiguous: isAmbiguousFallback });
+      if (!backup) throw nativeError;
+      resolved = backup;
+    }
   }
   if (!resolved.lyric && rememberedLyric) resolved = { ...resolved, lyric: rememberedLyric };
   if (db) {
@@ -397,11 +483,13 @@ async function fetchMiguPlaylist(id: string, onProgress?: (processed: number, to
     sourceUrl: `https://music.migu.cn/v3/music/playlist/${id}`, tracks: results };
 }
 
-export async function fetchPublicPlaylist(source: MusicSource, id: string, onProgress?: (processed: number, total: number) => void) {
-  if (source === 'netease') return fetchNeteasePlaylist(id);
-  if (source === 'qq') return fetchQqPlaylist(id);
-  if (source === 'kuwo') return fetchKuwoPlaylist(id);
-  return fetchMiguPlaylist(id, onProgress);
+export async function fetchPublicPlaylist(source: MusicSource, id: string, onProgress?: (processed: number, total: number) => void, db?: Db) {
+  return withSourceHealth(db, source, 'playlist', async () => {
+    if (source === 'netease') return fetchNeteasePlaylist(id);
+    if (source === 'qq') return fetchQqPlaylist(id);
+    if (source === 'kuwo') return fetchKuwoPlaylist(id);
+    return fetchMiguPlaylist(id, onProgress);
+  });
 }
 
 export { SOURCE_NAMES };

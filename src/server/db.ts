@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import type { MusicSource, PlaylistDetail, PlaylistSummary, Track, User } from '../shared/types.js';
+import { canonicalTrackKey } from '../shared/trackIdentity.js';
 
 export type Db = DatabaseSync;
 
@@ -45,6 +46,7 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
       keyword TEXT,
       display_index INTEGER,
       quality TEXT,
+      canonical_key TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       UNIQUE(source, source_track_id)
@@ -94,21 +96,103 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
       playlist_id TEXT REFERENCES playlists(id) ON DELETE SET NULL,
       message TEXT NOT NULL DEFAULT '',
       failures_json TEXT NOT NULL DEFAULT '[]',
+      retry_of_job_id TEXT,
+      retry_track_ids_json TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      attempt_key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      reset_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS listening_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      track_id TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      context_type TEXT NOT NULL CHECK(context_type IN ('search','favorites','playlist','daily','unknown')),
+      context_id TEXT,
+      actual_source TEXT CHECK(actual_source IS NULL OR actual_source IN ('migu','netease','qq','kuwo')),
+      started_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      played_ms INTEGER NOT NULL DEFAULT 0,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      completed INTEGER NOT NULL DEFAULT 0,
+      skipped INTEGER NOT NULL DEFAULT 0,
+      error_code TEXT
+      ,origin_backup_id TEXT
+      ,UNIQUE(user_id,origin_backup_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_listening_user_time ON listening_sessions(user_id,updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_listening_user_track ON listening_sessions(user_id,track_id);
+    CREATE TABLE IF NOT EXISTS recommendation_feedback (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      canonical_key TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('not_interested','less_artist')),
+      artist_key TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id,canonical_key,action)
+    );
+    CREATE TABLE IF NOT EXISTS recommendation_runs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recommendation_date TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('queued','running','completed','failed')),
+      message TEXT NOT NULL DEFAULT '',
+      generated_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(user_id,recommendation_date)
+    );
+    CREATE TABLE IF NOT EXISTS recommendation_items (
+      run_id TEXT NOT NULL REFERENCES recommendation_runs(id) ON DELETE CASCADE,
+      track_id TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      rank INTEGER NOT NULL,
+      score REAL NOT NULL,
+      reason TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('familiar','explore')),
+      PRIMARY KEY(run_id,track_id),
+      UNIQUE(run_id,rank)
+    );
+    CREATE INDEX IF NOT EXISTS idx_recommendation_user_date ON recommendation_runs(user_id,recommendation_date DESC);
     CREATE TABLE IF NOT EXISTS source_cache (
       cache_key TEXT PRIMARY KEY,
       payload_json TEXT NOT NULL,
       expires_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS source_health (
+      source TEXT NOT NULL CHECK(source IN ('migu','netease','qq','kuwo')),
+      operation TEXT NOT NULL CHECK(operation IN ('search','resolve','playlist')),
+      successes INTEGER NOT NULL DEFAULT 0,
+      failures INTEGER NOT NULL DEFAULT 0,
+      consecutive_failures INTEGER NOT NULL DEFAULT 0,
+      average_latency_ms INTEGER NOT NULL DEFAULT 0,
+      circuit_open_until TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(source,operation)
     );
   `);
   const trackColumns = new Set((db.prepare('PRAGMA table_info(tracks)').all() as Array<{ name: string }>).map(column => column.name));
   if (!trackColumns.has('keyword')) db.exec('ALTER TABLE tracks ADD COLUMN keyword TEXT');
   if (!trackColumns.has('display_index')) db.exec('ALTER TABLE tracks ADD COLUMN display_index INTEGER');
   if (!trackColumns.has('quality')) db.exec('ALTER TABLE tracks ADD COLUMN quality TEXT');
+  if (!trackColumns.has('canonical_key')) db.exec("ALTER TABLE tracks ADD COLUMN canonical_key TEXT NOT NULL DEFAULT ''");
+  const importColumns = new Set((db.prepare('PRAGMA table_info(import_jobs)').all() as Array<{ name: string }>).map(column => column.name));
+  if (!importColumns.has('retry_of_job_id')) db.exec('ALTER TABLE import_jobs ADD COLUMN retry_of_job_id TEXT');
+  if (!importColumns.has('retry_track_ids_json')) db.exec("ALTER TABLE import_jobs ADD COLUMN retry_track_ids_json TEXT NOT NULL DEFAULT '[]'");
+  const listeningColumns = new Set((db.prepare('PRAGMA table_info(listening_sessions)').all() as Array<{ name: string }>).map(column => column.name));
+  if (!listeningColumns.has('origin_backup_id')) db.exec('ALTER TABLE listening_sessions ADD COLUMN origin_backup_id TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_listening_backup_origin ON listening_sessions(user_id,origin_backup_id) WHERE origin_backup_id IS NOT NULL');
+  const tracksWithoutCanonicalKey = db.prepare("SELECT id,title,artist FROM tracks WHERE canonical_key='' OR canonical_key IS NULL").all() as Array<{ id: string; title: string; artist: string }>;
+  const updateCanonicalKey = db.prepare('UPDATE tracks SET canonical_key=? WHERE id=?');
+  for (const item of tracksWithoutCanonicalKey) updateCanonicalKey.run(canonicalTrackKey(item.title, item.artist), item.id);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tracks_canonical_key ON tracks(canonical_key)');
   db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now());
   db.prepare('DELETE FROM source_cache WHERE expires_at <= ?').run(now());
+  db.prepare('DELETE FROM login_attempts WHERE reset_at <= ?').run(now());
+  db.prepare("UPDATE recommendation_runs SET status='failed',message='服务重启，可重新生成',updated_at=? WHERE status IN ('queued','running')").run(now());
   return db;
 }
 
@@ -134,14 +218,15 @@ export function rowToUser(row: Record<string, unknown>): User {
 export function upsertTrack(db: Db, track: Track): Track {
   const stamp = now();
   const id = `${track.source}:${track.sourceTrackId}`;
-  db.prepare(`INSERT INTO tracks(id,source,source_track_id,title,artist,album,duration,cover_url,source_url,keyword,display_index,quality,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(source,source_track_id) DO UPDATE SET
+  const canonicalKey = track.canonicalKey || canonicalTrackKey(track.title, track.artist);
+  db.prepare(`INSERT INTO tracks(id,source,source_track_id,title,artist,album,duration,cover_url,source_url,keyword,display_index,quality,canonical_key,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(source,source_track_id) DO UPDATE SET
     title=excluded.title,artist=excluded.artist,album=excluded.album,duration=excluded.duration,
     cover_url=COALESCE(excluded.cover_url,tracks.cover_url),source_url=COALESCE(excluded.source_url,tracks.source_url),
-    keyword=COALESCE(excluded.keyword,tracks.keyword),display_index=COALESCE(excluded.display_index,tracks.display_index),quality=COALESCE(excluded.quality,tracks.quality),updated_at=excluded.updated_at`)
+    keyword=COALESCE(excluded.keyword,tracks.keyword),display_index=COALESCE(excluded.display_index,tracks.display_index),quality=COALESCE(excluded.quality,tracks.quality),canonical_key=excluded.canonical_key,updated_at=excluded.updated_at`)
     .run(id, track.source, track.sourceTrackId, track.title, track.artist, track.album, track.duration || 0,
-      track.coverUrl || null, track.sourceUrl || null, track.keyword || null, track.displayIndex || null, track.quality || null, stamp, stamp);
-  return { ...track, id };
+      track.coverUrl || null, track.sourceUrl || null, track.keyword || null, track.displayIndex || null, track.quality || null, canonicalKey, stamp, stamp);
+  return { ...track, id, canonicalKey };
 }
 
 export function rowToTrack(row: Record<string, unknown>): Track {
@@ -152,7 +237,8 @@ export function rowToTrack(row: Record<string, unknown>): Track {
     title: String(row.title), artist: String(row.artist || ''), album: String(row.album || ''),
     duration: Number(row.duration || 0), coverUrl: row.cover_url ? String(row.cover_url) : null,
     sourceUrl: row.source_url ? String(row.source_url) : null, keyword, displayIndex,
-    quality: row.quality ? String(row.quality) : null
+    quality: row.quality ? String(row.quality) : null,
+    canonicalKey: row.canonical_key ? String(row.canonical_key) : canonicalTrackKey(String(row.title), String(row.artist || ''))
   };
 }
 
@@ -208,4 +294,7 @@ export function setCached(db: Db, key: string, value: unknown, ttlMs: number): v
   db.prepare(`INSERT INTO source_cache(cache_key,payload_json,expires_at) VALUES(?,?,?)
     ON CONFLICT(cache_key) DO UPDATE SET payload_json=excluded.payload_json,expires_at=excluded.expires_at`)
     .run(key, JSON.stringify(value), expires);
+  db.prepare('DELETE FROM source_cache WHERE expires_at<=?').run(now());
+  const count = Number((db.prepare('SELECT COUNT(*) count FROM source_cache').get() as { count: number }).count);
+  if (count > 2500) db.prepare('DELETE FROM source_cache WHERE cache_key IN (SELECT cache_key FROM source_cache ORDER BY expires_at LIMIT ?)').run(count - 2500);
 }

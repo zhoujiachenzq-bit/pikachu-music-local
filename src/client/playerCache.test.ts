@@ -39,4 +39,22 @@ describe('persistent playback cache', () => {
     const storage = new MemoryStorage(); const cache = new PlaybackCache(storage, () => 1000); cache.rememberResolved(track); cache.forgetResolved(track.id);
     expect(cache.getResolved(track.id)).toBeNull(); expect(cache.getLyric(track.id)).toBe(track.lyric);
   });
+
+  it('discards legacy media URLs while migrating reusable lyrics', () => {
+    const storage = new MemoryStorage(); const now = 1000;
+    storage.setItem('pikachu-music.playback-cache.v1', JSON.stringify({
+      resolved: [[track.id, { value: track, expiresAt: now + RESOLVED_TTL_MS, usedAt: now }]],
+      lyrics: [[track.id, { value: track.lyric, expiresAt: now + LYRIC_TTL_MS, usedAt: now }]]
+    }));
+    const cache = new PlaybackCache(storage, () => now);
+    expect(cache.getResolved(track.id)).toBeNull();
+    expect(cache.getLyric(track.id)).toBe(track.lyric);
+  });
+
+  it('retains a safe same-origin backup media URL', () => {
+    const storage = new MemoryStorage(); const cache = new PlaybackCache(storage, () => 1000);
+    const backup = { ...track, audioUrl: '/api/backup-media?source=qq&id=1&name=Song&artist=Artist', backupProvider: 'go-music-api' as const };
+    cache.rememberResolved(backup);
+    expect(cache.getResolved(track.id)).toMatchObject({ audioUrl: backup.audioUrl, backupProvider: 'go-music-api' });
+  });
 });

@@ -26,8 +26,12 @@ describe('local API integration', () => {
 
     const backup = await app.inject({ method: 'GET', url: '/api/backup/export', headers: { cookie: cookieA } });
     expect(backup.statusCode).toBe(200); const data = backup.json();
-    expect(data.backupVersion).toBe(1); expect(data.favorites).toHaveLength(1); expect(data.playlists).toHaveLength(1);
-    expect(JSON.stringify(data)).not.toContain('password_hash'); expect(JSON.stringify(data)).not.toContain('session');
+    expect(data.backupVersion).toBe(2); expect(data.favorites).toHaveLength(1); expect(data.playlists).toHaveLength(1);
+    expect(JSON.stringify(data)).not.toContain('password_hash'); expect(JSON.stringify(data)).not.toContain('token_hash');
+
+    const restoredOnce = await app.inject({ method: 'POST', url: '/api/backup/restore', headers: { cookie: cookieA }, payload: { mode: 'merge', data } });
+    const restoredTwice = await app.inject({ method: 'POST', url: '/api/backup/restore', headers: { cookie: cookieA }, payload: { mode: 'merge', data } });
+    expect(restoredOnce.json().playlists).toBe(1); expect(restoredTwice.json().playlists).toBe(1);
   });
 
   it('expires all sessions after a password change', async () => {
@@ -55,5 +59,32 @@ describe('local API integration', () => {
     });
     expect(rejected.statusCode).toBe(403);
     expect(rejected.json().error.code).toBe('ORIGIN_REJECTED');
+  });
+
+  it('persists login throttling in SQLite', async () => {
+    db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const result = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: 'Missing', password: 'Wrong-2026' } });
+      expect(result.statusCode).toBe(401);
+    }
+    const blocked = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: 'Missing', password: 'Wrong-2026' } });
+    expect(blocked.statusCode).toBe(429); expect(blocked.json().error.code).toBe('TOO_MANY_ATTEMPTS');
+  });
+
+  it('stores listening behavior per account without cross-account session collisions', async () => {
+    db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+    const first = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'Red', password: 'Charizard-2026' } });
+    const cookieA = first.headers['set-cookie']!.split(';')[0];
+    const track = { source: 'qq', sourceTrackId: 'behavior-1', title: 'Behavior Song', artist: 'Singer', album: '', duration: 100000, coverUrl: null, sourceUrl: 'https://y.qq.com/n/ryqq/songDetail/behavior-1' };
+    await app.inject({ method: 'POST', url: '/api/favorites', headers: { cookie: cookieA }, payload: track });
+    const payload = { id: 'session-shared', trackId: 'qq:behavior-1', contextType: 'favorites', actualSource: 'qq', startedAt: new Date().toISOString(), playedMs: 82000, durationMs: 100000, completed: true, skipped: false };
+    expect((await app.inject({ method: 'POST', url: '/api/listening-sessions', headers: { cookie: cookieA }, payload })).statusCode).toBe(202);
+
+    const second = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'Blue', password: 'Blastoise-2026' } });
+    const cookieB = second.headers['set-cookie']!.split(';')[0];
+    await app.inject({ method: 'POST', url: '/api/favorites', headers: { cookie: cookieB }, payload: track });
+    expect((await app.inject({ method: 'POST', url: '/api/listening-sessions', headers: { cookie: cookieB }, payload: { ...payload, playedMs: 1 } })).statusCode).toBe(202);
+    expect((await app.inject({ method: 'GET', url: '/api/listening-sessions', headers: { cookie: cookieA } })).json().sessions[0]).toMatchObject({ playedMs: 82000, completed: 1 });
+    expect((await app.inject({ method: 'GET', url: '/api/listening-sessions', headers: { cookie: cookieB } })).json().sessions).toHaveLength(0);
   });
 });

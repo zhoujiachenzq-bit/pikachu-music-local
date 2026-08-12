@@ -118,6 +118,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .empty-state > span { color: #8eb3ff; font-size: 30px; filter: drop-shadow(0 0 10px #4879ff); }
 .empty-state p { margin: 7px 0; font-size: 11px; }
 .empty-state small { max-width: 250px; color: #a06570; line-height: 1.4; }
+.source-warning { margin: 5px 2px 0; padding: 5px 7px; border: 1px solid rgba(255,173,91,.2); border-radius: 8px; color: #d9a27a; background: rgba(86,44,20,.16); font-size: 8px; line-height: 1.35; }
 
 .player-heading { padding: 0 2px; }
 .now-card { min-height: 153px; display: grid; grid-template-columns: 132px 1fr auto; gap: 12px; align-items: center; margin-top: 4px; border-radius: 13px; background: linear-gradient(100deg, rgba(79,96,166,.18), rgba(17,18,26,.18)); }
@@ -163,7 +164,7 @@ input[type='range'] { height: 4px; accent-color: var(--gold); cursor: pointer; }
 .empty-lyrics { min-height: 100%; display: grid; place-content: center; gap: 10px; color: #abb1c9; font-size: 12px; }
 .empty-lyrics span { font-size: 32px; color: rgba(255,232,133,.7); }
 
-.tabs { height: 37px; display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 1px; background: rgba(24,32,56,.55); border-radius: 14px 14px 0 0; }
+.tabs { height: 37px; display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 1px; background: rgba(24,32,56,.55); border-radius: 14px 14px 0 0; }
 .tabs button { position: relative; border: 0; background: transparent; cursor: pointer; font-size: 10px; color: #aeb5cf; }
 .tabs button.active { color: white; background: radial-gradient(circle at 50% 100%, rgba(65,105,210,.35), transparent 75%); }
 .tabs button.active::after { content: ''; position: absolute; left: 28%; right: 28%; bottom: 0; height: 2px; background: var(--blue); box-shadow: 0 0 10px #76a0ff; }
@@ -171,6 +172,10 @@ input[type='range'] { height: 4px; accent-color: var(--gold); cursor: pointer; }
 .playlist-toolbar strong { font-size: 9px; color: #aab2d3; max-width: 145px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .playlist-toolbar > div { display: flex; gap: 3px; align-items: center; }
 .playlist-toolbar button, .icon-upload { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; background: linear-gradient(#284d89, #162442); color: #dbe6ff; cursor: pointer; font-size: 11px; box-shadow: 0 0 8px rgba(85,134,255,.26); }
+.daily-tools select { max-width: 94px; height: 24px; padding: 0 5px; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; color: #cfd8fa; background: #121a30; font-size: 8px; }
+.daily-status { display: grid; grid-template-columns: 28px 1fr; grid-template-rows: auto auto; align-items: center; gap: 1px 7px; margin: 6px 2px; padding: 8px; border: 1px solid rgba(246,206,85,.23); border-radius: 10px; background: linear-gradient(100deg, rgba(246,206,85,.11), rgba(81,103,199,.1)); }
+.daily-status > span { grid-row: 1 / 3; font-size: 20px; filter: drop-shadow(0 0 8px var(--gold)); animation: pulse 1s ease-in-out infinite alternate; }
+.daily-status strong { font-size: 9px; color: #fff1a7; }.daily-status small { color: #858eae; font-size: 8px; }
 .icon-upload input { display: none; }
 .playlist-content { flex: 1; min-height: 0; overflow-y: auto; }
 .playlist-cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; padding: 7px 2px; }
