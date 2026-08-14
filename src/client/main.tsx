@@ -4,7 +4,7 @@ import '@fontsource-variable/space-grotesk';
 import App from './App';
 import './styles.css';
 
-document.documentElement.dataset.visualRelease = '0.3.0-beta.2';
+document.documentElement.dataset.visualRelease = '0.3.0';
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
