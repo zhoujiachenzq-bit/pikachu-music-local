@@ -8,7 +8,7 @@ import { PlaybackQueue } from './playerQueue';
 import { ImmersiveWorkspaceScene, PlayerAtmosphere } from './ImmersiveBackdrop';
 import { TonePicker, ToneTransitionLayer, type ToneTransitionState } from './TonePicker';
 import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
-import { deriveVisualPalette, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
+import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
 import { DEFAULT_VISUAL_PREFERENCES, TONE_THEMES, readVisualPreferences, resolveToneTheme, writeVisualPreferences, type ToneThemeId, type VisualPreferences } from './visualTheme';
 import { SOURCES, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
@@ -140,6 +140,15 @@ export default function App() {
     if (toneFinishTimer.current !== null) window.clearTimeout(toneFinishTimer.current);
   }, []);
   useEffect(() => { document.title = user ? `${user.username}的音乐小屋` : '音乐小屋'; }, [user]);
+  useEffect(() => {
+    const mobile = window.matchMedia('(max-width: 760px)');
+    const syncMobileStage = () => {
+      if (!mobile.matches) return;
+      setMobileSection(section => section === 'search' || section === 'library' ? section : mobileSectionForStage(stageMode));
+    };
+    syncMobileStage(); mobile.addEventListener('change', syncMobileStage);
+    return () => mobile.removeEventListener('change', syncMobileStage);
+  }, [stageMode]);
   useEffect(() => {
     const capturePrompt = (event: Event) => { event.preventDefault(); setInstallPrompt(event as BeforeInstallPromptEvent); };
     const installed = () => setInstallPrompt(null);
@@ -426,7 +435,7 @@ export default function App() {
     if (toneMidpointTimer.current !== null) window.clearTimeout(toneMidpointTimer.current);
     if (toneFinishTimer.current !== null) window.clearTimeout(toneFinishTimer.current);
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; const mobile = window.matchMedia('(max-width: 760px)').matches;
-    const duration = reduced ? 120 : mobile ? 280 : 520; const midpoint = reduced ? 0 : mobile ? 118 : 225;
+    const duration = reduced ? 120 : mobile ? 250 : 460; const midpoint = reduced ? 0 : mobile ? 92 : 168;
     const next = { ...visualPreferences, theme } as VisualPreferences;
     setToneTransition({ id: Date.now(), x: origin.x, y: origin.y, color: TONE_THEMES[theme].canvas, duration, reduced });
     toneMidpointTimer.current = window.setTimeout(() => saveVisualPreferences(next), midpoint);

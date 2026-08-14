@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { selectSceneQuality, type SceneQuality, type ToneThemeId } from './visualTheme';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { selectSceneQuality, shouldAnimateCssScene, type SceneQuality, type ToneThemeId } from './visualTheme';
 import type { StageMode, VisualPalette } from './visualState';
 
 interface SharedSceneProps {
@@ -21,6 +21,7 @@ export function ImmersiveWorkspaceScene({ motionEnabled, palette, playing, progr
   const [webglReady, setWebglReady] = useState(false);
   const [device, setDevice] = useState(capability);
   const quality = selectSceneQuality({ ...device, motionEnabled });
+  const cssMotionActive = shouldAnimateCssScene({ motionEnabled, reducedMotion: device.reducedMotion });
 
   useEffect(() => { live.current = { playing, progress, stage }; }, [playing, progress, stage]);
   useEffect(() => {
@@ -153,7 +154,12 @@ export function ImmersiveWorkspaceScene({ motionEnabled, palette, playing, progr
     return () => { disposed = true; destroy?.(); setWebglReady(false); };
   }, [motionEnabled, palette.glow, palette.primary, palette.secondary, palette.seed, quality, theme]);
 
-  return <div className={`immersive-workspace-scene quality-${quality} ${webglReady ? 'webgl-ready' : 'css-fallback'}`} data-theme={theme} aria-hidden="true"><div className="immersive-webgl-host" ref={hostRef}/></div>;
+  return <div
+    className={`immersive-workspace-scene quality-${quality} ${webglReady ? 'webgl-ready' : 'css-fallback'} ${cssMotionActive ? 'motion-active' : 'motion-still'} ${playing ? 'is-playing' : 'is-paused'}`}
+    data-theme={theme}
+    aria-hidden="true"
+    style={{ '--scene-primary': palette.primary, '--scene-secondary': palette.secondary, '--scene-glow': palette.glow } as CSSProperties}
+  ><div className="immersive-css-scene"><i/><span/><b/></div><div className="immersive-webgl-host" ref={hostRef}/></div>;
 }
 
 export function PlayerAtmosphere({ coverUrl, palette, stage }: { coverUrl?: string | null; palette: VisualPalette; stage: StageMode }) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_VISUAL_PREFERENCES, parseVisualPreferences, readVisualPreferences, resolveToneTheme, selectSceneQuality, visualPreferencesStorageKey, writeVisualPreferences } from './visualTheme';
+import { DEFAULT_VISUAL_PREFERENCES, parseVisualPreferences, readVisualPreferences, resolveToneTheme, selectSceneQuality, shouldAnimateCssScene, visualPreferencesStorageKey, writeVisualPreferences } from './visualTheme';
 
 class MemoryStorage {
   values = new Map<string, string>();
@@ -33,5 +33,11 @@ describe('visual theme preferences', () => {
     expect(selectSceneQuality({ width: 760, reducedMotion: false, motionEnabled: true })).toBe('off');
     expect(selectSceneQuality({ width: 1440, reducedMotion: true, motionEnabled: true })).toBe('off');
     expect(selectSceneQuality({ width: 1440, reducedMotion: false, motionEnabled: false })).toBe('off');
+  });
+
+  it('keeps lightweight CSS motion active on mobile unless motion is disabled', () => {
+    expect(shouldAnimateCssScene({ motionEnabled: true, reducedMotion: false })).toBe(true);
+    expect(shouldAnimateCssScene({ motionEnabled: false, reducedMotion: false })).toBe(false);
+    expect(shouldAnimateCssScene({ motionEnabled: true, reducedMotion: true })).toBe(false);
   });
 });

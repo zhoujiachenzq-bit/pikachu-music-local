@@ -89,3 +89,7 @@ export function selectSceneQuality({ width, reducedMotion, motionEnabled, webglA
   if (!webglAvailable || !motionEnabled || reducedMotion || width <= 760) return 'off';
   return width <= 1080 ? 'tablet' : 'desktop';
 }
+
+export function shouldAnimateCssScene({ motionEnabled, reducedMotion }: { motionEnabled: boolean; reducedMotion: boolean }): boolean {
+  return motionEnabled && !reducedMotion;
+}

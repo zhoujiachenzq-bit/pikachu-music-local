@@ -146,6 +146,22 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .workspace > section.panel { background: linear-gradient(145deg, color-mix(in srgb, var(--panel-a), transparent 7%), color-mix(in srgb, var(--panel-b), transparent 5%)); }
 .immersive-workspace-scene { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; }
 .immersive-workspace-scene .immersive-webgl-host, .immersive-shared-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.immersive-css-scene { position: absolute; inset: 0; overflow: hidden; opacity: 0; mix-blend-mode: screen; transition: opacity .4s ease; }
+.immersive-css-scene::before { content: ''; position: absolute; left: 20%; top: -35%; width: 72%; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(from 110deg, transparent 0 18%, color-mix(in srgb, var(--scene-primary), transparent 76%) 26%, transparent 38% 62%, color-mix(in srgb, var(--scene-secondary), transparent 78%) 72%, transparent 84%); filter: blur(22px); animation: css-scene-orbit 18s linear infinite; }
+.immersive-css-scene::after { content: ''; position: absolute; inset: 0; opacity: .22; background-image: linear-gradient(color-mix(in srgb, var(--scene-glow), transparent 88%) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--scene-glow), transparent 91%) 1px, transparent 1px); background-size: 52px 52px; mask-image: radial-gradient(circle at 55% 42%, #000 0 26%, transparent 72%); transform: perspective(650px) rotateX(12deg) scale(1.12); animation: css-scene-grid 13s ease-in-out infinite alternate; }
+.immersive-css-scene > i { position: absolute; top: -15%; bottom: -15%; left: -28%; width: 18%; display: block; opacity: .2; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--scene-glow), transparent 42%), transparent); filter: blur(12px); transform: skewX(-12deg); animation: css-scene-scan 9s cubic-bezier(.46,0,.3,1) infinite; }
+.immersive-css-scene > span { position: absolute; left: 12%; top: 22%; width: 3px; height: 3px; display: block; border-radius: 50%; background: var(--scene-glow); box-shadow: 72px 38px 0 color-mix(in srgb, var(--scene-glow), transparent 34%), 164px -52px 0 var(--scene-primary), 258px 96px 0 color-mix(in srgb, var(--scene-secondary), transparent 25%), 376px 8px 0 var(--scene-glow), 492px 142px 0 var(--scene-primary), 618px -74px 0 color-mix(in srgb, var(--scene-glow), transparent 28%), 780px 70px 0 var(--scene-secondary), 930px -15px 0 var(--scene-glow); filter: drop-shadow(0 0 8px var(--scene-glow)); opacity: .44; animation: css-scene-stars 7s ease-in-out infinite alternate; }
+.immersive-css-scene > b { position: absolute; right: 8%; bottom: -28%; width: 45%; aspect-ratio: 1; display: block; border: 1px solid color-mix(in srgb, var(--scene-secondary), transparent 78%); border-radius: 50%; box-shadow: 0 0 70px color-mix(in srgb, var(--scene-primary), transparent 84%), inset 0 0 52px color-mix(in srgb, var(--scene-secondary), transparent 88%); animation: css-scene-pulse 7.5s ease-in-out infinite alternate; }
+.immersive-workspace-scene.css-fallback.motion-active .immersive-css-scene { opacity: .76; }
+.immersive-workspace-scene.webgl-ready.motion-active .immersive-css-scene { opacity: .1; }
+.immersive-workspace-scene.is-paused .immersive-css-scene::before { animation-duration: 30s; }
+.immersive-workspace-scene.is-paused .immersive-css-scene > i { animation-duration: 15s; }
+.immersive-workspace-scene.is-paused .immersive-css-scene > span, .immersive-workspace-scene.is-paused .immersive-css-scene > b { animation-duration: 12s; }
+@keyframes css-scene-orbit { to { rotate: 1turn; scale: 1.08; } }
+@keyframes css-scene-grid { to { translate: -24px 18px; opacity: .34; } }
+@keyframes css-scene-scan { 0%, 12% { translate: 0; opacity: 0; } 30%, 72% { opacity: .23; } 88%, 100% { translate: 760%; opacity: 0; } }
+@keyframes css-scene-stars { to { translate: 18px -24px; opacity: .72; } }
+@keyframes css-scene-pulse { to { scale: 1.14; opacity: .55; } }
 .search-panel::before, .playlist-panel::before { content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none; opacity: .6; background: radial-gradient(circle at 50% 34%, color-mix(in srgb, var(--scene-theme-accent), transparent 85%), transparent 43%); }
 .search-panel, .player-panel, .playlist-panel { min-width: 0; min-height: 0; }
 .search-panel { grid-area: search; padding: 14px 12px 12px; display: flex; flex-direction: column; }
@@ -533,16 +549,21 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
 .motion-toggle.active > i { background: var(--brand); }
 .motion-toggle.active > i::after { background: var(--brand-ink); translate: 14px 0; }
 
-/* Brand curtain and grid reveal */
-.tone-transition { position: fixed; z-index: 150; inset: 0; overflow: hidden; pointer-events: none; background: var(--tone-curtain); clip-path: circle(0 at var(--tone-origin-x) var(--tone-origin-y)); animation: tone-curtain var(--tone-duration) cubic-bezier(.72,0,.2,1) both; }
-.tone-transition::before { content: ''; position: absolute; inset: 0; opacity: .18; background-image: linear-gradient(rgba(255,255,255,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.18) 1px, transparent 1px); background-size: 54px 54px; transform: perspective(600px) rotateX(16deg) scale(1.08); animation: tone-grid-shift var(--tone-duration) ease both; }
-.tone-transition i, .tone-transition span { position: absolute; display: block; border: 1px solid rgba(255,255,255,.32); border-radius: 50%; }
-.tone-transition i { width: 38vmax; height: 38vmax; left: calc(var(--tone-origin-x) - 19vmax); top: calc(var(--tone-origin-y) - 19vmax); }
-.tone-transition span { width: 62vmax; height: 62vmax; left: calc(var(--tone-origin-x) - 31vmax); top: calc(var(--tone-origin-y) - 31vmax); opacity: .35; }
-.tone-transition.reduced { animation-name: tone-curtain-reduced; }
-@keyframes tone-curtain { 0% { clip-path: circle(0 at var(--tone-origin-x) var(--tone-origin-y)); opacity: .96; } 46%, 61% { clip-path: circle(150vmax at var(--tone-origin-x) var(--tone-origin-y)); opacity: .96; } 100% { clip-path: circle(150vmax at var(--tone-origin-x) var(--tone-origin-y)); opacity: 0; } }
-@keyframes tone-curtain-reduced { from { clip-path: circle(150vmax at var(--tone-origin-x) var(--tone-origin-y)); opacity: .34; } to { clip-path: circle(150vmax at var(--tone-origin-x) var(--tone-origin-y)); opacity: 0; } }
-@keyframes tone-grid-shift { from { translate: -18px 12px; opacity: 0; } 48% { opacity: 1; } to { translate: 18px -12px; opacity: 0; } }
+/* Soft chromatic lens and editorial grid reveal. */
+.tone-transition { position: fixed; z-index: 150; inset: 0; overflow: hidden; pointer-events: none; isolation: isolate; background: transparent; animation: tone-lens-fade var(--tone-duration) ease-out both; }
+.tone-transition::before { content: ''; position: absolute; z-index: -1; left: calc(var(--tone-origin-x) - 90vmax); top: calc(var(--tone-origin-y) - 90vmax); width: 180vmax; height: 180vmax; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--tone-curtain), transparent 75%) 0 4%, color-mix(in srgb, var(--tone-curtain), transparent 86%) 18%, color-mix(in srgb, var(--tone-curtain), transparent 95%) 42%, transparent 69%); filter: blur(14px) saturate(1.04); transform: scale(.04); animation: tone-lens-bloom var(--tone-duration) cubic-bezier(.2,.72,.18,1) both; }
+.tone-transition::after { content: ''; position: absolute; inset: -6%; opacity: 0; background-image: linear-gradient(color-mix(in srgb, var(--tone-curtain), white 28%) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--tone-curtain), white 28%) 1px, transparent 1px); background-size: 58px 58px; mask-image: radial-gradient(circle at var(--tone-origin-x) var(--tone-origin-y), #000 0 17%, transparent 67%); animation: tone-grid-glide var(--tone-duration) ease-out both; }
+.tone-transition i, .tone-transition span { position: absolute; display: block; border: 1px solid color-mix(in srgb, var(--tone-curtain), white 42%); border-radius: 50%; opacity: 0; transform: scale(.1); transform-origin: center; }
+.tone-transition i { width: 14vmax; height: 14vmax; left: calc(var(--tone-origin-x) - 7vmax); top: calc(var(--tone-origin-y) - 7vmax); animation: tone-ring-one var(--tone-duration) cubic-bezier(.2,.72,.18,1) both; }
+.tone-transition span { width: 28vmax; height: 28vmax; left: calc(var(--tone-origin-x) - 14vmax); top: calc(var(--tone-origin-y) - 14vmax); animation: tone-ring-two var(--tone-duration) cubic-bezier(.2,.72,.18,1) both; }
+.tone-transition.reduced { background: color-mix(in srgb, var(--tone-curtain), transparent 88%); animation: tone-reduced-fade 120ms ease-out both !important; }
+.tone-transition.reduced::before, .tone-transition.reduced::after, .tone-transition.reduced i, .tone-transition.reduced span { display: none; }
+@keyframes tone-lens-fade { 0% { opacity: 0; } 20%, 58% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes tone-lens-bloom { 0% { opacity: 0; transform: scale(.04); } 24% { opacity: .62; } 68% { opacity: .48; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }
+@keyframes tone-grid-glide { 0%, 18% { opacity: 0; translate: -12px 10px; } 48% { opacity: .08; } 100% { opacity: 0; translate: 16px -12px; } }
+@keyframes tone-ring-one { 0% { opacity: 0; transform: scale(.1); } 32% { opacity: .3; } 78%, 100% { opacity: 0; transform: scale(2.4); } }
+@keyframes tone-ring-two { 4% { opacity: 0; transform: scale(.08); } 42% { opacity: .15; } 92%, 100% { opacity: 0; transform: scale(1.7); } }
+@keyframes tone-reduced-fade { from { opacity: .45; } to { opacity: 0; } }
 
 /* Warm Paper keeps the active player as a dark media island. */
 .app-shell[data-tone='paper'] .topbar, .app-shell[data-tone='paper'] .search-panel, .app-shell[data-tone='paper'] .playlist-panel, .app-shell[data-tone='paper'] .player-panel.stage-mode-daily { box-shadow: 0 22px 60px rgba(68,57,43,.14), inset 0 1px rgba(255,255,255,.55); }
@@ -565,6 +586,10 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
   .tone-grid { grid-template-columns: 1fr; }
   .tone-card { min-height: 72px; grid-template-columns: 54px minmax(0,1fr) 18px; }
   .tone-swatch { width: 54px; height: 46px; }
-  .tone-transition { --tone-duration: 280ms; }
-  .immersive-workspace-scene { display: none; }
+  .tone-transition { --tone-duration: 250ms; }
+  .immersive-workspace-scene { display: block; position: fixed; inset: 68px 8px 68px; }
+  .immersive-workspace-scene.css-fallback.motion-active .immersive-css-scene { opacity: .92; }
+  .immersive-css-scene::before { left: -8%; top: -12%; width: 112%; }
+  .immersive-css-scene::after { background-size: 38px 38px; opacity: .28; }
+  .immersive-css-scene > b { right: -18%; bottom: -7%; width: 82%; }
 }
