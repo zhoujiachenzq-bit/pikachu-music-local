@@ -107,6 +107,12 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
       reset_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      bucket_key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      reset_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS listening_sessions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -192,6 +198,7 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
   db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now());
   db.prepare('DELETE FROM source_cache WHERE expires_at <= ?').run(now());
   db.prepare('DELETE FROM login_attempts WHERE reset_at <= ?').run(now());
+  db.prepare('DELETE FROM rate_limits WHERE reset_at <= ?').run(now());
   db.prepare("UPDATE recommendation_runs SET status='failed',message='服务重启，可重新生成',updated_at=? WHERE status IN ('queued','running')").run(now());
   return db;
 }

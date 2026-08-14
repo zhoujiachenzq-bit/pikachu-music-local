@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasTimedLyric, isAmbiguousFallback, isLikelyKuwoRestrictionAudio, matchScore, parseLegacyKuwoSearch, parsePlaylistInput, resolveTrackWithFallback, SourceError } from './sources.js';
+import { hasTimedLyric, isAmbiguousFallback, isLikelyKuwoRestrictionAudio, matchScore, parseLegacyKuwoSearch, parsePlaylistInput, readLimitedText, resolveTrackWithFallback, SourceError } from './sources.js';
 import { createDatabase, setCached } from './db.js';
 import type { Track } from '../shared/types.js';
 
@@ -64,6 +64,13 @@ describe('temporary playback cache', () => {
     setCached(db, 'lyric:netease:2', { lyric: '[00:01.00]长期歌词缓存' }, 60_000);
     await expect(resolveTrackWithFallback(input, db)).resolves.toMatchObject({ lyric: '[00:01.00]长期歌词缓存' });
     db.close();
+  });
+});
+
+describe('upstream response limits', () => {
+  it('rejects oversized bodies even without a content-length header', async () => {
+    const stream = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('123456')); controller.close(); } });
+    await expect(readLimitedText(new Response(stream), 5)).rejects.toMatchObject({ code: 'SOURCE_RESPONSE_TOO_LARGE' });
   });
 });
 

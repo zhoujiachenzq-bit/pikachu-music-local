@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createDatabase, type Db } from './db.js';
-import { createApp } from './app.js';
+import { createApp, trustProxyFromEnv } from './app.js';
 
 describe('local API integration', () => {
   let app: FastifyInstance | undefined; let db: Db | undefined;
@@ -54,11 +54,60 @@ describe('local API integration', () => {
 
     const rejected = await app.inject({
       method: 'POST', url: '/api/auth/register',
-      headers: { host: 'music.example.com', origin: 'https://evil.example' },
+      headers: { host: 'music.example.com', origin: 'https://evil.example', 'x-forwarded-host': 'evil.example' },
       payload: { username: 'Dawn', password: 'Piplup-2026' }
     });
     expect(rejected.statusCode).toBe(403);
     expect(rejected.json().error.code).toBe('ORIGIN_REJECTED');
+  });
+
+  it('keeps registration convenient while throttling automated account creation', async () => {
+    const previous = process.env.RATE_REGISTER_IP_DAILY; process.env.RATE_REGISTER_IP_DAILY = '1';
+    try {
+      db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+      const first = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'May', password: 'Torchic-2026' } });
+      const blocked = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'Max', password: 'Ralts-2026' } });
+      expect(first.statusCode).toBe(201);
+      expect(blocked.statusCode).toBe(429); expect(blocked.json().error).toMatchObject({ code: 'RATE_LIMITED' });
+      expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+    } finally {
+      if (previous === undefined) delete process.env.RATE_REGISTER_IP_DAILY; else process.env.RATE_REGISTER_IP_DAILY = previous;
+    }
+  });
+
+  it('applies registration limits to the trusted proxy client IP', async () => {
+    const previous = process.env.RATE_REGISTER_IP_DAILY; process.env.RATE_REGISTER_IP_DAILY = '1';
+    try {
+      db = createDatabase(':memory:'); app = await createApp({ db, logger: false, trustProxy: 1 }); await app.ready();
+      const first = await app.inject({ method: 'POST', url: '/api/auth/register', headers: { 'x-forwarded-for': '203.0.113.10' }, payload: { username: 'Leaf', password: 'Bulbasaur-2026' } });
+      const second = await app.inject({ method: 'POST', url: '/api/auth/register', headers: { 'x-forwarded-for': '198.51.100.8' }, payload: { username: 'Tracey', password: 'Marill-2026' } });
+      const blocked = await app.inject({ method: 'POST', url: '/api/auth/register', headers: { 'x-forwarded-for': '198.51.100.8' }, payload: { username: 'Todd', password: 'Snap-2026' } });
+      expect(first.statusCode).toBe(201); expect(second.statusCode).toBe(201); expect(blocked.statusCode).toBe(429);
+    } finally {
+      if (previous === undefined) delete process.env.RATE_REGISTER_IP_DAILY; else process.env.RATE_REGISTER_IP_DAILY = previous;
+    }
+  });
+
+  it('sets browser security headers and prevents caching account responses', async () => {
+    db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+    const health = await app.inject({ method: 'GET', url: '/api/health' });
+    expect(health.headers['x-content-type-options']).toBe('nosniff');
+    expect(health.headers['x-frame-options']).toBe('DENY');
+    expect(health.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(health.headers['cache-control']).toBe('no-store');
+  });
+
+  it('rejects unsafe all-proxy trust and oversized nested backups', async () => {
+    expect(() => trustProxyFromEnv('true')).toThrow(/TRUST_PROXY=true/);
+    expect(trustProxyFromEnv('172.17.0.0/16,127.0.0.1/8')).toEqual(['172.17.0.0/16', '127.0.0.1/8']);
+    expect(trustProxyFromEnv(undefined, '1')).toBe(1);
+    db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+    const registered = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'Iris', password: 'Axew-2026' } });
+    const cookie = registered.headers['set-cookie']!.split(';')[0];
+    const invalid = await app.inject({ method: 'POST', url: '/api/backup/restore', headers: { cookie }, payload: {
+      mode: 'preview', data: { backupVersion: 2, playlists: [{ name: 'x'.repeat(61), tracks: [] }] }
+    } });
+    expect(invalid.statusCode).toBe(400); expect(invalid.json().error.code).toBe('VALIDATION_ERROR');
   });
 
   it('persists login throttling in SQLite', async () => {

@@ -2,7 +2,7 @@
 
 一个可在本机运行或用容器部署的全栈音乐播放器。界面参考原“皮卡丘的音乐站”，增加本地账户、SQLite 持久化、收藏、自建歌单、四源公开歌单导入、手动同步和 JSON 备份恢复。
 
-当前版本：`v0.2.0`。新增每日推荐、播放行为学习、推荐反馈、来源健康监测和可恢复导入任务；修复酷我限制提示音误播放，并可选接入仅本机运行的 `go-music-api` 作为最后一级备用音源。继续支持 Android 后台播放、PWA、精确歌词定位和三种播放模式。
+当前开发版本：`v0.2.1（草稿）`。在 v0.2.0 的每日推荐与备用音源基础上，保持开放注册体验并加入分层限流、安全响应头、严格备份校验、第三方响应上限和容器健康检查。继续支持 Android 后台播放、PWA、精确歌词定位和三种播放模式。
 
 ## 启动
 
@@ -55,8 +55,28 @@ QQ      https://y.qq.com/n/ryqq/playlist/7011264340
 - SQLite 数据库位于 `data/pikachu-music.sqlite`；`data/` 已加入 `.gitignore`。
 - 密码使用随机盐和 `scrypt` 哈希；会话 Cookie 为 HTTP-only、SameSite=Strict。
 - 本地运行默认只绑定 `127.0.0.1`；容器部署通过 `HOST=0.0.0.0` 接收平台反向代理流量，生产 Cookie 仅通过 HTTPS 发送。
+- 公开注册默认保留，但同一 IP 每天最多注册 3 个账户，全站每小时最多注册 20 个；触发限制时只要求稍后重试，不改变正常注册步骤。
+- 登录、搜索、播放解析、导入、推荐和备份使用相互独立的账户/IP配额；限流状态保存在 SQLite，服务重启不会绕过冷却时间。
+- 生产环境必须让应用正确识别真实客户端 IP。自建 Caddy/Docker 推荐设置 `TRUST_PROXY=实际代理IP或CIDR`，例如确认网络范围后设置 `TRUST_PROXY=172.17.0.0/16,127.0.0.1/8`；不要设置 `TRUST_PROXY=true`。只有一个受控代理跳数的平台可设置 `TRUST_PROXY_HOPS=1`。
 - 歌单链接仅允许四个平台的域名，短链接最多跟随四次且每一跳都重新校验域名，避免访问本机或任意网络地址。
 - 不读取平台账户 Cookie，不支持私人歌单、付费或 DRM 内容，也不会绕过会员限制。
+
+默认资源配额可通过环境变量微调：
+
+| 功能 | 默认值 | 环境变量 |
+| --- | ---: | --- |
+| 同 IP 注册 | 3 个/天 | `RATE_REGISTER_IP_DAILY` |
+| 全站注册 | 20 个/小时 | `RATE_REGISTER_GLOBAL_HOURLY` |
+| 单账户登录 | 5 次/15 分钟 | `RATE_LOGIN_ACCOUNT_15M` |
+| 单 IP 登录 | 30 次/15 分钟 | `RATE_LOGIN_IP_15M` |
+| 单账户搜索 | 30 次/分钟 | `RATE_SEARCH_USER_MINUTE` |
+| 单账户解析 | 20 次/分钟 | `RATE_RESOLVE_USER_MINUTE` |
+| 单账户导入/同步 | 10 次/天；新账户首日 3 次 | `RATE_IMPORT_USER_DAILY` |
+| 单次导入 | 2000 首 | `MAX_IMPORT_TRACKS` |
+
+生产容器还建议在启动参数中加入 `--read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges --memory 512m --pids-limit 200`。数据库卷 `/var/data` 保持可写，备份文件应保存到未挂载进应用容器的 root 专用目录并设置为 `600` 权限。
+
+腾讯云现有服务器升级可使用 [deploy/tencent-v0.2.1.sh](deploy/tencent-v0.2.1.sh)，完整的防火墙、SSH、备份和回滚准备见 [deploy/TENCENT_SECURITY.md](deploy/TENCENT_SECURITY.md)。脚本不会修改 Caddy 或 SSH，并会保留旧应用容器供验收后回滚。
 
 第三方公开接口可能临时限流或变化。每个平台适配器均独立设置超时、单次重试和错误报告，单一来源故障不会影响本地资料或其他来源。
 

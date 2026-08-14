@@ -6,11 +6,11 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
 } elseif (Test-Path (Join-Path $workspaceNode 'node.exe')) {
   $nodeDirectory = $workspaceNode
 } else {
-  throw '需要 Node.js 24 或更高版本。'
+  throw 'Node.js 24 or newer is required.'
 }
 
 $env:PATH = "$nodeDirectory;$env:PATH"
-$pnpm = if (Get-Command pnpm -ErrorAction SilentlyContinue) { (Get-Command pnpm).Source } elseif (Test-Path $workspacePnpm) { $workspacePnpm } else { throw '需要 pnpm。' }
+$pnpm = if (Get-Command pnpm -ErrorAction SilentlyContinue) { (Get-Command pnpm).Source } elseif (Test-Path $workspacePnpm) { $workspacePnpm } else { throw 'pnpm is required.' }
 
 $backupExecutable = Join-Path $PSScriptRoot 'data\tools\go-music-api\go-music-api-loopback.exe'
 if (Test-Path -LiteralPath $backupExecutable) {

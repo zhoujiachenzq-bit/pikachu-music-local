@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pikachu-music-shell-v0.2.0.0';
+const CACHE_NAME = 'pikachu-music-shell-v0.2.1.0';
 const STATIC_PATHS = new Set(['/manifest.webmanifest', '/pikachu.svg', '/pikachu.gif', '/pikachu.ico', '/pikachu-192.png', '/pikachu-512.png']);
 
 async function cacheAppShell() {

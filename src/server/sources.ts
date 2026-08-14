@@ -5,6 +5,7 @@ import { canonicalTrackKey, stableMetadataId } from '../shared/trackIdentity.js'
 import { withSourceHealth } from './sourceHealth.js';
 import { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
 import { resolveWithGoMusicApi } from './goMusicApi.js';
+import { positiveEnvInt } from './rateLimit.js';
 
 export { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
 
@@ -115,9 +116,30 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, attempts = 
   throw new SourceError('SOURCE_UNAVAILABLE', `音乐源请求失败：${last instanceof Error ? last.message : String(last)}`);
 }
 
+export async function readLimitedText(response: Response, maxBytes = positiveEnvInt('SOURCE_MAX_RESPONSE_BYTES', 4 * 1024 * 1024, 1024, 16 * 1024 * 1024)): Promise<string> {
+  const declaredLength = Number(response.headers.get('content-length') || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new SourceError('SOURCE_RESPONSE_TOO_LARGE', '音乐源返回的数据超过安全大小限制。');
+  if (!response.body) return '';
+  const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let total = 0; let timer: ReturnType<typeof setTimeout> | undefined;
+  const readAll = async () => {
+    while (true) {
+      const { done, value } = await reader.read(); if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) { await reader.cancel().catch(() => undefined); throw new SourceError('SOURCE_RESPONSE_TOO_LARGE', '音乐源返回的数据超过安全大小限制。'); }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks, total).toString('utf8');
+  };
+  try {
+    return await Promise.race([readAll(), new Promise<string>((_resolve, reject) => {
+      timer = setTimeout(() => { void reader.cancel().catch(() => undefined); reject(new SourceError('SOURCE_TIMEOUT', '读取音乐源响应超时。')); }, 12_000);
+    })]);
+  } finally { if (timer) clearTimeout(timer); }
+}
+
 async function fetchJson(url: string, init: RequestInit = {}): Promise<any> {
   const response = await fetchWithTimeout(url, init);
-  const raw = await response.text();
+  const raw = await readLimitedText(response);
   const cleaned = raw.replace(/^callback\(|^MusicJsonCallback\(/, '').replace(/\);?\s*$/, '');
   try { return JSON.parse(cleaned); }
   catch { throw new SourceError('INVALID_SOURCE_RESPONSE', '音乐源返回了无法识别的数据。'); }
@@ -221,8 +243,8 @@ async function searchSourceRaw(source: MusicSource, query: string, limit = 10): 
     })).filter((item: Track) => item.sourceTrackId);
   }
   const params = new URLSearchParams({ all: q, ft: 'music', itemset: 'web_2013', client: 'kt', pn: '0', rn: String(size), rformat: 'json', encoding: 'utf8' });
-  const response = await fetchWithTimeout(`http://search.kuwo.cn/r.s?${params}`, {}, 1);
-  const list = parseLegacyKuwoSearch(await response.text());
+  const response = await fetchWithTimeout(`https://search.kuwo.cn/r.s?${params}`, {}, 1);
+  const list = parseLegacyKuwoSearch(await readLimitedText(response));
   if (!list.length) throw new SourceError('INVALID_SOURCE_RESPONSE', '酷我没有返回可识别的搜索结果。');
   return list.map(item => track('kuwo', item.id, { ...item, keyword: q }));
 }
@@ -303,7 +325,7 @@ async function resolveOriginalRaw(input: Track): Promise<ResolvedTrack> {
     const audioUrl = findAudio(result); if (!audioUrl) throw new SourceError('UNPLAYABLE', '咪咕未返回公开播放地址。');
     let lyric: string | null = findLyric(result);
     const lyricUrl = absolute(first(result.lrc_url));
-    if (!lyric && lyricUrl) lyric = await (await fetchWithTimeout(lyricUrl, {}, 1)).text().catch(() => null);
+    if (!lyric && lyricUrl) lyric = await readLimitedText(await fetchWithTimeout(lyricUrl, {}, 1), 1024 * 1024).catch(() => null);
     return { ...input, title: first(result.title, input.title), artist: first(result.singer, input.artist), coverUrl: absolute(first(result.cover, input.coverUrl)),
       sourceUrl: first(result.link, input.sourceUrl) || null, audioUrl, lyric, actualSource: 'migu', fallback: false };
   }
@@ -443,7 +465,7 @@ async function fetchQqPlaylist(id: string): Promise<ImportedPlaylist> {
 
 async function fetchKuwoPlaylist(id: string): Promise<ImportedPlaylist> {
   const params = new URLSearchParams({ op: 'getlistinfo', pid: id, pn: '0', rn: '1000', encode: 'utf8', keyset: 'pl2012', identity: 'kuwo', pcmp4: '1', vipver: '1', newver: '1' });
-  const j = await fetchJson(`http://nplserver.kuwo.cn/pl.svc?${params}`);
+  const j = await fetchJson(`https://nplserver.kuwo.cn/pl.svc?${params}`);
   const list = Array.isArray(j.musiclist) ? j.musiclist : []; if (!list.length) throw new SourceError('PLAYLIST_NOT_FOUND', '酷我公开歌单不存在或为空。');
   const title = first(j.title, j.name, `酷我歌单 ${id}`);
   return { source: 'kuwo', sourcePlaylistId: id, title, description: first(j.info), coverUrl: absolute(first(j.pic, j.img)),

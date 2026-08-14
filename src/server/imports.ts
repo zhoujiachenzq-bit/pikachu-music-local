@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Db } from './db.js';
 import { transaction, upsertTrack } from './db.js';
 import { fetchPublicPlaylist, parsePlaylistInput } from './sources.js';
+import { positiveEnvInt } from './rateLimit.js';
 import type { ImportJob, MusicSource } from '../shared/types.js';
 
 const now = () => new Date().toISOString();
@@ -72,6 +73,8 @@ async function runImportJobInternal(db: Db, jobId: string): Promise<void> {
     const imported = await fetchPublicPlaylist(source, sourceId, (processed, total) => {
       patchJob(db, jobId, { processed, total, progress: Math.min(70, 10 + Math.round(processed / Math.max(total, 1) * 60)), message: `已读取 ${processed}/${total || '?'} 首` });
     }, db);
+    const maxTracks = positiveEnvInt('MAX_IMPORT_TRACKS', 2000, 1, 10_000);
+    if (imported.tracks.length > maxTracks) throw new Error(`该歌单包含 ${imported.tracks.length} 首歌曲，超过单次导入上限 ${maxTracks} 首。`);
     const selectedTracks = retryTrackIds.size ? imported.tracks.filter(item => retryTrackIds.has(item.sourceTrackId)) : imported.tracks;
     patchJob(db, jobId, { total: selectedTracks.length, progress: 74, message: '正在写入本地数据库…' });
     const failures: Array<{ trackId?: string; track?: string; reason: string }> = [];

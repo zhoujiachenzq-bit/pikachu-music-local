@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import { z, ZodError } from 'zod';
@@ -13,7 +13,8 @@ import { createImportJob, createSyncJob, getImportJob, listImportJobs, recoverIm
 import { resolvePlaylistInput, resolveTimedLyric, resolveTrackWithFallback, searchAll, SourceError } from './sources.js';
 import { getDailyRecommendation, listRecommendationHistory, startDailyGeneration } from './recommendations.js';
 import { goMusicApiBaseUrl, openGoMusicApiStream } from './goMusicApi.js';
-import { SOURCES, type MusicSource, type PlaylistDetail, type Track } from '../shared/types.js';
+import { applyRateLimitHeaders, clearRateLimit, consumeRateLimits, positiveEnvInt, type RateLimitRule } from './rateLimit.js';
+import { SOURCES, type MusicSource, type Track } from '../shared/types.js';
 
 const credentialsSchema = z.object({ username: z.string().trim().min(2).max(24).regex(/^[\p{L}\p{N}_.-]+$/u), password: z.string().min(8).max(72) });
 const registerSchema = credentialsSchema.extend({ inviteCode: z.string().max(128).optional() });
@@ -29,32 +30,122 @@ const trackSchema = z.object({
   if (!trackSourceHosts[value.source].some(allowed => host === allowed || host.endsWith(`.${allowed}`))) context.addIssue({ code: 'custom', path: ['sourceUrl'], message: '歌曲来源页必须属于所选音乐平台。' });
 });
 
+const backupPlaylistTrackSchema = trackSchema.and(z.object({
+  position: z.number().int().min(0).max(2_000_000).optional(), origin: z.enum(['source', 'local']).optional(), excluded: z.boolean().optional()
+}));
+const backupPlaylistSchema = z.object({
+  id: z.string().min(1).max(200).optional(), name: z.string().trim().min(1).max(60), description: z.string().max(500).default(''),
+  coverUrl: webUrlSchema.nullable().optional(), source: sourceSchema.nullable().optional(), sourcePlaylistId: z.string().max(300).nullable().optional(),
+  sourceUrl: webUrlSchema.nullable().optional(), lastSyncedAt: z.string().datetime().nullable().optional(), tracks: z.array(backupPlaylistTrackSchema).max(2000).default([])
+});
+const backupListeningSchema = z.object({
+  id: z.string().min(1).max(100).optional(), track: trackSchema,
+  contextType: z.enum(['search', 'favorites', 'playlist', 'daily', 'unknown']).default('unknown'), contextId: z.string().max(200).nullable().optional(),
+  actualSource: sourceSchema.nullable().optional(), startedAt: z.string().datetime().optional(), updatedAt: z.string().datetime().optional(),
+  playedMs: z.number().int().min(0).max(31 * 24 * 60 * 60_000).default(0), durationMs: z.number().int().min(0).max(24 * 60 * 60_000).default(0),
+  completed: z.boolean().default(false), skipped: z.boolean().default(false), errorCode: z.string().max(100).nullable().optional()
+});
+const backupFeedbackSchema = z.object({
+  canonicalKey: z.string().min(1).max(700), action: z.enum(['not_interested', 'less_artist']), artistKey: z.string().max(300).nullable().optional(),
+  createdAt: z.string().datetime().optional(), updatedAt: z.string().datetime().optional()
+});
+const backupRecommendationTrackSchema = trackSchema.and(z.object({
+  rank: z.number().int().min(1).max(100).optional(), score: z.number().finite().min(-1_000_000).max(1_000_000).optional(),
+  reason: z.string().max(300).optional(), kind: z.enum(['familiar', 'explore']).optional()
+}));
+const backupRecommendationSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), message: z.string().max(500).default(''), generatedAt: z.string().datetime().nullable().optional(),
+  tracks: z.array(backupRecommendationTrackSchema).max(100)
+});
+const backupSchema = z.object({
+  backupVersion: z.union([z.literal(1), z.literal(2)]),
+  profile: z.object({ language: z.enum(['zh', 'en']).optional(), volume: z.number().min(0).max(1).optional(), playMode: z.enum(['list', 'loop', 'shuffle']).optional() }).optional(),
+  favorites: z.array(trackSchema).max(5000).default([]), playlists: z.array(backupPlaylistSchema).max(200).default([]),
+  listeningSessions: z.array(backupListeningSchema).max(10_000).default([]), feedback: z.array(backupFeedbackSchema).max(5000).default([]),
+  recommendations: z.array(backupRecommendationSchema).max(30).default([])
+});
+
+const MINUTE = 60_000; const HOUR = 60 * MINUTE; const DAY = 24 * HOUR;
+const MAX_PLAYLISTS_PER_USER = 200; const MAX_TRACKS_PER_PLAYLIST = 2000; const MAX_LISTENING_SESSIONS_PER_USER = 10_000;
+
+export function trustProxyFromEnv(raw = process.env.TRUST_PROXY, hopsRaw = process.env.TRUST_PROXY_HOPS): false | string[] | number {
+  if (!raw || raw.trim().toLowerCase() === 'false') {
+    if (!hopsRaw) return false;
+    const hops = Number(hopsRaw); if (Number.isInteger(hops) && hops >= 1 && hops <= 3) return hops;
+    throw new Error('TRUST_PROXY_HOPS 必须是 1–3 的整数。');
+  }
+  if (raw.trim().toLowerCase() === 'true') throw new Error('TRUST_PROXY=true 不安全；请填写 Caddy/反向代理的明确 IP 或 CIDR，多个值用逗号分隔。');
+  const proxies = raw.split(',').map(value => value.trim()).filter(Boolean);
+  if (!proxies.length) return false;
+  return proxies;
+}
+
+function securityHeaders(reply: FastifyReply, production: boolean) {
+  reply.header('x-content-type-options', 'nosniff');
+  reply.header('x-frame-options', 'DENY');
+  reply.header('referrer-policy', 'strict-origin-when-cross-origin');
+  reply.header('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  reply.header('cross-origin-opener-policy', 'same-origin');
+  reply.header('cross-origin-resource-policy', 'same-origin');
+  reply.header('content-security-policy', "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob: https: http:; connect-src 'self' https: http:; worker-src 'self'; manifest-src 'self'");
+  if (production) reply.header('strict-transport-security', 'max-age=31536000; includeSubDomains');
+}
+
 function apiError(code: string, message: string, details?: unknown) { return { error: { code, message, ...(details === undefined ? {} : { details }) } }; }
 function firstHeader(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value?.split(',')[0]?.trim();
 }
 
-function safeOrigin(origin: string | undefined, host: string | undefined, forwardedHost: string | string[] | undefined) {
+function safeOrigin(origin: string | undefined, host: string | undefined) {
   if (!origin) return true;
   try {
     const url = new URL(origin);
     if (['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) return true;
-    const allowedHosts = [host, firstHeader(forwardedHost)].filter((value): value is string => Boolean(value)).map(value => value.toLowerCase());
+    const allowedHosts = [firstHeader(host)].filter((value): value is string => Boolean(value)).map(value => value.toLowerCase());
     if (allowedHosts.includes(url.host.toLowerCase())) return true;
     const configuredOrigins = (process.env.APP_ORIGIN || '').split(',').map(value => value.trim()).filter(Boolean);
     return configuredOrigins.includes(url.origin);
   } catch { return false; }
 }
 
-export interface AppOptions { db?: Db; staticDir?: string; logger?: boolean; }
+export interface AppOptions { db?: Db; staticDir?: string; logger?: boolean; trustProxy?: boolean | string | string[] | number; }
 
 export async function createApp(options: AppOptions = {}): Promise<FastifyInstance> {
   const db = options.db || createDatabase();
-  const app = Fastify({ logger: options.logger ?? true, bodyLimit: 5 * 1024 * 1024, trustProxy: process.env.TRUST_PROXY === 'true' });
+  const app = Fastify({ logger: options.logger ?? true, bodyLimit: 5 * 1024 * 1024, trustProxy: options.trustProxy ?? trustProxyFromEnv() });
   await app.register(cookie);
 
+  const limits = {
+    registrationIp: positiveEnvInt('RATE_REGISTER_IP_DAILY', 3), registrationGlobal: positiveEnvInt('RATE_REGISTER_GLOBAL_HOURLY', 20),
+    loginAccount: positiveEnvInt('RATE_LOGIN_ACCOUNT_15M', 5), loginIp: positiveEnvInt('RATE_LOGIN_IP_15M', 30),
+    searchUser: positiveEnvInt('RATE_SEARCH_USER_MINUTE', 30), searchIp: positiveEnvInt('RATE_SEARCH_IP_MINUTE', 120),
+    resolveUser: positiveEnvInt('RATE_RESOLVE_USER_MINUTE', 20), resolveIp: positiveEnvInt('RATE_RESOLVE_IP_MINUTE', 80),
+    importUser: positiveEnvInt('RATE_IMPORT_USER_DAILY', 10), importIp: positiveEnvInt('RATE_IMPORT_IP_DAILY', 30),
+    recommendationUser: positiveEnvInt('RATE_RECOMMENDATION_USER_DAILY', 5), listeningUser: positiveEnvInt('RATE_LISTENING_USER_MINUTE', 120),
+    backupUser: positiveEnvInt('RATE_BACKUP_USER_HOURLY', 10)
+  };
+  const limited = (reply: FastifyReply, rules: RateLimitRule[], message: string, code = 'RATE_LIMITED') => {
+    const result = consumeRateLimits(db, rules); applyRateLimitHeaders(reply, result);
+    if (result.allowed) return false;
+    const wait = result.retryAfterSeconds < 60 ? `${result.retryAfterSeconds} 秒` : result.retryAfterSeconds < HOUR / 1000
+      ? `${Math.ceil(result.retryAfterSeconds / 60)} 分钟` : `${Math.ceil(result.retryAfterSeconds / 3600)} 小时`;
+    reply.code(429).send(apiError(code, `${message} 约 ${wait}后可重试。`, { retryAfterSeconds: result.retryAfterSeconds, scope: result.scope }));
+    return true;
+  };
+  const limitImportRequest = (user: { id: string; createdAt: string }, request: FastifyRequest, reply: FastifyReply) => {
+    const active = Number((db.prepare("SELECT COUNT(*) count FROM import_jobs WHERE user_id=? AND status IN ('queued','running')").get(user.id) as { count: number }).count);
+    if (active >= 1) { reply.code(409).send(apiError('IMPORT_IN_PROGRESS', '当前已有导入或同步任务，请等待它完成。')); return true; }
+    const accountAge = Date.now() - Date.parse(user.createdAt); const userLimit = accountAge < DAY ? Math.min(3, limits.importUser) : limits.importUser;
+    return limited(reply, [
+      { scope: 'import:user', identifier: user.id, limit: userLimit, windowMs: DAY },
+      { scope: 'import:ip', identifier: request.ip, limit: limits.importIp, windowMs: DAY }
+    ], '歌单导入或同步过于频繁。');
+  };
+
   app.addHook('onRequest', async (request, reply) => {
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !safeOrigin(request.headers.origin, request.headers.host, request.headers['x-forwarded-host'])) {
+    securityHeaders(reply, process.env.NODE_ENV === 'production');
+    if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !safeOrigin(request.headers.origin, request.headers.host)) {
       return reply.code(403).send(apiError('ORIGIN_REJECTED', '只接受来自同源页面的写入请求。'));
     }
   });
@@ -84,6 +175,10 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     if (process.env.REGISTRATION_INVITE_CODE && body.inviteCode !== process.env.REGISTRATION_INVITE_CODE) return reply.code(403).send(apiError('INVITE_REQUIRED', '邀请码不正确。'));
     const exists = db.prepare('SELECT 1 FROM users WHERE username=?').get(username);
     if (exists) return reply.code(409).send(apiError('USERNAME_EXISTS', '这个用户名已经存在。'));
+    if (limited(reply, [
+      { scope: 'register:ip', identifier: request.ip, limit: limits.registrationIp, windowMs: DAY },
+      { scope: 'register:global', identifier: 'all', limit: limits.registrationGlobal, windowMs: HOUR }
+    ], '注册请求过于频繁。')) return;
     const { salt, hash } = await hashPassword(body.password); const id = createUserId(); const stamp = new Date().toISOString();
     db.prepare(`INSERT INTO users(id,username,password_hash,password_salt,created_at,updated_at) VALUES(?,?,?,?,?,?)`).run(id, username, hash, salt, stamp, stamp);
     const token = createSession(db, id); setSessionCookie(reply, token);
@@ -92,17 +187,17 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   });
 
   app.post('/api/auth/login', async (request, reply) => {
-    const body = credentialsSchema.parse(request.body); const key = createHash('sha256').update(`${request.ip}:${body.username.toLowerCase()}`).digest('hex');
-    const current = db.prepare('SELECT count,reset_at FROM login_attempts WHERE attempt_key=?').get(key) as { count: number; reset_at: string } | undefined;
-    if (current && Date.parse(current.reset_at) > Date.now() && current.count >= 5) return reply.code(429).send(apiError('TOO_MANY_ATTEMPTS', '尝试次数过多，请 15 分钟后再试。'));
+    const body = credentialsSchema.parse(request.body); const accountIdentifier = body.username.trim().toLowerCase();
+    if (limited(reply, [
+      { scope: 'login:account', identifier: accountIdentifier, limit: limits.loginAccount, windowMs: 15 * MINUTE },
+      { scope: 'login:ip', identifier: request.ip, limit: limits.loginIp, windowMs: 15 * MINUTE }
+    ], '登录尝试次数过多。', 'TOO_MANY_ATTEMPTS')) return;
     const row = db.prepare('SELECT * FROM users WHERE username=?').get(body.username) as Record<string, unknown> | undefined;
     if (!row || !(await verifyPassword(body.password, String(row.password_salt), String(row.password_hash)))) {
-      const count = current && Date.parse(current.reset_at) > Date.now() ? current.count + 1 : 1; const stamp = new Date().toISOString(); const resetAt = new Date(Date.now() + 15 * 60_000).toISOString();
-      db.prepare(`INSERT INTO login_attempts(attempt_key,count,reset_at,updated_at) VALUES(?,?,?,?)
-        ON CONFLICT(attempt_key) DO UPDATE SET count=excluded.count,reset_at=excluded.reset_at,updated_at=excluded.updated_at`).run(key, count, resetAt, stamp);
       return reply.code(401).send(apiError('INVALID_CREDENTIALS', '用户名或密码不正确。'));
     }
-    db.prepare('DELETE FROM login_attempts WHERE attempt_key=?').run(key); const token = createSession(db, String(row.id)); setSessionCookie(reply, token);
+    clearRateLimit(db, { scope: 'login:account', identifier: accountIdentifier });
+    const token = createSession(db, String(row.id)); setSessionCookie(reply, token);
     return { user: rowToUser(row) };
   });
 
@@ -135,6 +230,10 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.get('/api/search', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
     const query = z.object({ q: z.string().trim().min(1).max(100), sources: z.string().optional(), limit: z.coerce.number().int().min(1).max(30).default(10) }).parse(request.query);
+    if (limited(reply, [
+      { scope: 'search:user', identifier: user.id, limit: limits.searchUser, windowMs: MINUTE },
+      { scope: 'search:ip', identifier: request.ip, limit: limits.searchIp, windowMs: MINUTE }
+    ], '搜索过于频繁。')) return;
     const sources = (query.sources?.split(',').filter(v => SOURCES.includes(v as MusicSource)) || [...SOURCES]) as MusicSource[];
     return searchAll(db, query.q, sources.length ? sources : [...SOURCES], query.limit);
   });
@@ -142,6 +241,10 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.post('/api/tracks/:id/resolve', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
     const params = z.object({ id: z.string() }).parse(request.params); const body = z.object({ track: trackSchema.optional(), refresh: z.boolean().default(false) }).parse(request.body || {});
+    if (limited(reply, [
+      { scope: 'resolve:user', identifier: user.id, limit: limits.resolveUser, windowMs: MINUTE },
+      { scope: 'resolve:ip', identifier: request.ip, limit: limits.resolveIp, windowMs: MINUTE }
+    ], '播放地址解析过于频繁。')) return;
     let input: Track | null = body.track ? { ...body.track, id: body.track.id || `${body.track.source}:${body.track.sourceTrackId}`, coverUrl: body.track.coverUrl || null, sourceUrl: body.track.sourceUrl || null } : null;
     if (input) input = upsertTrack(db, input);
     if (!input) { const row = db.prepare('SELECT * FROM tracks WHERE id=?').get(params.id) as Record<string, unknown> | undefined; if (row) input = rowToTrack(row); }
@@ -188,6 +291,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
       actualSource: sourceSchema.nullable().optional(), startedAt: z.string().datetime(), playedMs: z.number().int().min(0).max(31 * 24 * 60 * 60_000),
       durationMs: z.number().int().min(0).max(24 * 60 * 60_000), completed: z.boolean().default(false), skipped: z.boolean().default(false), errorCode: z.string().max(100).nullable().optional()
     }).parse(request.body);
+    if (limited(reply, [{ scope: 'listening:user', identifier: user.id, limit: limits.listeningUser, windowMs: MINUTE }], '播放记录提交过于频繁。')) return;
     if (!db.prepare('SELECT 1 FROM tracks WHERE id=?').get(body.trackId)) return reply.code(404).send(apiError('TRACK_NOT_FOUND', '歌曲不存在。'));
     const stamp = new Date().toISOString();
     db.prepare(`INSERT INTO listening_sessions(id,user_id,track_id,context_type,context_id,actual_source,started_at,updated_at,played_ms,duration_ms,completed,skipped,error_code)
@@ -197,6 +301,9 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
       actual_source=COALESCE(excluded.actual_source,listening_sessions.actual_source),error_code=COALESCE(excluded.error_code,listening_sessions.error_code),updated_at=excluded.updated_at
       WHERE listening_sessions.user_id=excluded.user_id`)
       .run(body.id, user.id, body.trackId, body.contextType, body.contextId || null, body.actualSource || null, body.startedAt, stamp, body.playedMs, body.durationMs, body.completed ? 1 : 0, body.skipped ? 1 : 0, body.errorCode || null);
+    db.prepare(`DELETE FROM listening_sessions WHERE user_id=? AND id NOT IN (
+      SELECT id FROM listening_sessions WHERE user_id=? ORDER BY updated_at DESC LIMIT ?
+    )`).run(user.id, user.id, MAX_LISTENING_SESSIONS_PER_USER);
     return reply.code(202).send({ ok: true });
   });
   app.get('/api/listening-sessions', async (request, reply) => {
@@ -218,7 +325,10 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     const user = requireUser(db, request, reply); if (!user) return;
     const { date, regenerate } = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), regenerate: z.coerce.boolean().default(false) }).parse(request.query);
     const existing = getDailyRecommendation(db, user.id, date);
-    if (!existing || existing.status === 'failed' || regenerate) startDailyGeneration(db, user.id, date);
+    if (!existing || existing.status === 'failed' || regenerate) {
+      if (limited(reply, [{ scope: 'recommendation:user', identifier: user.id, limit: limits.recommendationUser, windowMs: DAY }], '每日推荐重新生成过于频繁。')) return;
+      startDailyGeneration(db, user.id, date);
+    }
     const daily = getDailyRecommendation(db, user.id, date);
     const fallback = daily?.status === 'completed' ? null : listRecommendationHistory(db, user.id).find(item => item.date !== date) || null;
     return reply.code(daily?.status === 'completed' ? 200 : 202).send({ daily, fallback });
@@ -232,6 +342,9 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.post('/api/favorites', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
     const item = trackSchema.parse(request.body); const saved = upsertTrack(db, { ...item, id: item.id || `${item.source}:${item.sourceTrackId}`, coverUrl: item.coverUrl || null, sourceUrl: item.sourceUrl || null });
+    const alreadyFavorite = db.prepare('SELECT 1 FROM favorites WHERE user_id=? AND track_id=?').get(user.id, saved.id);
+    const favoriteCount = Number((db.prepare('SELECT COUNT(*) count FROM favorites WHERE user_id=?').get(user.id) as { count: number }).count);
+    if (!alreadyFavorite && favoriteCount >= 5000) return reply.code(409).send(apiError('FAVORITE_LIMIT_REACHED', '每个账户最多收藏 5000 首歌曲。'));
     db.prepare('INSERT OR IGNORE INTO favorites(user_id,track_id,created_at) VALUES(?,?,?)').run(user.id, saved.id, new Date().toISOString());
     return reply.code(201).send({ track: saved });
   });
@@ -243,6 +356,8 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.get('/api/playlists', async (request, reply) => { const user = requireUser(db, request, reply); if (!user) return; return { playlists: listPlaylists(db, user.id) }; });
   app.post('/api/playlists', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return; const body = z.object({ name: z.string().trim().min(1).max(60), description: z.string().max(500).default('') }).parse(request.body);
+    const count = Number((db.prepare('SELECT COUNT(*) count FROM playlists WHERE user_id=?').get(user.id) as { count: number }).count);
+    if (count >= MAX_PLAYLISTS_PER_USER) return reply.code(409).send(apiError('PLAYLIST_LIMIT_REACHED', `每个账户最多创建 ${MAX_PLAYLISTS_PER_USER} 个歌单。`));
     return reply.code(201).send({ playlist: createLocalPlaylist(db, user.id, body.name, body.description) });
   });
   app.get('/api/playlists/:id', async (request, reply) => {
@@ -260,6 +375,9 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     const user = requireUser(db, request, reply); if (!user) return; const { id } = z.object({ id: z.string() }).parse(request.params);
     if (!getPlaylist(db, user.id, id)) return reply.code(404).send(apiError('PLAYLIST_NOT_FOUND', '歌单不存在。'));
     const item = trackSchema.parse(request.body); const saved = upsertTrack(db, { ...item, id: item.id || `${item.source}:${item.sourceTrackId}`, coverUrl: item.coverUrl || null, sourceUrl: item.sourceUrl || null });
+    const existingItem = db.prepare('SELECT 1 FROM playlist_items WHERE playlist_id=? AND track_id=?').get(id, saved.id);
+    const itemCount = Number((db.prepare('SELECT COUNT(*) count FROM playlist_items WHERE playlist_id=? AND excluded=0').get(id) as { count: number }).count);
+    if (!existingItem && itemCount >= MAX_TRACKS_PER_PLAYLIST) return reply.code(409).send(apiError('PLAYLIST_TRACK_LIMIT_REACHED', `每个歌单最多保存 ${MAX_TRACKS_PER_PLAYLIST} 首歌曲。`));
     const max = db.prepare('SELECT COALESCE(MAX(position),-1) max_pos FROM playlist_items WHERE playlist_id=?').get(id) as { max_pos: number };
     db.prepare(`INSERT INTO playlist_items(playlist_id,track_id,position,origin,excluded,created_at) VALUES(?,?,?,'local',0,?)
       ON CONFLICT(playlist_id,track_id) DO UPDATE SET origin='local',excluded=0`).run(id, saved.id, Number(max.max_pos) + 1, new Date().toISOString());
@@ -287,11 +405,24 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.get('/api/imports', async (request, reply) => { const user = requireUser(db, request, reply); if (!user) return; return { jobs: listImportJobs(db, user.id) }; });
   app.post('/api/imports', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return; const body = z.object({ input: z.string().trim().min(1).max(1000), source: sourceSchema.optional() }).parse(request.body);
-    const parsed = await resolvePlaylistInput(body.input, body.source); const job = createImportJob(db, user.id, body.input, body.source, parsed); void runImportJob(db, job.id); return reply.code(202).send({ job });
+    if (limitImportRequest(user, request, reply)) return;
+    const parsed = await resolvePlaylistInput(body.input, body.source);
+    const existing = db.prepare('SELECT 1 FROM playlists WHERE user_id=? AND source=? AND source_playlist_id=?').get(user.id, parsed.source, parsed.id);
+    const playlistCount = Number((db.prepare('SELECT COUNT(*) count FROM playlists WHERE user_id=?').get(user.id) as { count: number }).count);
+    if (!existing && playlistCount >= MAX_PLAYLISTS_PER_USER) return reply.code(409).send(apiError('PLAYLIST_LIMIT_REACHED', `每个账户最多创建 ${MAX_PLAYLISTS_PER_USER} 个歌单。`));
+    const job = createImportJob(db, user.id, body.input, body.source, parsed); void runImportJob(db, job.id); return reply.code(202).send({ job });
   });
   app.get('/api/imports/:id', async (request, reply) => { const user = requireUser(db, request, reply); if (!user) return; const { id } = z.object({ id: z.string() }).parse(request.params); const job = getImportJob(db, user.id, id); if (!job) return reply.code(404).send(apiError('IMPORT_NOT_FOUND', '导入任务不存在。')); return { job }; });
-  app.post('/api/imports/:id/retry', async (request, reply) => { const user = requireUser(db, request, reply); if (!user) return; const { id } = z.object({ id: z.string() }).parse(request.params); const job = retryImportJob(db, user.id, id); if (!job) return reply.code(404).send(apiError('IMPORT_NOT_FOUND', '导入任务不存在。')); void runImportJob(db, job.id); return reply.code(202).send({ job }); });
-  app.post('/api/playlists/:id/sync', async (request, reply) => { const user = requireUser(db, request, reply); if (!user) return; const { id } = z.object({ id: z.string() }).parse(request.params); const job = createSyncJob(db, user.id, id); if (!job) return reply.code(400).send(apiError('NOT_LINKED_PLAYLIST', '这不是来源关联歌单。')); void runImportJob(db, job.id); return reply.code(202).send({ job }); });
+  app.post('/api/imports/:id/retry', async (request, reply) => {
+    const user = requireUser(db, request, reply); if (!user) return; const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (limitImportRequest(user, request, reply)) return;
+    const job = retryImportJob(db, user.id, id); if (!job) return reply.code(404).send(apiError('IMPORT_NOT_FOUND', '导入任务不存在。')); void runImportJob(db, job.id); return reply.code(202).send({ job });
+  });
+  app.post('/api/playlists/:id/sync', async (request, reply) => {
+    const user = requireUser(db, request, reply); if (!user) return; const { id } = z.object({ id: z.string() }).parse(request.params);
+    if (limitImportRequest(user, request, reply)) return;
+    const job = createSyncJob(db, user.id, id); if (!job) return reply.code(400).send(apiError('NOT_LINKED_PLAYLIST', '这不是来源关联歌单。')); void runImportJob(db, job.id); return reply.code(202).send({ job });
+  });
   app.get('/api/imports/:id/events', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return; const { id } = z.object({ id: z.string() }).parse(request.params);
     if (!getImportJob(db, user.id, id)) return reply.code(404).send(apiError('IMPORT_NOT_FOUND', '导入任务不存在。'));
@@ -302,6 +433,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
 
   app.get('/api/backup/export', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
+    if (limited(reply, [{ scope: 'backup:user', identifier: user.id, limit: limits.backupUser, windowMs: HOUR }], '备份操作过于频繁。')) return;
     const playlists = listPlaylists(db, user.id).map(item => getPlaylist(db, user.id, item.id));
     const listeningSessions = (db.prepare(`SELECT ls.*,t.source,t.source_track_id,t.title,t.artist,t.album,t.duration,t.cover_url,t.source_url,t.keyword,t.display_index,t.quality,t.canonical_key
       FROM listening_sessions ls JOIN tracks t ON t.id=ls.track_id WHERE ls.user_id=? ORDER BY ls.started_at`).all(user.id) as Record<string, unknown>[]).map(row => ({
@@ -315,17 +447,22 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   });
   app.post('/api/backup/restore', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
-    const body = z.object({ mode: z.enum(['preview', 'merge']).default('preview'), data: z.object({
-      backupVersion: z.union([z.literal(1), z.literal(2)]),
-      profile: z.object({ language: z.enum(['zh', 'en']).optional(), volume: z.number().min(0).max(1).optional(), playMode: z.enum(['list', 'loop', 'shuffle']).optional() }).optional(),
-      favorites: z.array(trackSchema).default([]), playlists: z.array(z.any()).default([]), listeningSessions: z.array(z.any()).default([]), feedback: z.array(z.any()).default([]), recommendations: z.array(z.any()).default([])
-    }) }).parse(request.body);
+    const body = z.object({ mode: z.enum(['preview', 'merge']).default('preview'), data: backupSchema }).parse(request.body);
     if (body.mode === 'preview') return { preview: { favorites: body.data.favorites.length, playlists: body.data.playlists.length, tracks: body.data.playlists.reduce((sum, p) => sum + (Array.isArray(p?.tracks) ? p.tracks.length : 0), 0) } };
+    if (limited(reply, [{ scope: 'backup:user', identifier: user.id, limit: limits.backupUser, windowMs: HOUR }], '备份操作过于频繁。')) return;
+    const currentPlaylistCount = Number((db.prepare('SELECT COUNT(*) count FROM playlists WHERE user_id=?').get(user.id) as { count: number }).count);
+    let newPlaylistCount = 0;
+    for (const raw of body.data.playlists) {
+      const backupId = raw.id || ''; let exists = backupId ? db.prepare('SELECT 1 FROM playlists WHERE user_id=? AND (id=? OR origin_backup_id=?)').get(user.id, backupId, backupId) : undefined;
+      if (!exists && raw.source && raw.sourcePlaylistId) exists = db.prepare('SELECT 1 FROM playlists WHERE user_id=? AND source=? AND source_playlist_id=?').get(user.id, raw.source, raw.sourcePlaylistId);
+      if (!exists) newPlaylistCount += 1;
+    }
+    if (currentPlaylistCount + newPlaylistCount > MAX_PLAYLISTS_PER_USER) return reply.code(409).send(apiError('PLAYLIST_LIMIT_REACHED', `恢复后歌单数量不能超过 ${MAX_PLAYLISTS_PER_USER} 个。`));
     transaction(db, () => {
       if (body.data.profile) db.prepare(`UPDATE users SET language=COALESCE(?,language),volume=COALESCE(?,volume),play_mode=COALESCE(?,play_mode),updated_at=? WHERE id=?`)
         .run(body.data.profile.language ?? null, body.data.profile.volume ?? null, body.data.profile.playMode ?? null, new Date().toISOString(), user.id);
       for (const item of body.data.favorites) { const saved = upsertTrack(db, { ...item, id: item.id || `${item.source}:${item.sourceTrackId}`, coverUrl: item.coverUrl || null, sourceUrl: item.sourceUrl || null }); db.prepare('INSERT OR IGNORE INTO favorites(user_id,track_id,created_at) VALUES(?,?,?)').run(user.id, saved.id, new Date().toISOString()); }
-      for (const raw of body.data.playlists as PlaylistDetail[]) {
+      for (const raw of body.data.playlists) {
         const backupId = String(raw.id || randomUUID());
         let local = db.prepare('SELECT id FROM playlists WHERE id=? AND user_id=?').get(backupId, user.id) as { id: string } | undefined;
         if (!local) local = db.prepare('SELECT id FROM playlists WHERE user_id=? AND origin_backup_id=?').get(user.id, backupId) as { id: string } | undefined;
@@ -342,15 +479,14 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
         const sameId = db.prepare('SELECT user_id FROM listening_sessions WHERE id=?').get(backupId) as { user_id: string } | undefined; const sessionId = byOrigin?.id || (!sameId || sameId.user_id === user.id ? backupId : randomUUID());
         db.prepare(`INSERT INTO listening_sessions(id,user_id,track_id,context_type,context_id,actual_source,started_at,updated_at,played_ms,duration_ms,completed,skipped,error_code,origin_backup_id)
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET played_ms=MAX(listening_sessions.played_ms,excluded.played_ms),duration_ms=MAX(listening_sessions.duration_ms,excluded.duration_ms),completed=MAX(listening_sessions.completed,excluded.completed),skipped=MAX(listening_sessions.skipped,excluded.skipped),error_code=COALESCE(excluded.error_code,listening_sessions.error_code),origin_backup_id=COALESCE(listening_sessions.origin_backup_id,excluded.origin_backup_id) WHERE listening_sessions.user_id=excluded.user_id`)
-          .run(sessionId, user.id, saved.id, ['search', 'favorites', 'playlist', 'daily'].includes(raw.contextType) ? raw.contextType : 'unknown', raw.contextId || null, SOURCES.includes(raw.actualSource) ? raw.actualSource : null, String(raw.startedAt || stamp), String(raw.updatedAt || stamp), Math.max(0, Number(raw.playedMs || 0)), Math.max(0, Number(raw.durationMs || 0)), raw.completed ? 1 : 0, raw.skipped ? 1 : 0, raw.errorCode || null, backupId);
+          .run(sessionId, user.id, saved.id, raw.contextType, raw.contextId || null, raw.actualSource ?? null, String(raw.startedAt || stamp), String(raw.updatedAt || stamp), Math.max(0, Number(raw.playedMs || 0)), Math.max(0, Number(raw.durationMs || 0)), raw.completed ? 1 : 0, raw.skipped ? 1 : 0, raw.errorCode || null, backupId);
       }
       for (const raw of body.data.feedback) {
-        if (!raw?.canonicalKey || !['not_interested', 'less_artist'].includes(raw.action)) continue; const stamp = new Date().toISOString();
+        const stamp = new Date().toISOString();
         db.prepare(`INSERT INTO recommendation_feedback(user_id,canonical_key,action,artist_key,created_at,updated_at) VALUES(?,?,?,?,?,?)
           ON CONFLICT(user_id,canonical_key,action) DO UPDATE SET artist_key=excluded.artist_key,updated_at=excluded.updated_at`).run(user.id, String(raw.canonicalKey), raw.action, raw.artistKey || null, raw.createdAt || stamp, raw.updatedAt || stamp);
       }
       for (const raw of body.data.recommendations) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(raw?.date || '')) || !Array.isArray(raw.tracks)) continue;
         let run = db.prepare('SELECT id FROM recommendation_runs WHERE user_id=? AND recommendation_date=?').get(user.id, raw.date) as { id: string } | undefined;
         if (!run) { run = { id: randomUUID() }; const stamp = new Date().toISOString(); db.prepare("INSERT INTO recommendation_runs(id,user_id,recommendation_date,status,message,generated_at,created_at,updated_at) VALUES(?,?,?,'completed',?,?,?,?)").run(run.id, user.id, raw.date, String(raw.message || ''), raw.generatedAt || stamp, stamp, stamp); }
         for (const [index, item] of raw.tracks.entries()) { const parsed = trackSchema.parse(item); const saved = upsertTrack(db, { ...parsed, id: parsed.id || `${parsed.source}:${parsed.sourceTrackId}`, coverUrl: parsed.coverUrl || null, sourceUrl: parsed.sourceUrl || null }); db.prepare('INSERT OR IGNORE INTO recommendation_items(run_id,track_id,rank,score,reason,kind) VALUES(?,?,?,?,?,?)').run(run.id, saved.id, Number(item.rank || index + 1), Number(item.score || 0), String(item.reason || '恢复的推荐'), item.kind === 'explore' ? 'explore' : 'familiar'); }
