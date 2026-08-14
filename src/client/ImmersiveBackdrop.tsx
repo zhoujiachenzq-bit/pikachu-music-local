@@ -35,6 +35,7 @@ export function ImmersiveBackdrop({
   const [device, setDevice] = useState(capability);
   const quality = selectSceneQuality({ ...device, motionEnabled, fullMobile: true });
   const variant = sceneVariantForTheme(theme);
+  const calmDefault = theme === 'night';
   const cssMotionActive = shouldAnimateCssScene({ motionEnabled, reducedMotion: device.reducedMotion });
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export function ImmersiveBackdrop({
         const material = new THREE.MeshBasicMaterial({
           color: ringColors[index % ringColors.length],
           transparent: true,
-          opacity: variant === 'vinyl' ? Math.max(.08, .31 - index * .027) : [.62, .38, .22][index] || .16,
+          opacity: variant === 'vinyl' ? Math.max(.08, .31 - index * .027) : calmDefault ? [.3, .17, .09][index] || .07 : [.62, .38, .22][index] || .16,
         });
         materials.push(material);
         const ring = new THREE.Mesh(ringGeometry, material);
@@ -127,31 +128,6 @@ export function ImmersiveBackdrop({
         return ring;
       });
 
-      const energyMaterials: Array<{ opacity: number; dispose: () => void }> = [];
-      if (variant === 'energy') {
-        const boltPositions: number[] = [];
-        for (let bolt = 0; bolt < 9; bolt += 1) {
-          const angle = random() * Math.PI * 2;
-          let x = Math.cos(angle) * (1.15 + random() * .35);
-          let y = Math.sin(angle) * (1.15 + random() * .35);
-          let z = -.35 + random() * .3;
-          for (let segment = 0; segment < 5; segment += 1) {
-            const distance = .22 + random() * .34;
-            const nextX = x + Math.cos(angle + (random() - .5) * .7) * distance;
-            const nextY = y + Math.sin(angle + (random() - .5) * .7) * distance;
-            const nextZ = z + (random() - .5) * .18;
-            boltPositions.push(x, y, z, nextX, nextY, nextZ);
-            x = nextX; y = nextY; z = nextZ;
-          }
-        }
-        const boltGeometry = new THREE.BufferGeometry();
-        boltGeometry.setAttribute('position', new THREE.Float32BufferAttribute(boltPositions, 3));
-        geometries.push(boltGeometry);
-        const boltMaterial = new THREE.LineBasicMaterial({ color: palette.primary, transparent: true, opacity: .3 });
-        materials.push(boltMaterial); energyMaterials.push(boltMaterial);
-        group.add(new THREE.LineSegments(boltGeometry, boltMaterial));
-      }
-
       if (variant === 'arcade') {
         const frameMaterial = new THREE.LineBasicMaterial({ color: palette.glow, transparent: true, opacity: .24 });
         materials.push(frameMaterial);
@@ -170,12 +146,7 @@ export function ImmersiveBackdrop({
       const particleCount = variant === 'arcade' ? Math.round(baseParticleCount * .82) : variant === 'vinyl' ? Math.round(baseParticleCount * .7) : baseParticleCount;
       const positions = new Float32Array(particleCount * 3);
       for (let index = 0; index < particleCount; index += 1) {
-        if (variant === 'energy') {
-          const angle = random() * Math.PI * 2; const radius = .9 + random() * 3.1;
-          positions[index * 3] = Math.cos(angle) * radius;
-          positions[index * 3 + 1] = Math.sin(angle) * radius * .72;
-          positions[index * 3 + 2] = (random() - .5) * 4.2;
-        } else if (variant === 'arcade') {
+        if (variant === 'arcade') {
           positions[index * 3] = Math.round((random() - .5) * 20) / 2.5;
           positions[index * 3 + 1] = Math.round((random() - .5) * 14) / 2.5;
           positions[index * 3 + 2] = Math.round((random() - .5) * 12) / 2.5;
@@ -192,7 +163,7 @@ export function ImmersiveBackdrop({
         color: variant === 'arcade' ? palette.secondary : palette.glow,
         size: quality === 'desktop' ? (variant === 'arcade' ? .052 : .038) : .05,
         transparent: true,
-        opacity: variant === 'vinyl' ? .36 : .58,
+        opacity: variant === 'vinyl' ? .36 : calmDefault ? .32 : .58,
         sizeAttenuation: true,
       });
       materials.push(particleMaterial);
@@ -210,7 +181,7 @@ export function ImmersiveBackdrop({
       const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
       gridMaterials.forEach(material => {
         material.transparent = true;
-        material.opacity = variant === 'arcade' ? .16 : variant === 'vinyl' ? .035 : .095;
+        material.opacity = variant === 'arcade' ? .16 : variant === 'vinyl' ? .035 : calmDefault ? .045 : .095;
         materials.push(material);
       });
       geometries.push(grid.geometry);
@@ -246,18 +217,7 @@ export function ImmersiveBackdrop({
         if (stamp - lastRender < interval) return;
         lastRender = stamp;
         const speed = live.current.playing ? 1 : .16;
-        if (variant === 'energy') {
-          rings.forEach((ring, index) => {
-            ring.rotation.z += (.0025 + index * .001) * speed;
-            ring.rotation.y += (.0014 + index * .0007) * speed;
-            const pulse = ring.userData.baseScale * (1 + Math.sin(stamp * .0022 + index) * .018 * speed);
-            ring.scale.setScalar(pulse);
-          });
-          energyMaterials.forEach((material, index) => { material.opacity = .18 + Math.abs(Math.sin(stamp * .004 + index)) * (live.current.playing ? .42 : .12); });
-          particles.rotation.y += .0008 * speed;
-          particles.scale.setScalar(1 + Math.sin(stamp * .0016) * .025 * speed);
-          group.rotation.z = live.current.progress * Math.PI * .16 + (live.current.stage === 'daily' ? .08 : 0);
-        } else if (variant === 'vinyl') {
+        if (variant === 'vinyl') {
           rings.forEach((ring, index) => { ring.rotation.z += (.0005 + index * .00008) * speed; });
           particles.rotation.z -= .00022 * speed;
           particles.position.y = Math.sin(stamp * .00034) * .05;
@@ -307,7 +267,7 @@ export function ImmersiveBackdrop({
       disposed = true;
       destroy?.();
     };
-  }, [motionEnabled, palette.glow, palette.primary, palette.secondary, palette.seed, quality, variant]);
+  }, [calmDefault, motionEnabled, palette.glow, palette.primary, palette.secondary, palette.seed, quality, variant]);
 
   return <div
     className={`immersive-backdrop scene-${variant} quality-${quality} ${webglReady ? 'webgl-ready' : 'css-fallback'} ${cssMotionActive ? 'motion-active' : 'motion-still'} ${playing ? 'is-playing' : 'is-paused'} stage-${stage}`}

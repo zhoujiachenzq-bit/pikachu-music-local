@@ -34,8 +34,8 @@ describe('visual theme preferences', () => {
     expect(parseVisualPreferences('{"version":1,"theme":"arcade","motionEnabled":false}').theme).toBe('arcade');
   });
 
-  it('maps the three Pikachu themes to distinct scenes', () => {
-    expect(sceneVariantForTheme('night')).toBe('energy');
+  it('keeps the practical default scene calm while mapping the expressive themes', () => {
+    expect(sceneVariantForTheme('night')).toBe('halo');
     expect(sceneVariantForTheme('vinyl')).toBe('vinyl');
     expect(sceneVariantForTheme('arcade')).toBe('arcade');
     expect(sceneVariantForTheme('burgundy')).toBe('halo');

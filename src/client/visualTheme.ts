@@ -27,15 +27,15 @@ export interface VisualPreferences {
 }
 
 export type SceneQuality = 'off' | 'tablet' | 'desktop';
-export type SceneVariant = 'energy' | 'vinyl' | 'arcade' | 'halo';
+export type SceneVariant = 'vinyl' | 'arcade' | 'halo';
 
 export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
   night: {
     id: 'night',
     name: { zh: '皮卡丘夜幕', en: 'Pikachu Night' },
-    description: { zh: '黑黄闪电与能量切面', en: 'Black-yellow voltage and energy cuts' },
-    canvas: '#030405', surface: '#10120e', sceneAccent: '#e5b91f', sceneGlow: '#fff1a0',
-    swatches: ['#030405', '#ffd84d', '#f5f0da'],
+    description: { zh: '克制黑黄与清晰层级', en: 'Practical black-yellow clarity' },
+    canvas: '#05070d', surface: '#10131b', sceneAccent: '#857536', sceneGlow: '#e4dcb6',
+    swatches: ['#05070d', '#202531', '#ffd84d'],
   },
   vinyl: {
     id: 'vinyl',
@@ -123,7 +123,6 @@ export function resolveToneTheme(committed: ToneThemeId, preview: ToneThemeId | 
 }
 
 export function sceneVariantForTheme(theme: ToneThemeId): SceneVariant {
-  if (theme === 'night') return 'energy';
   if (theme === 'vinyl') return 'vinyl';
   if (theme === 'arcade') return 'arcade';
   return 'halo';
