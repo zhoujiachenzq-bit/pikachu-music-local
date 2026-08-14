@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { MusicSource, RecommendedTrack, Track } from '../shared/types';
 import type { MobileSection } from './visualState';
 
-export type IconName = 'add' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'music' | 'next' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'user' | 'volume';
+export type IconName = 'add' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'user' | 'volume';
 
 const iconPaths: Record<IconName, ReactNode> = {
   add: <><path d="M12 5v14M5 12h14"/></>,
@@ -14,9 +14,11 @@ const iconPaths: Record<IconName, ReactNode> = {
   heart: <><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></>,
   import: <><path d="M12 21V9M7 14l5-5 5 5"/><path d="M5 3h14v4"/></>,
   library: <><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 6l3-1 3 14-3 1z"/></>,
+  motion: <><path d="M3 12h3l2-6 4 12 3-9 2 6h4"/></>,
   music: <><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></>,
   next: <><path d="m6 5 10 7-10 7V5ZM18 5v14"/></>,
   pause: <><path d="M8 5v14M16 5v14"/></>,
+  palette: <><path d="M12 3a9 9 0 1 0 0 18h1.2a1.8 1.8 0 0 0 1.2-3.1l-.5-.5a1.8 1.8 0 0 1 1.2-3.1H17A4 4 0 0 0 21 10c0-3.9-4-7-9-7Z"/><circle cx="7.5" cy="10" r=".8"/><circle cx="10" cy="6.8" r=".8"/><circle cx="14" cy="6.8" r=".8"/></>,
   play: <><path d="m8 5 11 7-11 7V5Z"/></>,
   previous: <><path d="m18 5-10 7 10 7V5ZM6 5v14"/></>,
   repeat: <><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></>,

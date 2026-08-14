@@ -5,9 +5,11 @@ import { installMediaSessionControls, syncMediaSession, updateMediaMetadata } fr
 import { ListeningTracker, type ListeningContext } from './listeningTracker';
 import { PlaybackCache } from './playerCache';
 import { PlaybackQueue } from './playerQueue';
-import { ImmersiveBackdrop } from './ImmersiveBackdrop';
+import { ImmersiveWorkspaceScene, PlayerAtmosphere } from './ImmersiveBackdrop';
+import { TonePicker, ToneTransitionLayer, type ToneTransitionState } from './TonePicker';
 import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
 import { deriveVisualPalette, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
+import { DEFAULT_VISUAL_PREFERENCES, TONE_THEMES, readVisualPreferences, resolveToneTheme, writeVisualPreferences, type ToneThemeId, type VisualPreferences } from './visualTheme';
 import { SOURCES, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
 
@@ -102,8 +104,10 @@ export default function App() {
   const [daily, setDaily] = useState<DailyRecommendation | null>(null); const [dailyFallback, setDailyFallback] = useState<DailyRecommendation | null>(null); const [dailyHistory, setDailyHistory] = useState<DailyRecommendation[]>([]); const [dailyDate, setDailyDate] = useState(localDateKey()); const [dailyLoading, setDailyLoading] = useState(false); const [dailyRefresh, setDailyRefresh] = useState(0);
   const [current, setCurrent] = useState<Track | null>(null); const [pendingTrack, setPendingTrack] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null); const [lyricFollowing, setLyricFollowing] = useState(true); const [findingTimedLyricsFor, setFindingTimedLyricsFor] = useState<string | null>(null); const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [stageMode, setStageMode] = useState<StageMode>(() => startsInMobileLayout() ? 'daily' : 'player'); const [mobileSection, setMobileSection] = useState<MobileSection>('daily');
+  const [visualPreferences, setVisualPreferences] = useState<VisualPreferences>({ ...DEFAULT_VISUAL_PREFERENCES }); const [previewTone, setPreviewTone] = useState<ToneThemeId | null>(null); const [toneTransition, setToneTransition] = useState<ToneTransitionState | null>(null);
   const [createOpen, setCreateOpen] = useState(false); const [newName, setNewName] = useState(''); const [importOpen, setImportOpen] = useState(false); const [importSource, setImportSource] = useState<MusicSource>('netease'); const [importInput, setImportInput] = useState(''); const [importJob, setImportJob] = useState<ImportJob | null>(null); const [accountOpen, setAccountOpen] = useState(false); const [addTrack, setAddTrack] = useState<Track | null>(null);
   const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const recoveringTrackId = useRef<string | null>(null); const importStream = useRef<EventSource | null>(null); const importReconnectTimer = useRef<number | null>(null); const dailyPollTimer = useRef<number | null>(null); const handledDailyRefresh = useRef(0); const queueContext = useRef<ListeningContext>({ type: 'unknown' }); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
+  const toneMidpointTimer = useRef<number | null>(null); const toneFinishTimer = useRef<number | null>(null);
   const listeningTracker = useMemo(() => new ListeningTracker(payload => {
     void fetch('/api/listening-sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => undefined);
   }), []);
@@ -127,6 +131,14 @@ export default function App() {
   }, []);
   const centerActiveLyric = useCallback((behavior: ScrollBehavior = 'smooth') => centerLyricLine(pendingLyricLine.current ?? activeLyric, behavior), [activeLyric, centerLyricLine]);
   useEffect(() => { api<{ user: User | null }>('/api/auth/me').then(result => setUser(result.user)).catch(() => setUser(null)); }, []);
+  useEffect(() => {
+    if (!user) { setVisualPreferences({ ...DEFAULT_VISUAL_PREFERENCES }); setPreviewTone(null); return; }
+    setVisualPreferences(readVisualPreferences(window.localStorage, user.id)); setPreviewTone(null);
+  }, [user?.id]);
+  useEffect(() => () => {
+    if (toneMidpointTimer.current !== null) window.clearTimeout(toneMidpointTimer.current);
+    if (toneFinishTimer.current !== null) window.clearTimeout(toneFinishTimer.current);
+  }, []);
   useEffect(() => { document.title = user ? `${user.username}的音乐小屋` : '音乐小屋'; }, [user]);
   useEffect(() => {
     const capturePrompt = (event: Event) => { event.preventDefault(); setInstallPrompt(event as BeforeInstallPromptEvent); };
@@ -138,7 +150,7 @@ export default function App() {
     const timers = new Set<number>();
     const createRipple = (event: PointerEvent) => {
       if (!(event.target instanceof Element)) return;
-      const target = event.target.closest<HTMLElement>('button, .track-row, .source-grid label, .icon-upload, .search-box, .load-row, .search-mini-list, .now-card, .lyrics, .tabs, .playlist-toolbar, .playlist-content, .play-modes, .import-progress, .add-list, .account-card, .modal-card, .panel, .daily-editorial, .daily-spotlight-card, .mobile-mini-player, .mobile-nav');
+      const target = event.target.closest<HTMLElement>('button, .track-row, .source-grid label, .icon-upload, .search-box, .load-row, .search-mini-list, .now-card, .lyrics, .tabs, .playlist-toolbar, .playlist-content, .play-modes, .import-progress, .add-list, .account-card, .modal-card, .panel, .daily-editorial, .daily-spotlight-card, .mobile-mini-player, .mobile-nav, .tone-panel, .tone-card');
       if (!target || target.matches(':disabled')) return;
       const rect = target.getBoundingClientRect();
       const x = event.clientX - rect.left; const y = event.clientY - rect.top; const size = Math.max(rect.width, rect.height);
@@ -406,6 +418,21 @@ export default function App() {
     } catch (error) { showToast(error instanceof Error ? error.message : t.failed); }
   };
   const installApp = async () => { if (!installPrompt) return; await installPrompt.prompt(); const choice = await installPrompt.userChoice; if (choice.outcome === 'accepted') setInstallPrompt(null); };
+  const saveVisualPreferences = useCallback((next: VisualPreferences) => {
+    setVisualPreferences(next); if (user) writeVisualPreferences(window.localStorage, user.id, next);
+  }, [user?.id]);
+  const commitToneTheme = useCallback((theme: ToneThemeId, origin: { x: number; y: number }) => {
+    setPreviewTone(null); if (theme === visualPreferences.theme) return;
+    if (toneMidpointTimer.current !== null) window.clearTimeout(toneMidpointTimer.current);
+    if (toneFinishTimer.current !== null) window.clearTimeout(toneFinishTimer.current);
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; const mobile = window.matchMedia('(max-width: 760px)').matches;
+    const duration = reduced ? 120 : mobile ? 280 : 520; const midpoint = reduced ? 0 : mobile ? 118 : 225;
+    const next = { ...visualPreferences, theme } as VisualPreferences;
+    setToneTransition({ id: Date.now(), x: origin.x, y: origin.y, color: TONE_THEMES[theme].canvas, duration, reduced });
+    toneMidpointTimer.current = window.setTimeout(() => saveVisualPreferences(next), midpoint);
+    toneFinishTimer.current = window.setTimeout(() => setToneTransition(null), duration + 40);
+  }, [saveVisualPreferences, visualPreferences]);
+  const setMotionEnabled = useCallback((motionEnabled: boolean) => saveVisualPreferences({ ...visualPreferences, motionEnabled }), [saveVisualPreferences, visualPreferences]);
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -461,18 +488,20 @@ export default function App() {
   const displayTrack = current && resolved ? { ...current, title: resolved.title || current.title, artist: resolved.artist || current.artist, album: resolved.album || current.album, coverUrl: resolved.coverUrl || current.coverUrl } : current;
   const modeLabel = user.playMode === 'list' ? t.listMode : user.playMode === 'loop' ? t.loopMode : t.shuffleMode;
   const sceneTrack = stageMode === 'daily' ? dailyTracks[0] : displayTrack;
-  const visualPalette = deriveVisualPalette(sceneTrack);
+  const activeTone = resolveToneTheme(visualPreferences.theme, previewTone);
+  const visualPalette = deriveVisualPalette(sceneTrack, activeTone);
   const stageProgress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
   const showMobileMini = shouldShowMiniPlayer(mobileSection, Boolean(current));
-  return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''}`} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow } as React.CSSProperties}>
+  return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''} ${previewTone ? 'tone-previewing' : ''}`} data-tone={activeTone} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow, '--scene-theme-accent': TONE_THEMES[activeTone].sceneAccent, '--scene-theme-glow': TONE_THEMES[activeTone].sceneGlow } as React.CSSProperties}>
     <div className="particle-field" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--y': `${(i * 61) % 100}%`, '--d': `${5 + (i % 7)}s`, '--s': `${2 + (i % 4)}px` } as React.CSSProperties}/>)}</div>
     <header className="topbar panel">
       <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><span className="brand-kicker">PIKACHU MUSIC</span><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>
-      <div className="header-actions"><div className="language"><button className={lang === 'zh' ? 'active' : ''} onClick={() => void setPreference({ language: 'zh' })}>中</button><button className={lang === 'en' ? 'active' : ''} onClick={() => void setPreference({ language: 'en' })}>EN</button></div><div className="shortcuts">{t.shortcuts}</div><button className="profile-button" onClick={() => setAccountOpen(true)}><span>{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b></button></div>
+      <div className="header-actions"><div className="language"><button className={lang === 'zh' ? 'active' : ''} onClick={() => void setPreference({ language: 'zh' })}>中</button><button className={lang === 'en' ? 'active' : ''} onClick={() => void setPreference({ language: 'en' })}>EN</button></div><TonePicker activeTheme={activeTone} committedTheme={visualPreferences.theme} lang={lang} motionEnabled={visualPreferences.motionEnabled} onPreview={setPreviewTone} onCommit={commitToneTheme} onMotionChange={setMotionEnabled}/><div className="shortcuts">{t.shortcuts}</div><button className="profile-button" onClick={() => setAccountOpen(true)}><span>{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b></button></div>
     </header>
 
     <main className="workspace">
-      <section className="search-panel panel" data-mobile-section="search" data-mobile-active={mobileSection === 'search'}>
+      <ImmersiveWorkspaceScene theme={activeTone} motionEnabled={visualPreferences.motionEnabled} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
+      <section className="search-panel panel" data-scene-region="search" data-mobile-section="search" data-mobile-active={mobileSection === 'search'}>
         <div className="panel-heading"><h2><Icon name="search" size={16}/>{t.searchTitle}</h2><small>{t.supports}</small></div>
         <form className="search-box" onSubmit={event => { event.preventDefault(); void doSearch(); }}><Icon name="search" size={16}/><input aria-label={t.placeholder} value={query} onChange={event => setQuery(event.target.value)} placeholder={t.placeholder}/><button className="btn gold" disabled={searching}>{searching ? '…' : t.search}</button></form>
         <div className="source-grid">{SOURCES.map(source => <label key={source} className={sources.includes(source) ? 'checked' : ''} style={{ '--source-color': sourceColors[source] } as React.CSSProperties}><input type="checkbox" checked={sources.includes(source)} onChange={() => setSources(currentSources => currentSources.includes(source) ? currentSources.filter(v => v !== source) : [...currentSources, source])}/><i/>{sourceNames[source]}</label>)}</div>
@@ -481,8 +510,8 @@ export default function App() {
         <div className="search-mini-list">{!results.length ? <div className="empty-state"><Icon name="sparkles" size={30}/><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
       </section>
 
-      <section className={`player-panel panel stage-mode-${stageMode}`} data-mobile-section={stageMode === 'daily' ? 'daily' : 'player'} data-mobile-active={(mobileSection === 'daily' && stageMode === 'daily') || (mobileSection === 'player' && stageMode === 'player')}>
-        <ImmersiveBackdrop active coverUrl={sceneTrack?.coverUrl} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
+      <section className={`player-panel panel stage-mode-${stageMode}`} data-scene-region="player" data-mobile-section={stageMode === 'daily' ? 'daily' : 'player'} data-mobile-active={(mobileSection === 'daily' && stageMode === 'daily') || (mobileSection === 'player' && stageMode === 'player')}>
+        <PlayerAtmosphere coverUrl={sceneTrack?.coverUrl} palette={visualPalette} stage={stageMode}/>
         <div className="stage-surface">
           {stageMode === 'daily' ? <>
             <div className="panel-heading player-heading"><h2><Icon name="sparkles" size={16}/>{t.dailyStage}</h2><small>{displayedDaily?.date || dailyDate}</small></div>
@@ -508,7 +537,7 @@ export default function App() {
         <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.play(event.currentTarget.currentTime); setPlaying(true); syncMediaSession(event.currentTarget, true); } }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.pause(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000); setPlaying(false); syncMediaSession(event.currentTarget, false); } }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; listeningTracker.tick(element.currentTime, (element.duration || 0) * 1000, !element.paused && !element.ended); setCurrentTime(element.currentTime); syncMediaSession(element, !element.paused && !element.ended); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, false); setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); syncMediaSession(event.currentTarget, !event.currentTarget.paused && !event.currentTarget.ended); }} onError={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) void recoverPlayback(event.currentTarget); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, true); listeningTracker.finish('ended'); void playRelative(1); }}/>
       </section>
 
-      <section className="playlist-panel panel" data-mobile-section="library" data-mobile-active={mobileSection === 'library'}>
+      <section className="playlist-panel panel" data-scene-region="library" data-mobile-section="library" data-mobile-active={mobileSection === 'library'}>
         <div className="panel-heading"><h2><Icon name="library" size={16}/>{t.playlist}</h2></div>
         <div className="tabs">{(['daily', 'results', 'favorites', 'playlists'] as Tab[]).map(value => <button key={value} data-tab={value} className={tab === value ? 'active' : ''} onClick={() => { if (value === 'daily') { if (tab !== 'daily') setDailyDate(localDateKey()); setStageMode('daily'); } else setStageMode('player'); setTab(value); }}>{value === 'daily' ? t.daily : value === 'results' ? t.results : value === 'favorites' ? t.favorites : t.custom}</button>)}</div>
         <div className="playlist-toolbar">
@@ -542,5 +571,6 @@ export default function App() {
     {addTrack && <Modal title={t.add} onClose={() => setAddTrack(null)}><div className="add-list">{playlists.length ? playlists.map(item => <button key={item.id} onClick={() => void addToPlaylist(item.id)}><span>♫</span><b>{item.name}</b><small>{item.trackCount} 首</small></button>) : <p>{t.empty}</p>}</div><div className="modal-actions"><button className="btn ghost" onClick={() => setAddTrack(null)}>{t.cancel}</button><button className="btn primary" onClick={() => { setAddTrack(null); setCreateOpen(true); }}>{t.newList}</button></div></Modal>}
     {accountOpen && <Modal title={t.settings} onClose={() => setAccountOpen(false)}><div className="account-card"><div className="avatar-large">{user.username.slice(0, 1).toUpperCase()}</div><h3>{user.username}</h3><p>{t.accountHint}</p>{installPrompt && <button className="btn primary wide install-app" onClick={() => void installApp()}>{t.installApp}</button>}<button className="btn ghost wide" onClick={async () => { const currentPassword = window.prompt('请输入当前密码'); if (!currentPassword) return; const newPassword = window.prompt('请输入新密码（8–72 位）'); if (!newPassword) return; try { await api('/api/auth/password', json('PATCH', { currentPassword, newPassword })); setUser(null); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } }}>{t.changePassword}</button><button className="btn ghost wide account-logout" onClick={async () => { await api('/api/auth/logout', json('POST')); setUser(null); }}>{t.logout}</button><button className="danger-link" onClick={async () => { const password = window.prompt('请输入当前密码以删除本地账户'); if (!password) return; try { await api('/api/auth/account', json('DELETE', { password })); setUser(null); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } }}>{t.deleteAccount}</button></div></Modal>}
     {toast && <div className="toast" role="status">⚡ {toast}</div>}
+    <ToneTransitionLayer transition={toneTransition}/>
   </div>;
 }

@@ -24,6 +24,7 @@ describe('immersive visual state', () => {
   it('uses stable track palettes', () => {
     expect(deriveVisualPalette(track)).toEqual(deriveVisualPalette({ ...track }));
     expect(deriveVisualPalette(track).primary).toBe('#ffd84d');
+    expect(deriveVisualPalette(track, 'burgundy')).not.toEqual(deriveVisualPalette(track, 'cobalt'));
   });
 
   it('loads WebGL only on capable desktops', () => {

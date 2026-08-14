@@ -1,5 +1,12 @@
-const CACHE_NAME = 'pikachu-music-shell-v0.3.0-beta.1';
+const CACHE_NAME = 'pikachu-music-shell-v0.3.0-beta.2';
 const STATIC_PATHS = new Set(['/manifest.webmanifest', '/pikachu.svg', '/pikachu.gif', '/pikachu.ico', '/pikachu-192.png', '/pikachu-512.png']);
+
+function isCacheableResponse(response, url) {
+  if (!response.ok) return false;
+  if (!url.pathname.startsWith('/assets/')) return true;
+  const contentType = response.headers.get('content-type') || '';
+  return !contentType.includes('text/html');
+}
 
 async function cacheAppShell() {
   const cache = await caches.open(CACHE_NAME);
@@ -13,7 +20,7 @@ async function cacheAppShell() {
     .filter(url => url.origin === self.location.origin && url.pathname.startsWith('/assets/'));
   await Promise.all(assets.map(async url => {
     const response = await fetch(url);
-    if (response.ok) await cache.put(url.pathname + url.search, response);
+    if (isCacheableResponse(response, url)) await cache.put(url.pathname + url.search, response);
   }));
 }
 
@@ -36,7 +43,7 @@ self.addEventListener('fetch', event => {
   const cacheable = STATIC_PATHS.has(url.pathname) || url.pathname.startsWith('/assets/');
   if (!cacheable) return;
   event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
-    if (response.ok) { const copy = response.clone(); void caches.open(CACHE_NAME).then(cache => cache.put(request, copy)); }
+    if (isCacheableResponse(response, url)) { const copy = response.clone(); void caches.open(CACHE_NAME).then(cache => cache.put(request, copy)); }
     return response;
   })));
 });
