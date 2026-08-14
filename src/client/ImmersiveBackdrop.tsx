@@ -108,7 +108,6 @@ export function ImmersiveWorkspaceScene({ motionEnabled, palette, playing, progr
 
       const regions = [
         { name: 'search', scene: searchScene, camera: searchCamera },
-        { name: 'player', scene: playerScene, camera: playerCamera },
         { name: 'library', scene: libraryScene, camera: libraryCamera },
       ];
       let pointerX = 0; let pointerY = 0; let animationFrame = 0; let lastRender = 0;
@@ -122,10 +121,9 @@ export function ImmersiveWorkspaceScene({ motionEnabled, palette, playing, progr
       const renderRegion = (name: string, scene: InstanceType<typeof THREE.Scene>, camera: InstanceType<typeof THREE.PerspectiveCamera>) => {
         const panel = workspace.querySelector<HTMLElement>(`[data-scene-region="${name}"]`); if (!panel || panel.offsetParent === null) return;
         const rootRect = workspace.getBoundingClientRect(); const rect = panel.getBoundingClientRect();
-        const x = Math.max(0, rect.left - rootRect.left); const top = Math.max(0, rect.top - rootRect.top); const width = Math.min(rect.width, rootRect.width - x); const height = Math.min(rect.height, rootRect.height - top);
+        const x = Math.max(0, rect.left - rootRect.left); const width = Math.min(rect.width, rootRect.width - x); const height = rootRect.height;
         if (width <= 1 || height <= 1) return;
-        const y = rootRect.height - top - height;
-        renderer.setViewport(x, y, width, height); renderer.setScissor(x, y, width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.render(scene, camera);
+        renderer.setViewport(x, 0, width, height); renderer.setScissor(x, 0, width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.render(scene, camera);
       };
       const render = (stamp: number) => {
         animationFrame = requestAnimationFrame(render);
@@ -139,7 +137,9 @@ export function ImmersiveWorkspaceScene({ motionEnabled, palette, playing, progr
         bars.forEach((bar, index) => { const pulse = .16 + Math.abs(Math.sin(stamp * .0013 + index * .72 + live.current.progress * 6)) * (live.current.playing ? 1.5 : .35); bar.scale.y = pulse; bar.position.y = -1.68 + pulse / 2; });
         libraryParticles.rotation.y -= .00032 * speed;
         for (const camera of [searchCamera, playerCamera, libraryCamera]) { camera.position.x += (pointerX * .17 - camera.position.x) * .04; camera.position.y += (-pointerY * .12 + .12 - camera.position.y) * .04; camera.lookAt(0, 0, 0); }
-        renderer.setScissorTest(false); renderer.clear(); renderer.setScissorTest(true); regions.forEach(region => renderRegion(region.name, region.scene, region.camera)); renderer.setScissorTest(false);
+        const rootRect = workspace.getBoundingClientRect();
+        renderer.setScissorTest(false); renderer.clear(); renderer.setViewport(0, 0, rootRect.width, rootRect.height); playerCamera.aspect = rootRect.width / Math.max(1, rootRect.height); playerCamera.updateProjectionMatrix(); renderer.render(playerScene, playerCamera);
+        renderer.setScissorTest(true); regions.forEach(region => renderRegion(region.name, region.scene, region.camera)); renderer.setScissorTest(false);
       };
       const onContextLost = (event: Event) => { event.preventDefault(); cancelAnimationFrame(animationFrame); setWebglReady(false); };
       renderer.domElement.addEventListener('webglcontextlost', onContextLost); workspace.addEventListener('pointermove', onPointerMove, { passive: true });

@@ -501,7 +501,8 @@ export default function App() {
   const visualPalette = deriveVisualPalette(sceneTrack, activeTone);
   const stageProgress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
   const showMobileMini = shouldShowMiniPlayer(mobileSection, Boolean(current));
-  return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''} ${previewTone ? 'tone-previewing' : ''}`} data-tone={activeTone} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow, '--scene-theme-accent': TONE_THEMES[activeTone].sceneAccent, '--scene-theme-glow': TONE_THEMES[activeTone].sceneGlow } as React.CSSProperties}>
+  return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''} ${previewTone ? 'tone-previewing' : ''} ${visualPreferences.motionEnabled ? 'motion-on' : 'motion-off'}`} data-tone={activeTone} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow, '--scene-theme-accent': TONE_THEMES[activeTone].sceneAccent, '--scene-theme-glow': TONE_THEMES[activeTone].sceneGlow } as React.CSSProperties}>
+    <ImmersiveWorkspaceScene theme={activeTone} motionEnabled={visualPreferences.motionEnabled} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
     <div className="particle-field" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--y': `${(i * 61) % 100}%`, '--d': `${5 + (i % 7)}s`, '--s': `${2 + (i % 4)}px` } as React.CSSProperties}/>)}</div>
     <header className="topbar panel">
       <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><span className="brand-kicker">PIKACHU MUSIC</span><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>
@@ -509,7 +510,6 @@ export default function App() {
     </header>
 
     <main className="workspace">
-      <ImmersiveWorkspaceScene theme={activeTone} motionEnabled={visualPreferences.motionEnabled} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
       <section className="search-panel panel" data-scene-region="search" data-mobile-section="search" data-mobile-active={mobileSection === 'search'}>
         <div className="panel-heading"><h2><Icon name="search" size={16}/>{t.searchTitle}</h2><small>{t.supports}</small></div>
         <form className="search-box" onSubmit={event => { event.preventDefault(); void doSearch(); }}><Icon name="search" size={16}/><input aria-label={t.placeholder} value={query} onChange={event => setQuery(event.target.value)} placeholder={t.placeholder}/><button className="btn gold" disabled={searching}>{searching ? '…' : t.search}</button></form>

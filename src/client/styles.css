@@ -120,8 +120,10 @@ button:disabled { opacity: .48; cursor: not-allowed; }
     var(--surface-0);
   transition: color .18s ease, background-color .18s ease, background .18s ease;
 }
-.particle-field { position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+.app-shell > .topbar, .app-shell > .workspace, .app-shell > footer { position: relative; z-index: 2; }
+.particle-field { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
 .particle-field i { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s); border-radius: 50%; background: var(--brand); box-shadow: 0 0 12px var(--brand); opacity: .11; animation: float-particle var(--d) ease-in-out infinite alternate; }
+.app-shell.motion-off .particle-field { display: none; }
 @keyframes float-particle { to { translate: 10px -20px; opacity: .38; } }
 
 .topbar { min-width: 0; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; overflow: hidden; }
@@ -143,7 +145,8 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 
 .workspace { min-height: 0; position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(245px, .82fr) minmax(520px, 1.82fr) minmax(275px, .9fr); grid-template-areas: 'search player playlist'; gap: 11px; }
 .workspace > section { z-index: 1; }
-.workspace > section.panel { background: linear-gradient(145deg, color-mix(in srgb, var(--panel-a), transparent 7%), color-mix(in srgb, var(--panel-b), transparent 5%)); }
+.topbar.panel { background: linear-gradient(145deg, color-mix(in srgb, var(--panel-a), transparent 30%), color-mix(in srgb, var(--panel-b), transparent 25%)); }
+.workspace > section.panel { background: linear-gradient(145deg, color-mix(in srgb, var(--panel-a), transparent 38%), color-mix(in srgb, var(--panel-b), transparent 32%)); }
 .immersive-workspace-scene { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; }
 .immersive-workspace-scene .immersive-webgl-host, .immersive-shared-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .immersive-css-scene { position: absolute; inset: 0; overflow: hidden; opacity: 0; mix-blend-mode: screen; transition: opacity .4s ease; }
@@ -153,7 +156,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .immersive-css-scene > span { position: absolute; left: 12%; top: 22%; width: 3px; height: 3px; display: block; border-radius: 50%; background: var(--scene-glow); box-shadow: 72px 38px 0 color-mix(in srgb, var(--scene-glow), transparent 34%), 164px -52px 0 var(--scene-primary), 258px 96px 0 color-mix(in srgb, var(--scene-secondary), transparent 25%), 376px 8px 0 var(--scene-glow), 492px 142px 0 var(--scene-primary), 618px -74px 0 color-mix(in srgb, var(--scene-glow), transparent 28%), 780px 70px 0 var(--scene-secondary), 930px -15px 0 var(--scene-glow); filter: drop-shadow(0 0 8px var(--scene-glow)); opacity: .44; animation: css-scene-stars 7s ease-in-out infinite alternate; }
 .immersive-css-scene > b { position: absolute; right: 8%; bottom: -28%; width: 45%; aspect-ratio: 1; display: block; border: 1px solid color-mix(in srgb, var(--scene-secondary), transparent 78%); border-radius: 50%; box-shadow: 0 0 70px color-mix(in srgb, var(--scene-primary), transparent 84%), inset 0 0 52px color-mix(in srgb, var(--scene-secondary), transparent 88%); animation: css-scene-pulse 7.5s ease-in-out infinite alternate; }
 .immersive-workspace-scene.css-fallback.motion-active .immersive-css-scene { opacity: .76; }
-.immersive-workspace-scene.webgl-ready.motion-active .immersive-css-scene { opacity: .1; }
+.immersive-workspace-scene.webgl-ready.motion-active .immersive-css-scene { opacity: .48; }
 .immersive-workspace-scene.is-paused .immersive-css-scene::before { animation-duration: 30s; }
 .immersive-workspace-scene.is-paused .immersive-css-scene > i { animation-duration: 15s; }
 .immersive-workspace-scene.is-paused .immersive-css-scene > span, .immersive-workspace-scene.is-paused .immersive-css-scene > b { animation-duration: 12s; }
@@ -587,7 +590,7 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
   .tone-card { min-height: 72px; grid-template-columns: 54px minmax(0,1fr) 18px; }
   .tone-swatch { width: 54px; height: 46px; }
   .tone-transition { --tone-duration: 250ms; }
-  .immersive-workspace-scene { display: block; position: fixed; inset: 68px 8px 68px; }
+  .immersive-workspace-scene { display: block; position: absolute; inset: 0; }
   .immersive-workspace-scene.css-fallback.motion-active .immersive-css-scene { opacity: .92; }
   .immersive-css-scene::before { left: -8%; top: -12%; width: 112%; }
   .immersive-css-scene::after { background-size: 38px 38px; opacity: .28; }
