@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './ui';
-import { TONE_THEMES, TONE_THEME_IDS, type ToneThemeId } from './visualTheme';
+import { TONE_THEMES, TONE_THEME_GROUPS, type ToneThemeId } from './visualTheme';
 
 export interface ToneTransitionState {
   id: number;
@@ -73,24 +73,29 @@ export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, o
     onMouseLeave={() => onPreview(null)}
   >
     <header><div><span>{zh ? '视觉色调' : 'Visual tone'}</span><strong>{zh ? '为音乐小屋换一种气氛' : 'Change the room atmosphere'}</strong></div><button onClick={close} aria-label={zh ? '关闭' : 'Close'}><Icon name="close" size={14}/></button></header>
-    <div className="tone-grid">
-      {TONE_THEME_IDS.map(id => {
-        const theme = TONE_THEMES[id];
-        return <button
-          key={id}
-          className={`tone-card ${activeTheme === id ? 'active' : ''} ${committedTheme === id ? 'committed' : ''}`}
-          onMouseEnter={() => window.matchMedia('(hover: hover)').matches && onPreview(id)}
-          onFocus={() => onPreview(id)}
-          onBlur={() => onPreview(null)}
-          onClick={event => commit(id, event)}
-          aria-pressed={committedTheme === id}
-          style={{ '--swatch-a': theme.swatches[0], '--swatch-b': theme.swatches[1], '--swatch-c': theme.swatches[2] } as CSSProperties}
-        >
-          <span className="tone-swatch"><i/><i/><i/></span>
-          <span><strong>{theme.name[lang]}</strong><small>{theme.description[lang]}</small></span>
-          {committedTheme === id && <i className="tone-check">✓</i>}
-        </button>;
-      })}
+    <div className="tone-groups">
+      {TONE_THEME_GROUPS.map(group => <section className="tone-group" key={group.id} aria-labelledby={`tone-group-${group.id}`}>
+        <div className="tone-group-heading"><strong id={`tone-group-${group.id}`}>{group.name[lang]}</strong><small>{group.description[lang]}</small></div>
+        <div className="tone-grid">
+          {group.themes.map(id => {
+            const theme = TONE_THEMES[id];
+            return <button
+              key={id}
+              className={`tone-card ${activeTheme === id ? 'active' : ''} ${committedTheme === id ? 'committed' : ''}`}
+              onMouseEnter={() => window.matchMedia('(hover: hover)').matches && onPreview(id)}
+              onFocus={() => onPreview(id)}
+              onBlur={() => onPreview(null)}
+              onClick={event => commit(id, event)}
+              aria-pressed={committedTheme === id}
+              style={{ '--swatch-a': theme.swatches[0], '--swatch-b': theme.swatches[1], '--swatch-c': theme.swatches[2] } as CSSProperties}
+            >
+              <span className="tone-swatch"><i/><i/><i/></span>
+              <span><strong>{theme.name[lang]}</strong><small>{theme.description[lang]}</small></span>
+              {committedTheme === id && <i className="tone-check">✓</i>}
+            </button>;
+          })}
+        </div>
+      </section>)}
     </div>
     <button className={`motion-toggle ${motionEnabled ? 'active' : ''}`} onClick={() => onMotionChange(!motionEnabled)} aria-pressed={motionEnabled}>
       <span><Icon name="motion" size={16}/></span>

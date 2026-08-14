@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_VISUAL_PREFERENCES, parseVisualPreferences, readVisualPreferences, resolveToneTheme, selectSceneQuality, shouldAnimateCssScene, visualPreferencesStorageKey, writeVisualPreferences } from './visualTheme';
+import { DEFAULT_VISUAL_PREFERENCES, parseVisualPreferences, readVisualPreferences, resolveToneTheme, sceneVariantForTheme, selectSceneQuality, shouldAnimateCssScene, TONE_THEME_GROUPS, TONE_THEME_IDS, visualPreferencesStorageKey, writeVisualPreferences } from './visualTheme';
 
 class MemoryStorage {
   values = new Map<string, string>();
@@ -25,6 +25,22 @@ describe('visual theme preferences', () => {
   it('uses preview without overwriting the committed theme', () => {
     expect(resolveToneTheme('night', 'paper')).toBe('paper');
     expect(resolveToneTheme('night', null)).toBe('night');
+  });
+
+  it('groups all six themes without changing the legacy night id', () => {
+    expect(TONE_THEME_GROUPS.flatMap(group => group.themes)).toEqual(TONE_THEME_IDS);
+    expect(parseVisualPreferences('{"version":1,"theme":"night","motionEnabled":true}').theme).toBe('night');
+    expect(parseVisualPreferences('{"version":1,"theme":"vinyl","motionEnabled":true}').theme).toBe('vinyl');
+    expect(parseVisualPreferences('{"version":1,"theme":"arcade","motionEnabled":false}').theme).toBe('arcade');
+  });
+
+  it('maps the three Pikachu themes to distinct scenes', () => {
+    expect(sceneVariantForTheme('night')).toBe('energy');
+    expect(sceneVariantForTheme('vinyl')).toBe('vinyl');
+    expect(sceneVariantForTheme('arcade')).toBe('arcade');
+    expect(sceneVariantForTheme('burgundy')).toBe('halo');
+    expect(sceneVariantForTheme('cobalt')).toBe('halo');
+    expect(sceneVariantForTheme('paper')).toBe('halo');
   });
 
   it('selects scene quality and supports the full mobile center scene', () => {

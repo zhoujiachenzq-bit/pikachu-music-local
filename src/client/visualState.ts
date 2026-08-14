@@ -50,6 +50,9 @@ export function deriveVisualPalette(track: Track | null | undefined, theme: Tone
   const seed = visualSeed(track ? `${track.title}|${track.artist}|${track.source}` : 'pikachu-music');
   const selected = palettes[seed % palettes.length];
   const definition = TONE_THEMES[theme];
+  if (!track && !artworkAccent) {
+    return { primary: '#ffd84d', secondary: definition.sceneAccent, glow: definition.sceneGlow, seed };
+  }
   const songAccent = artworkAccent ? mixHex(selected[1], artworkAccent, .72) : selected[1];
   const songGlow = artworkAccent ? mixHex(artworkAccent, '#ffffff', .38) : selected[2];
   return {

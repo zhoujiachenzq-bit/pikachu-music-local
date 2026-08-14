@@ -29,6 +29,12 @@ describe('immersive visual state', () => {
     expect(TRACK_COLOR_INFLUENCE).toBe(.55);
   });
 
+  it('keeps an empty stage on the pure theme palette', () => {
+    expect(deriveVisualPalette(null, 'night')).toMatchObject({ primary: '#ffd84d', secondary: '#e5b91f', glow: '#fff1a0' });
+    expect(deriveVisualPalette(null, 'vinyl')).toMatchObject({ secondary: '#a87842', glow: '#f0dfbb' });
+    expect(deriveVisualPalette(null, 'arcade')).toMatchObject({ secondary: '#2fe6ff', glow: '#ff4bd8' });
+  });
+
   it('loads WebGL only on capable desktops', () => {
     expect(shouldUseDesktopWebgl({ width: 1440, finePointer: true, reducedMotion: false })).toBe(true);
     expect(shouldUseDesktopWebgl({ width: 1080, finePointer: true, reducedMotion: false })).toBe(false);

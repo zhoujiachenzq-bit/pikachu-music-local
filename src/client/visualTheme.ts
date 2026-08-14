@@ -1,4 +1,4 @@
-export const TONE_THEME_IDS = ['night', 'burgundy', 'cobalt', 'paper'] as const;
+export const TONE_THEME_IDS = ['night', 'vinyl', 'arcade', 'burgundy', 'cobalt', 'paper'] as const;
 
 export type ToneThemeId = typeof TONE_THEME_IDS[number];
 
@@ -13,6 +13,13 @@ export interface ToneThemeDefinition {
   swatches: readonly [string, string, string];
 }
 
+export interface ToneThemeGroupDefinition {
+  id: 'pikachu' | 'curated';
+  name: { zh: string; en: string };
+  description: { zh: string; en: string };
+  themes: readonly ToneThemeId[];
+}
+
 export interface VisualPreferences {
   version: 1;
   theme: ToneThemeId;
@@ -20,14 +27,29 @@ export interface VisualPreferences {
 }
 
 export type SceneQuality = 'off' | 'tablet' | 'desktop';
+export type SceneVariant = 'energy' | 'vinyl' | 'arcade' | 'halo';
 
 export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
   night: {
     id: 'night',
     name: { zh: '皮卡丘夜幕', en: 'Pikachu Night' },
-    description: { zh: '深夜黑与皮卡丘黄', en: 'Midnight black and Pikachu yellow' },
-    canvas: '#05070d', surface: '#0a0d15', sceneAccent: '#6577a8', sceneGlow: '#aeb9de',
-    swatches: ['#05070d', '#171c2a', '#ffd84d'],
+    description: { zh: '黑黄闪电与能量切面', en: 'Black-yellow voltage and energy cuts' },
+    canvas: '#030405', surface: '#10120e', sceneAccent: '#e5b91f', sceneGlow: '#fff1a0',
+    swatches: ['#030405', '#ffd84d', '#f5f0da'],
+  },
+  vinyl: {
+    id: 'vinyl',
+    name: { zh: '午夜唱片店', en: 'Midnight Records' },
+    description: { zh: '唱片黑、暖奶油与印刷棕', en: 'Vinyl black, warm cream and print brown' },
+    canvas: '#090806', surface: '#17130f', sceneAccent: '#a87842', sceneGlow: '#f0dfbb',
+    swatches: ['#090806', '#8f6035', '#f0dfbb'],
+  },
+  arcade: {
+    id: 'arcade',
+    name: { zh: '霓虹游戏厅', en: 'Neon Arcade' },
+    description: { zh: '像素星空、青紫霓虹与扫描线', en: 'Pixel stars, cyan-magenta neon and scanlines' },
+    canvas: '#05040b', surface: '#111027', sceneAccent: '#2fe6ff', sceneGlow: '#ff4bd8',
+    swatches: ['#05040b', '#2fe6ff', '#ff4bd8'],
   },
   burgundy: {
     id: 'burgundy',
@@ -51,6 +73,21 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
     swatches: ['#f0e4c8', '#f24b2a', '#1768ff'],
   },
 };
+
+export const TONE_THEME_GROUPS: readonly ToneThemeGroupDefinition[] = [
+  {
+    id: 'pikachu',
+    name: { zh: '皮卡丘系列', en: 'Pikachu Series' },
+    description: { zh: '三种黑夜能量叙事', en: 'Three electric night stories' },
+    themes: ['night', 'vinyl', 'arcade'],
+  },
+  {
+    id: 'curated',
+    name: { zh: '策展色调', en: 'Curated Tones' },
+    description: { zh: '剧场、画廊与编辑工作室', en: 'Theatre, gallery and editorial studio' },
+    themes: ['burgundy', 'cobalt', 'paper'],
+  },
+] as const;
 
 export const DEFAULT_VISUAL_PREFERENCES: VisualPreferences = { version: 1, theme: 'night', motionEnabled: true };
 
@@ -83,6 +120,13 @@ export function writeVisualPreferences(storage: Pick<Storage, 'setItem'>, userId
 
 export function resolveToneTheme(committed: ToneThemeId, preview: ToneThemeId | null): ToneThemeId {
   return preview || committed;
+}
+
+export function sceneVariantForTheme(theme: ToneThemeId): SceneVariant {
+  if (theme === 'night') return 'energy';
+  if (theme === 'vinyl') return 'vinyl';
+  if (theme === 'arcade') return 'arcade';
+  return 'halo';
 }
 
 export function selectSceneQuality({ width, reducedMotion, motionEnabled, webglAvailable = true, fullMobile = false }: { width: number; reducedMotion: boolean; motionEnabled: boolean; webglAvailable?: boolean; fullMobile?: boolean }): SceneQuality {
