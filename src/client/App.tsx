@@ -5,15 +5,15 @@ import { installMediaSessionControls, syncMediaSession, updateMediaMetadata } fr
 import { ListeningTracker, type ListeningContext } from './listeningTracker';
 import { PlaybackCache } from './playerCache';
 import { PlaybackQueue } from './playerQueue';
+import { ImmersiveBackdrop } from './ImmersiveBackdrop';
+import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
+import { deriveVisualPalette, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
 import { SOURCES, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
 
 type Lang = 'zh' | 'en';
 type Tab = 'daily' | 'results' | 'favorites' | 'playlists';
 interface BeforeInstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
-
-const sourceNames: Record<MusicSource, string> = { migu: '咪咕', netease: '网易云', qq: 'QQ', kuwo: '酷我' };
-const sourceColors: Record<MusicSource, string> = { migu: '#ff9d2e', netease: '#ff4d65', qq: '#38d9f3', kuwo: '#d757ff' };
 const copy = {
   zh: {
     shortcuts: '快捷键：Space 播放/暂停 · ←/→ 跳转 · ↑/↓ 音量 · N/P 切歌 · F 收藏',
@@ -24,7 +24,7 @@ const copy = {
     createAccount: '创建本地账户', welcome: '欢迎回来', accountHint: '所有收藏与歌单只保存在这台电脑。', logout: '退出', settings: '账户设置', changePassword: '修改密码', deleteAccount: '删除账户',
     source: '音乐源', publicLink: '公开歌单链接或 ID', startImport: '开始导入', importing: '正在导入', close: '关闭', create: '创建', cancel: '取消', name: '歌单名称',
     add: '加入歌单', searchInList: '搜索歌单内歌曲…', exportData: '导出数据', restoreData: '恢复数据', footer: '本站仅作为学习演示，音乐版权归各平台与原作者所有。',
-    noResults: '没有找到歌曲，音乐源可能暂时不可用。', failed: '操作失败', playingFallback: '正在使用替代音源', loadingTrack: '正在缓冲', listMode: '列表循环', loopMode: '单曲循环', shuffleMode: '随机播放', seekTo: '定位到', estimatedSeekTo: '估算定位到', findingTimedLyrics: '正在从其他音乐源查找精确时间轴…', exactLyricFound: '已补充精确时间轴', estimatedLyricHint: '未找到精确时间轴，将从第一句歌词开始估算位置', estimatedLyricToast: '该歌词无时间轴，已从第一句歌词开始估算定位', seeking: '正在定位', seekUnsupported: '当前音源暂不支持时间定位', returnToLyric: '回到当前歌词', installApp: '安装音乐小屋', generatingDaily: '正在生成今日 30 首…', notInterested: '不感兴趣', retryDaily: '重新生成', dailyHistory: '近 7 天'
+    noResults: '没有找到歌曲，音乐源可能暂时不可用。', failed: '操作失败', playingFallback: '正在使用替代音源', loadingTrack: '正在缓冲', listMode: '列表循环', loopMode: '单曲循环', shuffleMode: '随机播放', seekTo: '定位到', estimatedSeekTo: '估算定位到', findingTimedLyrics: '正在从其他音乐源查找精确时间轴…', exactLyricFound: '已补充精确时间轴', estimatedLyricHint: '未找到精确时间轴，将从第一句歌词开始估算位置', estimatedLyricToast: '该歌词无时间轴，已从第一句歌词开始估算定位', seeking: '正在定位', seekUnsupported: '当前音源暂不支持时间定位', returnToLyric: '回到当前歌词', installApp: '安装音乐小屋', generatingDaily: '正在生成今日 30 首…', notInterested: '不感兴趣', retryDaily: '重新生成', dailyHistory: '近 7 天', dailyStage: '今日轮播', backToPlayer: '返回正在播放', playAll: '播放全部'
   },
   en: {
     shortcuts: 'Shortcuts: Space play/pause · ←/→ seek · ↑/↓ volume · N/P track · F favorite',
@@ -35,7 +35,7 @@ const copy = {
     createAccount: 'Create local account', welcome: 'Welcome back', accountHint: 'Favorites and playlists stay on this computer.', logout: 'Sign out', settings: 'Account', changePassword: 'Change password', deleteAccount: 'Delete account',
     source: 'Source', publicLink: 'Public playlist URL or ID', startImport: 'Import', importing: 'Importing', close: 'Close', create: 'Create', cancel: 'Cancel', name: 'Playlist name',
     add: 'Add to playlist', searchInList: 'Search in playlist…', exportData: 'Export', restoreData: 'Restore', footer: 'For learning only. Music rights belong to their platforms and creators.',
-    noResults: 'No tracks found. A source may be temporarily unavailable.', failed: 'Action failed', playingFallback: 'Using fallback source', loadingTrack: 'Buffering', listMode: 'List loop', loopMode: 'Repeat one', shuffleMode: 'Shuffle', seekTo: 'Seek to', estimatedSeekTo: 'Estimated seek to', findingTimedLyrics: 'Looking for an exact timeline from other sources…', exactLyricFound: 'Exact lyric timeline found', estimatedLyricHint: 'No exact timeline found; clicks use an estimated position', estimatedLyricToast: 'No lyric timeline; position was estimated from the line number', seeking: 'Seeking', seekUnsupported: 'This source does not currently support seeking', returnToLyric: 'Follow current lyric', installApp: 'Install Music Cottage', generatingDaily: 'Generating today’s 30 tracks…', notInterested: 'Not interested', retryDaily: 'Regenerate', dailyHistory: 'Last 7 days'
+    noResults: 'No tracks found. A source may be temporarily unavailable.', failed: 'Action failed', playingFallback: 'Using fallback source', loadingTrack: 'Buffering', listMode: 'List loop', loopMode: 'Repeat one', shuffleMode: 'Shuffle', seekTo: 'Seek to', estimatedSeekTo: 'Estimated seek to', findingTimedLyrics: 'Looking for an exact timeline from other sources…', exactLyricFound: 'Exact lyric timeline found', estimatedLyricHint: 'No exact timeline found; clicks use an estimated position', estimatedLyricToast: 'No lyric timeline; position was estimated from the line number', seeking: 'Seeking', seekUnsupported: 'This source does not currently support seeking', returnToLyric: 'Follow current lyric', installApp: 'Install Music Cottage', generatingDaily: 'Generating today’s 30 tracks…', notInterested: 'Not interested', retryDaily: 'Regenerate', dailyHistory: 'Last 7 days', dailyStage: 'Daily rotation', backToPlayer: 'Back to player', playAll: 'Play all'
   }
 } as const;
 
@@ -45,6 +45,10 @@ function formatTime(value: number) {
 
 function localDateKey(value = new Date()) {
   const offset = value.getTimezoneOffset() * 60_000; return new Date(value.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function startsInMobileLayout() {
+  return window.matchMedia('(max-width: 760px)').matches;
 }
 
 function normalizeTrack(value: Track): Track {
@@ -87,19 +91,6 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
   </main>;
 }
 
-function TrackRow({ item, active, pending, draggable, onPlay, onWarm, onFavorite, favorite, onAdd, onRemove, onDislike, reason, onDragStart, onDrop }: {
-  item: Track; active?: boolean; pending?: boolean; draggable?: boolean; favorite?: boolean; reason?: string; onPlay: () => void; onWarm?: () => void; onFavorite: () => void; onAdd?: () => void; onRemove?: () => void; onDislike?: () => void; onDragStart?: () => void; onDrop?: () => void;
-}) {
-  return <div className={`track-row ${active ? 'active' : ''} ${pending ? 'pending' : ''}`} draggable={draggable} onDragStart={onDragStart} onDragOver={event => draggable && event.preventDefault()} onDrop={onDrop}>
-    <button className="track-main" onClick={onPlay} onPointerEnter={onWarm} onFocus={onWarm} title="播放">
-      <span className="track-source" style={{ '--source-color': sourceColors[item.source] } as React.CSSProperties}>{sourceNames[item.source].slice(0, 1)}</span>
-      <span className="track-copy"><strong>{item.title}</strong><small>{item.artist}{item.album ? ` · ${item.album}` : ''}{reason ? ` · ${reason}` : ''}</small></span>
-      {item.duration > 0 && <time>{formatTime(item.duration / 1000)}</time>}
-    </button>
-    <div className="row-actions"><button onClick={onFavorite} aria-label="收藏">{favorite ? '♥' : '♡'}</button>{onAdd && <button onClick={onAdd} aria-label="加入歌单">＋</button>}{onDislike && <button onClick={onDislike} aria-label="不感兴趣">⊘</button>}{onRemove && <button onClick={onRemove} aria-label="移除">×</button>}</div>
-  </div>;
-}
-
 function Modal({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
   return <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}><section className={`modal-card ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><button onClick={onClose} aria-label="关闭">×</button></header>{children}</section></div>;
 }
@@ -107,9 +98,10 @@ function Modal({ title, children, onClose, wide = false }: { title: string; chil
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined); const lang: Lang = user?.language || 'zh'; const t = copy[lang];
   const [query, setQuery] = useState(''); const [sources, setSources] = useState<MusicSource[]>([...SOURCES]); const [limit, setLimit] = useState(10); const [results, setResults] = useState<Track[]>([]); const [searching, setSearching] = useState(false); const [searchErrors, setSearchErrors] = useState<Record<string, string>>({});
-  const [favorites, setFavorites] = useState<Track[]>([]); const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]); const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistDetail | null>(null); const [tab, setTab] = useState<Tab>('results'); const [playlistFilter, setPlaylistFilter] = useState('');
+  const [favorites, setFavorites] = useState<Track[]>([]); const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]); const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistDetail | null>(null); const [tab, setTab] = useState<Tab>(() => startsInMobileLayout() ? 'daily' : 'results'); const [playlistFilter, setPlaylistFilter] = useState('');
   const [daily, setDaily] = useState<DailyRecommendation | null>(null); const [dailyFallback, setDailyFallback] = useState<DailyRecommendation | null>(null); const [dailyHistory, setDailyHistory] = useState<DailyRecommendation[]>([]); const [dailyDate, setDailyDate] = useState(localDateKey()); const [dailyLoading, setDailyLoading] = useState(false); const [dailyRefresh, setDailyRefresh] = useState(0);
   const [current, setCurrent] = useState<Track | null>(null); const [pendingTrack, setPendingTrack] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null); const [lyricFollowing, setLyricFollowing] = useState(true); const [findingTimedLyricsFor, setFindingTimedLyricsFor] = useState<string | null>(null); const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [stageMode, setStageMode] = useState<StageMode>(() => startsInMobileLayout() ? 'daily' : 'player'); const [mobileSection, setMobileSection] = useState<MobileSection>('daily');
   const [createOpen, setCreateOpen] = useState(false); const [newName, setNewName] = useState(''); const [importOpen, setImportOpen] = useState(false); const [importSource, setImportSource] = useState<MusicSource>('netease'); const [importInput, setImportInput] = useState(''); const [importJob, setImportJob] = useState<ImportJob | null>(null); const [accountOpen, setAccountOpen] = useState(false); const [addTrack, setAddTrack] = useState<Track | null>(null);
   const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const recoveringTrackId = useRef<string | null>(null); const importStream = useRef<EventSource | null>(null); const importReconnectTimer = useRef<number | null>(null); const dailyPollTimer = useRef<number | null>(null); const handledDailyRefresh = useRef(0); const queueContext = useRef<ListeningContext>({ type: 'unknown' }); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
   const listeningTracker = useMemo(() => new ListeningTracker(payload => {
@@ -146,7 +138,7 @@ export default function App() {
     const timers = new Set<number>();
     const createRipple = (event: PointerEvent) => {
       if (!(event.target instanceof Element)) return;
-      const target = event.target.closest<HTMLElement>('button, .track-row, .source-grid label, .icon-upload, .search-box, .load-row, .search-mini-list, .now-card, .lyrics, .tabs, .playlist-toolbar, .playlist-content, .play-modes, .import-progress, .add-list, .account-card, .modal-card, .panel');
+      const target = event.target.closest<HTMLElement>('button, .track-row, .source-grid label, .icon-upload, .search-box, .load-row, .search-mini-list, .now-card, .lyrics, .tabs, .playlist-toolbar, .playlist-content, .play-modes, .import-progress, .add-list, .account-card, .modal-card, .panel, .daily-editorial, .daily-spotlight-card, .mobile-mini-player, .mobile-nav');
       if (!target || target.matches(':disabled')) return;
       const rect = target.getBoundingClientRect();
       const x = event.clientX - rect.left; const y = event.clientY - rect.top; const size = Math.max(rect.width, rect.height);
@@ -200,17 +192,19 @@ export default function App() {
   useEffect(() => { if (lyricFollowing) centerActiveLyric(); }, [activeLyric, centerActiveLyric, lyricFollowing]);
   useEffect(() => {
     if (!user || !window.matchMedia('(max-width: 760px)').matches) return;
-    const key = `pikachu:mobile-scroll:${user.id}`; const previousRestoration = history.scrollRestoration; history.scrollRestoration = 'manual'; let restoring = true; let saveTimer = 0;
-    const save = () => window.localStorage.setItem(key, JSON.stringify({ y: window.scrollY, updatedAt: Date.now() }));
+    const container = document.querySelector<HTMLElement>(`[data-mobile-section="${mobileSection}"][data-mobile-active="true"]`);
+    if (!container) return;
+    const key = `pikachu:mobile-scroll:${user.id}:${mobileSection}`; let restoring = true; let saveTimer = 0;
+    const save = () => window.localStorage.setItem(key, JSON.stringify({ y: container.scrollTop, updatedAt: Date.now() }));
     const onScroll = () => { if (restoring) return; window.clearTimeout(saveTimer); saveTimer = window.setTimeout(save, 120); };
     requestAnimationFrame(() => requestAnimationFrame(() => {
       let target = 0;
       try { const stored = JSON.parse(window.localStorage.getItem(key) || 'null') as { y?: number } | null; if (Number.isFinite(stored?.y)) target = Number(stored?.y); } catch { /* Ignore malformed local state. */ }
-      window.scrollTo({ top: Math.min(Math.max(0, target), Math.max(0, document.documentElement.scrollHeight - window.innerHeight)), behavior: 'auto' }); restoring = false;
+      container.scrollTo({ top: Math.min(Math.max(0, target), Math.max(0, container.scrollHeight - container.clientHeight)), behavior: 'auto' }); restoring = false;
     }));
-    window.addEventListener('scroll', onScroll, { passive: true }); window.addEventListener('pagehide', save);
-    return () => { window.clearTimeout(saveTimer); save(); history.scrollRestoration = previousRestoration; window.removeEventListener('scroll', onScroll); window.removeEventListener('pagehide', save); };
-  }, [user?.id]);
+    container.addEventListener('scroll', onScroll, { passive: true }); window.addEventListener('pagehide', save);
+    return () => { window.clearTimeout(saveTimer); save(); container.removeEventListener('scroll', onScroll); window.removeEventListener('pagehide', save); };
+  }, [mobileSection, stageMode, user?.id]);
   useEffect(() => () => {
     if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current);
     if (importReconnectTimer.current !== null) window.clearTimeout(importReconnectTimer.current);
@@ -228,6 +222,19 @@ export default function App() {
     try { const size = append ? Math.min(30, limit + 10) : limit; const data = await api<{ tracks: Track[]; errors: Record<string, string> }>(`/api/search?q=${encodeURIComponent(query)}&sources=${sources.join(',')}&limit=${size}`); setResults(data.tracks.map(normalizeTrack)); setSearchErrors(data.errors); if (append) setLimit(size); setTab('results'); }
     catch (error) { showToast(error instanceof Error ? error.message : t.failed); } finally { setSearching(false); }
   };
+
+  const switchMobileSection = useCallback((section: MobileSection) => {
+    setMobileSection(section);
+    if (section === 'daily') {
+      setDailyDate(localDateKey()); setTab('daily'); setStageMode('daily');
+    } else if (section === 'player') {
+      setStageMode('player');
+    } else if (section === 'search') {
+      setTab('results');
+    } else if (tab !== 'favorites' && tab !== 'playlists') {
+      setTab('favorites');
+    }
+  }, [tab]);
 
   const queue = useMemo(() => tab === 'daily' ? dailyTracks : tab === 'favorites' ? favorites : tab === 'playlists' && selectedPlaylist ? selectedPlaylist.tracks.filter(item => !item.excluded) : results, [tab, dailyTracks, favorites, selectedPlaylist, results]);
   const resolveTrack = useCallback((item: Track, refresh = false) => {
@@ -453,56 +460,81 @@ export default function App() {
   const visiblePlaylistTracks = selectedPlaylist?.tracks.filter(item => !item.excluded && `${item.title} ${item.artist}`.toLowerCase().includes(playlistFilter.toLowerCase())) || [];
   const displayTrack = current && resolved ? { ...current, title: resolved.title || current.title, artist: resolved.artist || current.artist, album: resolved.album || current.album, coverUrl: resolved.coverUrl || current.coverUrl } : current;
   const modeLabel = user.playMode === 'list' ? t.listMode : user.playMode === 'loop' ? t.loopMode : t.shuffleMode;
-  return <div className="app-shell">
+  const sceneTrack = stageMode === 'daily' ? dailyTracks[0] : displayTrack;
+  const visualPalette = deriveVisualPalette(sceneTrack);
+  const stageProgress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
+  const showMobileMini = shouldShowMiniPlayer(mobileSection, Boolean(current));
+  return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''}`} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow } as React.CSSProperties}>
     <div className="particle-field" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--y': `${(i * 61) % 100}%`, '--d': `${5 + (i % 7)}s`, '--s': `${2 + (i % 4)}px` } as React.CSSProperties}/>)}</div>
     <header className="topbar panel">
-      <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>
-      <div className="header-actions"><div className="language"><button className={lang === 'zh' ? 'active' : ''} onClick={() => void setPreference({ language: 'zh' })}>中</button><button className={lang === 'en' ? 'active' : ''} onClick={() => void setPreference({ language: 'en' })}>EN</button></div><div className="shortcuts">{t.shortcuts}</div><button className="profile-button" onClick={() => setAccountOpen(true)}><span>{user.username.slice(0, 1).toUpperCase()}</span>{user.username}</button></div>
+      <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><span className="brand-kicker">PIKACHU MUSIC</span><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>
+      <div className="header-actions"><div className="language"><button className={lang === 'zh' ? 'active' : ''} onClick={() => void setPreference({ language: 'zh' })}>中</button><button className={lang === 'en' ? 'active' : ''} onClick={() => void setPreference({ language: 'en' })}>EN</button></div><div className="shortcuts">{t.shortcuts}</div><button className="profile-button" onClick={() => setAccountOpen(true)}><span>{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b></button></div>
     </header>
 
     <main className="workspace">
-      <section className="search-panel panel">
-        <div className="panel-heading"><h2><span>🔍</span>{t.searchTitle}</h2><small>{t.supports}</small></div>
-        <form className="search-box" onSubmit={event => { event.preventDefault(); void doSearch(); }}><span>🔍</span><input aria-label={t.placeholder} value={query} onChange={event => setQuery(event.target.value)} placeholder={t.placeholder}/><button className="btn gold" disabled={searching}>{searching ? '…' : t.search}</button></form>
+      <section className="search-panel panel" data-mobile-section="search" data-mobile-active={mobileSection === 'search'}>
+        <div className="panel-heading"><h2><Icon name="search" size={16}/>{t.searchTitle}</h2><small>{t.supports}</small></div>
+        <form className="search-box" onSubmit={event => { event.preventDefault(); void doSearch(); }}><Icon name="search" size={16}/><input aria-label={t.placeholder} value={query} onChange={event => setQuery(event.target.value)} placeholder={t.placeholder}/><button className="btn gold" disabled={searching}>{searching ? '…' : t.search}</button></form>
         <div className="source-grid">{SOURCES.map(source => <label key={source} className={sources.includes(source) ? 'checked' : ''} style={{ '--source-color': sourceColors[source] } as React.CSSProperties}><input type="checkbox" checked={sources.includes(source)} onChange={() => setSources(currentSources => currentSources.includes(source) ? currentSources.filter(v => v !== source) : [...currentSources, source])}/><i/>{sourceNames[source]}</label>)}</div>
         {results.length > 0 && Object.keys(searchErrors).length > 0 && <div className="source-warning">{Object.entries(searchErrors).map(([source, message]) => `${sourceNames[source as MusicSource]}：${message}`).join(' · ')}</div>}
         <div className="load-row"><span>{t.each}</span><select value={limit} onChange={event => setLimit(Number(event.target.value))}><option>5</option><option>10</option><option>20</option><option>30</option></select><span>首结果</span><button className="btn ghost" onClick={() => void doSearch(true)}>{t.more}</button></div>
-        <div className="search-mini-list">{!results.length ? <div className="empty-state"><span>✦</span><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.slice(0, 14).map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
+        <div className="search-mini-list">{!results.length ? <div className="empty-state"><Icon name="sparkles" size={30}/><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
       </section>
 
-      <section className="player-panel panel">
-        <div className="panel-heading player-heading"><h2><span>🎧</span>{t.now}</h2><small>{resolving && pendingTrack ? `${t.loadingTrack}：${pendingTrack.title}` : resolved?.fallback ? t.playingFallback : lyrics.length && !hasTimedLyrics ? findingTimedLyricsFor === current?.id ? t.findingTimedLyrics : t.estimatedLyricHint : t.lyricFx}</small></div>
-        <div className="now-card" data-track-id={current?.id || ''} data-pending-track-id={pendingTrack?.id || ''}>
-          <div className={`record-wrap ${playing ? 'spinning' : ''}`}><div className="record">{displayTrack?.coverUrl ? <img src={displayTrack.coverUrl} alt=""/> : <div className="record-center"/>}</div></div>
-          <div className="track-hero"><h3>{displayTrack?.title || t.noTrack}</h3><p>{displayTrack ? `${displayTrack.artist}${resolved?.fallback ? ` · ${sourceNames[resolved.actualSource]}${resolved.backupProvider ? ' · go-music-api' : ''}` : ''}` : t.pick}</p>
-            <div className="progress-row"><time>{formatTime(currentTime)}</time><input type="range" min="0" max={duration || 0} step="0.1" value={Math.min(currentTime, duration || 0)} onChange={event => { if (audio.current) audio.current.currentTime = Number(event.target.value); }}/><time>{formatTime(duration)}</time></div>
-            <div className="transport"><button onClick={() => void playRelative(-1)}>⏮</button><button className="play-main" onClick={togglePlay}>{resolving ? '…' : playing ? '❚❚' : '▶'}</button><button onClick={() => void playRelative(1)}>⏭</button><span className="volume">🔊<input aria-label="音量" type="range" min="0" max="1" step="0.01" value={user.volume} onChange={event => { const volume = Number(event.target.value); if (audio.current) audio.current.volume = volume; void setPreference({ volume }); }}/></span></div>
-          </div>
-          <div className="hero-actions"><button className={current && favoriteIds.has(current.id) ? 'active' : ''} onClick={() => current && void toggleFavorite(current)}>♥</button><button onClick={() => current && window.open(`/api/tracks/${encodeURIComponent(current.id)}/download`, '_blank')}>⬇</button><span>{resolving && pendingTrack ? `${t.loadingTrack} ${pendingTrack.title}` : playing ? '播放中' : '空闲'}</span></div>
+      <section className={`player-panel panel stage-mode-${stageMode}`} data-mobile-section={stageMode === 'daily' ? 'daily' : 'player'} data-mobile-active={(mobileSection === 'daily' && stageMode === 'daily') || (mobileSection === 'player' && stageMode === 'player')}>
+        <ImmersiveBackdrop active coverUrl={sceneTrack?.coverUrl} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
+        <div className="stage-surface">
+          {stageMode === 'daily' ? <>
+            <div className="panel-heading player-heading"><h2><Icon name="sparkles" size={16}/>{t.dailyStage}</h2><small>{displayedDaily?.date || dailyDate}</small></div>
+            <DailyStage activeTrackId={current?.id} date={displayedDaily?.date || dailyDate} favoriteIds={favoriteIds} lang={lang} loading={dailyLoading} message={daily?.message} pendingTrackId={pendingTrack?.id} playing={playing} tracks={dailyTracks} username={user.username}
+              onPlayAll={() => { const first = dailyTracks[0]; if (first) { setStageMode(stageAfterRecommendationPlay(stageMode)); void playFromQueue(first, dailyTracks, { type: 'daily', id: displayedDaily?.id }); } }}
+              onReturnPlayer={() => { setStageMode('player'); setMobileSection('player'); }}
+              onRegenerate={() => { setDailyDate(localDateKey()); setDailyRefresh(value => value + 1); }}
+              onPlay={item => { setStageMode(stageAfterRecommendationPlay(stageMode)); void playFromQueue(item, dailyTracks, { type: 'daily', id: displayedDaily?.id }); }}
+              onWarm={item => void warmTrack(item)} onFavorite={item => void toggleFavorite(item)} onAdd={item => setAddTrack(item)} onDislike={item => void dislikeRecommendation(item)}/>
+          </> : <>
+            <div className="panel-heading player-heading"><h2><Icon name="headphones" size={16}/>{t.now}</h2><small>{resolving && pendingTrack ? `${t.loadingTrack}：${pendingTrack.title}` : resolved?.fallback ? t.playingFallback : lyrics.length && !hasTimedLyrics ? findingTimedLyricsFor === current?.id ? t.findingTimedLyrics : t.estimatedLyricHint : t.lyricFx}</small></div>
+            <div className="now-card" data-track-id={current?.id || ''} data-pending-track-id={pendingTrack?.id || ''}>
+              <div className={`record-wrap ${playing ? 'spinning' : ''}`}><div className="record">{displayTrack?.coverUrl ? <img src={displayTrack.coverUrl} alt=""/> : <div className="record-center"/>}</div></div>
+              <div className="track-hero"><span className="now-kicker">NOW PLAYING</span><h3>{displayTrack?.title || t.noTrack}</h3><p>{displayTrack ? `${displayTrack.artist}${resolved?.fallback ? ` · ${sourceNames[resolved.actualSource]}${resolved.backupProvider ? ' · go-music-api' : ''}` : ''}` : t.pick}</p>
+                <div className="progress-row"><time>{formatTime(currentTime)}</time><input aria-label="播放进度" type="range" min="0" max={duration || 0} step="0.1" value={Math.min(currentTime, duration || 0)} onChange={event => { if (audio.current) audio.current.currentTime = Number(event.target.value); }}/><time>{formatTime(duration)}</time></div>
+                <div className="transport"><button aria-label="上一首" onClick={() => void playRelative(-1)}><Icon name="previous" size={14}/></button><button className="play-main" aria-label={playing ? '暂停' : '播放'} onClick={togglePlay}>{resolving ? <span className="button-loader"/> : <Icon name={playing ? 'pause' : 'play'} size={19}/>}</button><button aria-label="下一首" onClick={() => void playRelative(1)}><Icon name="next" size={14}/></button><span className="volume"><Icon name="volume" size={15}/><input aria-label="音量" type="range" min="0" max="1" step="0.01" value={user.volume} onChange={event => { const volume = Number(event.target.value); if (audio.current) audio.current.volume = volume; void setPreference({ volume }); }}/></span></div>
+              </div>
+              <div className="hero-actions"><button aria-label="收藏" className={current && favoriteIds.has(current.id) ? 'active' : ''} onClick={() => current && void toggleFavorite(current)}><Icon name="heart" size={16}/></button><button aria-label="下载" onClick={() => current && window.open(`/api/tracks/${encodeURIComponent(current.id)}/download`, '_blank')}><Icon name="download" size={16}/></button><span>{resolving && pendingTrack ? `${t.loadingTrack} ${pendingTrack.title}` : playing ? '播放中' : '空闲'}</span></div>
+            </div>
+            <div className="lyrics"><div className="lyrics-effects" aria-hidden="true"/>{lyricSeekTarget !== null && <div className="lyric-seek-status" role="status">{t.seeking} {formatTime(lyricSeekTarget)}…</div>}{!lyricFollowing && activeLyric >= 0 && <button className="lyric-follow-button" onClick={() => { setLyricFollowing(true); centerActiveLyric(); }}>{t.returnToLyric}</button>}<div className={`lyrics-scroll ${lyrics.length ? '' : 'is-empty'}`} ref={lyricBox} onPointerDown={event => { if (event.pointerType === 'mouse' && event.target === event.currentTarget && lyrics.length) setLyricFollowing(false); }} onTouchMove={() => lyrics.length && setLyricFollowing(false)} onWheel={() => lyrics.length && setLyricFollowing(false)}>{lyrics.length ? lyrics.map((line, index) => { const exact = Number.isFinite(line.time); const targetTime = exact ? line.time : estimateUntimedLyricTime(index, lyrics.length, duration, untimedLyricStart); const seekable = Number.isFinite(targetTime); return <button type="button" key={`${line.time}-${index}`} data-line={index} data-seekable={seekable} data-estimated={!exact && seekable} className={`lyric-line ${index === activeLyric ? 'active' : ''}`} aria-label={seekable ? `${exact ? '' : '约 '}${formatTime(targetTime)} ${line.text}` : line.text} title={seekable ? `${exact ? t.seekTo : t.estimatedSeekTo} ${formatTime(targetTime)}` : undefined} onClick={() => seekToLyric(targetTime, index, !exact)}><time aria-hidden="true">{seekable ? `${exact ? '' : '≈'}${formatTime(targetTime)}` : ''}</time><span>{line.text}</span></button>; }) : <div className="empty-lyrics"><Icon name="music" size={32}/>{t.emptyLyrics}</div>}</div></div>
+          </>}
         </div>
-        <div className="lyrics"><div className="lyrics-effects" aria-hidden="true"/>{lyricSeekTarget !== null && <div className="lyric-seek-status" role="status">{t.seeking} {formatTime(lyricSeekTarget)}…</div>}{!lyricFollowing && activeLyric >= 0 && <button className="lyric-follow-button" onClick={() => { setLyricFollowing(true); centerActiveLyric(); }}>{t.returnToLyric}</button>}<div className={`lyrics-scroll ${lyrics.length ? '' : 'is-empty'}`} ref={lyricBox} onPointerDown={event => { if (event.pointerType === 'mouse' && event.target === event.currentTarget && lyrics.length) setLyricFollowing(false); }} onTouchMove={() => lyrics.length && setLyricFollowing(false)} onWheel={() => lyrics.length && setLyricFollowing(false)}>{lyrics.length ? lyrics.map((line, index) => { const exact = Number.isFinite(line.time); const targetTime = exact ? line.time : estimateUntimedLyricTime(index, lyrics.length, duration, untimedLyricStart); const seekable = Number.isFinite(targetTime); return <button type="button" key={`${line.time}-${index}`} data-line={index} data-seekable={seekable} data-estimated={!exact && seekable} className={`lyric-line ${index === activeLyric ? 'active' : ''}`} aria-label={seekable ? `${exact ? '' : '约 '}${formatTime(targetTime)} ${line.text}` : line.text} title={seekable ? `${exact ? t.seekTo : t.estimatedSeekTo} ${formatTime(targetTime)}` : undefined} onClick={() => seekToLyric(targetTime, index, !exact)}><time aria-hidden="true">{seekable ? `${exact ? '' : '≈'}${formatTime(targetTime)}` : ''}</time><span>{line.text}</span></button>; }) : <div className="empty-lyrics"><span>♫</span>{t.emptyLyrics}</div>}</div></div>
         <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.play(event.currentTarget.currentTime); setPlaying(true); syncMediaSession(event.currentTarget, true); } }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.pause(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000); setPlaying(false); syncMediaSession(event.currentTarget, false); } }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; listeningTracker.tick(element.currentTime, (element.duration || 0) * 1000, !element.paused && !element.ended); setCurrentTime(element.currentTime); syncMediaSession(element, !element.paused && !element.ended); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, false); setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); syncMediaSession(event.currentTarget, !event.currentTarget.paused && !event.currentTarget.ended); }} onError={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) void recoverPlayback(event.currentTarget); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, true); listeningTracker.finish('ended'); void playRelative(1); }}/>
       </section>
 
-      <section className="playlist-panel panel">
-        <div className="panel-heading"><h2><span>📜</span>{t.playlist}</h2></div>
-        <div className="tabs">{(['daily', 'results', 'favorites', 'playlists'] as Tab[]).map(value => <button key={value} className={tab === value ? 'active' : ''} onClick={() => { if (value === 'daily' && tab !== 'daily') setDailyDate(localDateKey()); setTab(value); }}>{value === 'daily' ? t.daily : value === 'results' ? t.results : value === 'favorites' ? t.favorites : t.custom}</button>)}</div>
+      <section className="playlist-panel panel" data-mobile-section="library" data-mobile-active={mobileSection === 'library'}>
+        <div className="panel-heading"><h2><Icon name="library" size={16}/>{t.playlist}</h2></div>
+        <div className="tabs">{(['daily', 'results', 'favorites', 'playlists'] as Tab[]).map(value => <button key={value} data-tab={value} className={tab === value ? 'active' : ''} onClick={() => { if (value === 'daily') { if (tab !== 'daily') setDailyDate(localDateKey()); setStageMode('daily'); } else setStageMode('player'); setTab(value); }}>{value === 'daily' ? t.daily : value === 'results' ? t.results : value === 'favorites' ? t.favorites : t.custom}</button>)}</div>
         <div className="playlist-toolbar">
           <strong>{tab === 'daily' ? `${t.daily} · ${displayedDaily?.date || dailyDate}` : tab === 'results' ? t.results : tab === 'favorites' ? t.favorites : selectedPlaylist?.name || t.custom}</strong>
-          {tab === 'daily' && <div className="daily-tools"><select aria-label={t.dailyHistory} value={dailyDate} onChange={event => setDailyDate(event.target.value)}><option value={localDateKey()}>{localDateKey()}</option>{dailyHistory.filter(item => item.date !== localDateKey()).map(item => <option key={item.date} value={item.date}>{item.date}</option>)}</select><button title={t.retryDaily} disabled={dailyLoading} onClick={() => { setDailyDate(localDateKey()); setDailyRefresh(value => value + 1); }}>↻</button></div>}
-          {tab === 'playlists' && <div><button title={t.newList} onClick={() => setCreateOpen(true)}>＋</button><button title={t.import} onClick={() => { setImportOpen(true); setImportJob(null); }}>⇩</button><button title={t.backup} onClick={() => void exportBackup()}>⤓</button><label className="icon-upload" title={t.restoreData}>⤒<input type="file" accept="application/json" onChange={event => event.target.files?.[0] && void restoreBackup(event.target.files[0])}/></label>{selectedPlaylist?.source && <button title={t.sync} onClick={() => void syncPlaylist()}>↻</button>}</div>}
+          {tab === 'daily' && <div className="daily-tools"><select aria-label={t.dailyHistory} value={dailyDate} onChange={event => setDailyDate(event.target.value)}><option value={localDateKey()}>{localDateKey()}</option>{dailyHistory.filter(item => item.date !== localDateKey()).map(item => <option key={item.date} value={item.date}>{item.date}</option>)}</select><button title={t.retryDaily} disabled={dailyLoading} onClick={() => { setDailyDate(localDateKey()); setDailyRefresh(value => value + 1); }}><Icon name="sync" size={13}/></button></div>}
+          {tab === 'playlists' && <div><button title={t.newList} onClick={() => setCreateOpen(true)}><Icon name="add" size={13}/></button><button title={t.import} onClick={() => { setImportOpen(true); setImportJob(null); }}><Icon name="import" size={13}/></button><button title={t.backup} onClick={() => void exportBackup()}><Icon name="backup" size={13}/></button><label className="icon-upload" title={t.restoreData}><Icon name="restore" size={13}/><input type="file" accept="application/json" onChange={event => event.target.files?.[0] && void restoreBackup(event.target.files[0])}/></label>{selectedPlaylist?.source && <button title={t.sync} onClick={() => void syncPlaylist()}><Icon name="sync" size={13}/></button>}</div>}
         </div>
         <div className="playlist-content">
-          {tab === 'daily' && <>{dailyLoading && daily?.status !== 'completed' && <div className="daily-status"><span>⚡</span><strong>{t.generatingDaily}</strong><small>{dailyFallback ? `正在生成，先显示 ${dailyFallback.date} 的推荐` : daily?.message || '首次生成需要连接音乐源，请稍候'}</small></div>}{dailyTracks.length ? dailyTracks.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} reason={item.reason} onPlay={() => void playFromQueue(item, dailyTracks, { type: 'daily', id: displayedDaily?.id })} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)} onDislike={() => void dislikeRecommendation(item)}/>) : !dailyLoading && <div className="empty-state"><span>⚡</span><p>{daily?.message || t.generatingDaily}</p><button className="btn ghost" onClick={() => setDailyRefresh(value => value + 1)}>{t.retryDaily}</button></div>}</>}
-          {tab === 'results' && (results.length ? results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>⌁</span><p>{t.empty}</p></div>)}
-          {tab === 'favorites' && (favorites.length ? favorites.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite onPlay={() => void playFromQueue(item, favorites)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><span>♡</span><p>{t.empty}</p></div>)}
-          {tab === 'playlists' && <>{playlists.length ? <div className="playlist-cards">{playlists.map(item => <button key={item.id} className={selectedPlaylist?.id === item.id ? 'active' : ''} onClick={() => void openPlaylist(item)}>{item.coverUrl ? <img src={item.coverUrl} alt=""/> : <span>♫</span>}<b>{item.name}</b><small>{item.trackCount} 首 {item.source ? `· ${sourceNames[item.source]}` : ''}</small></button>)}</div> : <div className="empty-state"><span>＋</span><p>{t.empty}</p></div>}
+          {tab === 'daily' && <>{dailyLoading && daily?.status !== 'completed' && <div className="daily-status"><Icon name="sparkles" size={20}/><strong>{t.generatingDaily}</strong><small>{dailyFallback ? `正在生成，先显示 ${dailyFallback.date} 的推荐` : daily?.message || '首次生成需要连接音乐源，请稍候'}</small></div>}{dailyTracks.length ? dailyTracks.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} reason={item.reason} onPlay={() => void playFromQueue(item, dailyTracks, { type: 'daily', id: displayedDaily?.id })} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)} onDislike={() => void dislikeRecommendation(item)}/>) : !dailyLoading && <div className="empty-state"><Icon name="sparkles" size={28}/><p>{daily?.message || t.generatingDaily}</p><button className="btn ghost" onClick={() => setDailyRefresh(value => value + 1)}>{t.retryDaily}</button></div>}</>}
+          {tab === 'results' && (results.length ? results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><Icon name="search" size={28}/><p>{t.empty}</p></div>)}
+          {tab === 'favorites' && (favorites.length ? favorites.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite onPlay={() => void playFromQueue(item, favorites)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>) : <div className="empty-state"><Icon name="heart" size={28}/><p>{t.empty}</p></div>)}
+          {tab === 'playlists' && <>{playlists.length ? <div className="playlist-cards">{playlists.map(item => <button key={item.id} className={selectedPlaylist?.id === item.id ? 'active' : ''} onClick={() => void openPlaylist(item)}>{item.coverUrl ? <img src={item.coverUrl} alt=""/> : <span><Icon name="music" size={18}/></span>}<b>{item.name}</b><small>{item.trackCount} 首 {item.source ? `· ${sourceNames[item.source]}` : ''}</small></button>)}</div> : <div className="empty-state"><Icon name="add" size={28}/><p>{t.empty}</p></div>}
             {selectedPlaylist && <><input className="playlist-search" value={playlistFilter} onChange={event => setPlaylistFilter(event.target.value)} placeholder={t.searchInList}/><div className="selected-tracks">{visiblePlaylistTracks.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} draggable onDragStart={() => { draggedTrack.current = item.id; }} onDrop={() => void reorder(item.id)} onPlay={() => void playFromQueue(item, selectedPlaylist.tracks.filter(track => !track.excluded))} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onRemove={() => void removeFromPlaylist(item.id)}/>)}</div></>}
           </>}
         </div>
-        <div className="play-modes"><button className={user.playMode === 'list' ? 'active' : ''} title={t.listMode} onClick={() => void setPreference({ playMode: 'list' })}>🔁</button><button className={user.playMode === 'loop' ? 'active' : ''} title={t.loopMode} onClick={() => void setPreference({ playMode: 'loop' })}>🔂</button><button className={user.playMode === 'shuffle' ? 'active' : ''} title={t.shuffleMode} onClick={() => void setPreference({ playMode: 'shuffle' })}>🔀</button><span>{modeLabel}</span></div>
+        <div className="play-modes"><button className={user.playMode === 'list' ? 'active' : ''} title={t.listMode} onClick={() => void setPreference({ playMode: 'list' })}><Icon name="repeat" size={13}/></button><button className={user.playMode === 'loop' ? 'active' : ''} title={t.loopMode} onClick={() => void setPreference({ playMode: 'loop' })}><Icon name="repeatOne" size={13}/></button><button className={user.playMode === 'shuffle' ? 'active' : ''} title={t.shuffleMode} onClick={() => void setPreference({ playMode: 'shuffle' })}><Icon name="shuffle" size={13}/></button><span>{modeLabel}</span></div>
       </section>
     </main>
+    {showMobileMini && current && <MiniPlayer
+      track={displayTrack || current}
+      playing={playing}
+      resolving={resolving}
+      onToggle={togglePlay}
+      onOpen={() => switchMobileSection('player')}
+    />}
+    <MobileNavigation active={mobileSection} lang={lang} playing={playing} onChange={switchMobileSection}/>
     <footer>{t.footer}</footer>
 
     {createOpen && <Modal title={t.newList} onClose={() => setCreateOpen(false)}><label className="modal-label">{t.name}<input autoFocus value={newName} onChange={event => setNewName(event.target.value)} onKeyDown={event => event.key === 'Enter' && void createPlaylist()}/></label><div className="modal-actions"><button className="btn ghost" onClick={() => setCreateOpen(false)}>{t.cancel}</button><button className="btn primary" onClick={() => void createPlaylist()}>{t.create}</button></div></Modal>}
