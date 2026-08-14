@@ -32,23 +32,23 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
   burgundy: {
     id: 'burgundy',
     name: { zh: '酒红剧场', en: 'Burgundy Theatre' },
-    description: { zh: '酒窖暗红与香槟光', en: 'Cellar red and champagne light' },
-    canvas: '#10070b', surface: '#1a0d13', sceneAccent: '#8e304d', sceneGlow: '#d596a9',
-    swatches: ['#10070b', '#4a1728', '#d596a9'],
+    description: { zh: '深红幕布与粉色聚光', en: 'Crimson curtains and vivid spotlights' },
+    canvas: '#160006', surface: '#310815', sceneAccent: '#ff2864', sceneGlow: '#ff9cbd',
+    swatches: ['#160006', '#8b123a', '#ff5a88'],
   },
   cobalt: {
     id: 'cobalt',
     name: { zh: '钴蓝画廊', en: 'Cobalt Gallery' },
-    description: { zh: '深海钴蓝与冷白画框', en: 'Deep cobalt and cool gallery light' },
-    canvas: '#06101f', surface: '#0b192d', sceneAccent: '#3c74ff', sceneGlow: '#9ab7ff',
-    swatches: ['#06101f', '#154186', '#9ab7ff'],
+    description: { zh: '电蓝网格与冷光结构', en: 'Electric grids and cyan structures' },
+    canvas: '#00113d', surface: '#062a7d', sceneAccent: '#2867ff', sceneGlow: '#72e4ff',
+    swatches: ['#00113d', '#075cff', '#72e4ff'],
   },
   paper: {
     id: 'paper',
     name: { zh: '暖纸工作室', en: 'Warm Paper Studio' },
-    description: { zh: '暖白纸张与深色媒体舞台', en: 'Warm paper with a dark media stage' },
-    canvas: '#e9e3d8', surface: '#f7f2e8', sceneAccent: '#315b88', sceneGlow: '#8ca9c3',
-    swatches: ['#e9e3d8', '#f7f2e8', '#1a1917'],
+    description: { zh: '暖纸底色与红蓝编辑块', en: 'Warm paper with red-blue editorial blocks' },
+    canvas: '#f0e4c8', surface: '#fff6df', sceneAccent: '#f24b2a', sceneGlow: '#1768ff',
+    swatches: ['#f0e4c8', '#f24b2a', '#1768ff'],
   },
 };
 

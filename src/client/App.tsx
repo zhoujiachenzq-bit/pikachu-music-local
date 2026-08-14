@@ -6,6 +6,7 @@ import { ListeningTracker, type ListeningContext } from './listeningTracker';
 import { PlaybackCache } from './playerCache';
 import { PlaybackQueue } from './playerQueue';
 import { ImmersiveBackdrop } from './ImmersiveBackdrop';
+import { useArtworkAccent } from './artworkPalette';
 import { TonePicker, ToneTransitionLayer, type ToneTransitionState } from './TonePicker';
 import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
 import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
@@ -490,6 +491,10 @@ export default function App() {
   const exportBackup = async () => { const response = await fetch('/api/backup/export'); if (!response.ok) return showToast(t.failed); const blob = await response.blob(); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `pikachu-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(url); };
   const restoreBackup = async (file: File) => { try { const data = JSON.parse(await file.text()); const preview = await api<{ preview: { favorites: number; playlists: number; tracks: number } }>('/api/backup/restore', json('POST', { mode: 'preview', data })); if (!window.confirm(`将合并 ${preview.preview.favorites} 个收藏、${preview.preview.playlists} 个歌单、${preview.preview.tracks} 首歌曲。继续？`)) return; await api('/api/backup/restore', json('POST', { mode: 'merge', data })); await refreshLibrary(); showToast('数据恢复完成'); } catch (error) { showToast(error instanceof Error ? error.message : t.failed); } };
 
+  const paletteDisplayTrack = current && resolved ? { ...current, title: resolved.title || current.title, artist: resolved.artist || current.artist, album: resolved.album || current.album, coverUrl: resolved.coverUrl || current.coverUrl } : current;
+  const paletteSceneTrack = stageMode === 'daily' ? dailyTracks[0] : paletteDisplayTrack;
+  const artworkAccent = useArtworkAccent(paletteSceneTrack?.coverUrl);
+
   if (user === undefined) return <div className="loading-screen"><div className="loader">⚡</div></div>;
   if (!user) return <AuthScreen onAuth={setUser}/>;
 
@@ -498,10 +503,10 @@ export default function App() {
   const modeLabel = user.playMode === 'list' ? t.listMode : user.playMode === 'loop' ? t.loopMode : t.shuffleMode;
   const sceneTrack = stageMode === 'daily' ? dailyTracks[0] : displayTrack;
   const activeTone = resolveToneTheme(visualPreferences.theme, previewTone);
-  const visualPalette = deriveVisualPalette(sceneTrack, activeTone);
+  const visualPalette = deriveVisualPalette(sceneTrack, activeTone, artworkAccent);
   const stageProgress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
   const showMobileMini = shouldShowMiniPlayer(mobileSection, Boolean(current));
-  return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''} ${previewTone ? 'tone-previewing' : ''} ${visualPreferences.motionEnabled ? 'motion-on' : 'motion-off'}`} data-tone={activeTone} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow, '--scene-theme-accent': TONE_THEMES[activeTone].sceneAccent, '--scene-theme-glow': TONE_THEMES[activeTone].sceneGlow } as React.CSSProperties}>
+  return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''} ${previewTone ? 'tone-previewing' : ''} ${visualPreferences.motionEnabled ? 'motion-on' : 'motion-off'}`} data-tone={activeTone} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow, '--artwork-accent': artworkAccent || visualPalette.secondary, '--scene-theme-accent': TONE_THEMES[activeTone].sceneAccent, '--scene-theme-glow': TONE_THEMES[activeTone].sceneGlow } as React.CSSProperties}>
     <div className="particle-field" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--y': `${(i * 61) % 100}%`, '--d': `${5 + (i % 7)}s`, '--s': `${2 + (i % 4)}px` } as React.CSSProperties}/>)}</div>
     <header className="topbar panel">
       <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><span className="brand-kicker">PIKACHU MUSIC</span><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>

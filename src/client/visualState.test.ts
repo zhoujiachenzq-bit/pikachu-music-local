@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Track } from '../shared/types';
-import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, shouldUseDesktopWebgl, stageAfterRecommendationPlay } from './visualState';
+import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, shouldUseDesktopWebgl, stageAfterRecommendationPlay, TRACK_COLOR_INFLUENCE } from './visualState';
 
 const track: Track = {
   id: 'qq:1', source: 'qq', sourceTrackId: '1', title: 'Night Drive', artist: 'Pikachu', album: 'Cottage', duration: 180_000,
@@ -25,6 +25,8 @@ describe('immersive visual state', () => {
     expect(deriveVisualPalette(track)).toEqual(deriveVisualPalette({ ...track }));
     expect(deriveVisualPalette(track).primary).toBe('#ffd84d');
     expect(deriveVisualPalette(track, 'burgundy')).not.toEqual(deriveVisualPalette(track, 'cobalt'));
+    expect(deriveVisualPalette(track, 'burgundy', '#f00070')).not.toEqual(deriveVisualPalette(track, 'burgundy'));
+    expect(TRACK_COLOR_INFLUENCE).toBe(.55);
   });
 
   it('loads WebGL only on capable desktops', () => {

@@ -25,6 +25,8 @@ const palettes = [
   ['#ffd84d', '#a978ff', '#dcc6ff'],
 ] as const;
 
+export const TRACK_COLOR_INFLUENCE = .55;
+
 function hexChannels(value: string): [number, number, number] {
   const hex = value.replace('#', '');
   return [Number.parseInt(hex.slice(0, 2), 16), Number.parseInt(hex.slice(2, 4), 16), Number.parseInt(hex.slice(4, 6), 16)];
@@ -44,11 +46,18 @@ export function visualSeed(value: string): number {
   return hash >>> 0;
 }
 
-export function deriveVisualPalette(track: Track | null | undefined, theme: ToneThemeId = 'night'): VisualPalette {
+export function deriveVisualPalette(track: Track | null | undefined, theme: ToneThemeId = 'night', artworkAccent?: string | null): VisualPalette {
   const seed = visualSeed(track ? `${track.title}|${track.artist}|${track.source}` : 'pikachu-music');
   const selected = palettes[seed % palettes.length];
   const definition = TONE_THEMES[theme];
-  return { primary: selected[0], secondary: mixHex(definition.sceneAccent, selected[1], .25), glow: mixHex(definition.sceneGlow, selected[2], .25), seed };
+  const songAccent = artworkAccent ? mixHex(selected[1], artworkAccent, .72) : selected[1];
+  const songGlow = artworkAccent ? mixHex(artworkAccent, '#ffffff', .38) : selected[2];
+  return {
+    primary: selected[0],
+    secondary: mixHex(definition.sceneAccent, songAccent, TRACK_COLOR_INFLUENCE),
+    glow: mixHex(definition.sceneGlow, songGlow, TRACK_COLOR_INFLUENCE),
+    seed,
+  };
 }
 
 export function stageAfterRecommendationPlay(current: StageMode): StageMode {
