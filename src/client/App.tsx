@@ -5,7 +5,7 @@ import { installMediaSessionControls, syncMediaSession, updateMediaMetadata } fr
 import { ListeningTracker, type ListeningContext } from './listeningTracker';
 import { PlaybackCache } from './playerCache';
 import { PlaybackQueue } from './playerQueue';
-import { ImmersiveWorkspaceScene, PlayerAtmosphere } from './ImmersiveBackdrop';
+import { ImmersiveBackdrop } from './ImmersiveBackdrop';
 import { TonePicker, ToneTransitionLayer, type ToneTransitionState } from './TonePicker';
 import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
 import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
@@ -502,7 +502,6 @@ export default function App() {
   const stageProgress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
   const showMobileMini = shouldShowMiniPlayer(mobileSection, Boolean(current));
   return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''} ${previewTone ? 'tone-previewing' : ''} ${visualPreferences.motionEnabled ? 'motion-on' : 'motion-off'}`} data-tone={activeTone} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow, '--scene-theme-accent': TONE_THEMES[activeTone].sceneAccent, '--scene-theme-glow': TONE_THEMES[activeTone].sceneGlow } as React.CSSProperties}>
-    <ImmersiveWorkspaceScene theme={activeTone} motionEnabled={visualPreferences.motionEnabled} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
     <div className="particle-field" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--y': `${(i * 61) % 100}%`, '--d': `${5 + (i % 7)}s`, '--s': `${2 + (i % 4)}px` } as React.CSSProperties}/>)}</div>
     <header className="topbar panel">
       <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><span className="brand-kicker">PIKACHU MUSIC</span><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>
@@ -510,7 +509,7 @@ export default function App() {
     </header>
 
     <main className="workspace">
-      <section className="search-panel panel" data-scene-region="search" data-mobile-section="search" data-mobile-active={mobileSection === 'search'}>
+      <section className="search-panel panel" data-mobile-section="search" data-mobile-active={mobileSection === 'search'}>
         <div className="panel-heading"><h2><Icon name="search" size={16}/>{t.searchTitle}</h2><small>{t.supports}</small></div>
         <form className="search-box" onSubmit={event => { event.preventDefault(); void doSearch(); }}><Icon name="search" size={16}/><input aria-label={t.placeholder} value={query} onChange={event => setQuery(event.target.value)} placeholder={t.placeholder}/><button className="btn gold" disabled={searching}>{searching ? '…' : t.search}</button></form>
         <div className="source-grid">{SOURCES.map(source => <label key={source} className={sources.includes(source) ? 'checked' : ''} style={{ '--source-color': sourceColors[source] } as React.CSSProperties}><input type="checkbox" checked={sources.includes(source)} onChange={() => setSources(currentSources => currentSources.includes(source) ? currentSources.filter(v => v !== source) : [...currentSources, source])}/><i/>{sourceNames[source]}</label>)}</div>
@@ -519,8 +518,8 @@ export default function App() {
         <div className="search-mini-list">{!results.length ? <div className="empty-state"><Icon name="sparkles" size={30}/><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
       </section>
 
-      <section className={`player-panel panel stage-mode-${stageMode}`} data-scene-region="player" data-mobile-section={stageMode === 'daily' ? 'daily' : 'player'} data-mobile-active={(mobileSection === 'daily' && stageMode === 'daily') || (mobileSection === 'player' && stageMode === 'player')}>
-        <PlayerAtmosphere coverUrl={sceneTrack?.coverUrl} palette={visualPalette} stage={stageMode}/>
+      <section className={`player-panel panel stage-mode-${stageMode}`} data-mobile-section={stageMode === 'daily' ? 'daily' : 'player'} data-mobile-active={(mobileSection === 'daily' && stageMode === 'daily') || (mobileSection === 'player' && stageMode === 'player')}>
+        <ImmersiveBackdrop theme={activeTone} motionEnabled={visualPreferences.motionEnabled} coverUrl={sceneTrack?.coverUrl} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
         <div className="stage-surface">
           {stageMode === 'daily' ? <>
             <div className="panel-heading player-heading"><h2><Icon name="sparkles" size={16}/>{t.dailyStage}</h2><small>{displayedDaily?.date || dailyDate}</small></div>
@@ -546,7 +545,7 @@ export default function App() {
         <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.play(event.currentTarget.currentTime); setPlaying(true); syncMediaSession(event.currentTarget, true); } }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.pause(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000); setPlaying(false); syncMediaSession(event.currentTarget, false); } }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; listeningTracker.tick(element.currentTime, (element.duration || 0) * 1000, !element.paused && !element.ended); setCurrentTime(element.currentTime); syncMediaSession(element, !element.paused && !element.ended); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, false); setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); syncMediaSession(event.currentTarget, !event.currentTarget.paused && !event.currentTarget.ended); }} onError={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) void recoverPlayback(event.currentTarget); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, true); listeningTracker.finish('ended'); void playRelative(1); }}/>
       </section>
 
-      <section className="playlist-panel panel" data-scene-region="library" data-mobile-section="library" data-mobile-active={mobileSection === 'library'}>
+      <section className="playlist-panel panel" data-mobile-section="library" data-mobile-active={mobileSection === 'library'}>
         <div className="panel-heading"><h2><Icon name="library" size={16}/>{t.playlist}</h2></div>
         <div className="tabs">{(['daily', 'results', 'favorites', 'playlists'] as Tab[]).map(value => <button key={value} data-tab={value} className={tab === value ? 'active' : ''} onClick={() => { if (value === 'daily') { if (tab !== 'daily') setDailyDate(localDateKey()); setStageMode('daily'); } else setStageMode('player'); setTab(value); }}>{value === 'daily' ? t.daily : value === 'results' ? t.results : value === 'favorites' ? t.favorites : t.custom}</button>)}</div>
         <div className="playlist-toolbar">

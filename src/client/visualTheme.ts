@@ -85,8 +85,9 @@ export function resolveToneTheme(committed: ToneThemeId, preview: ToneThemeId | 
   return preview || committed;
 }
 
-export function selectSceneQuality({ width, reducedMotion, motionEnabled, webglAvailable = true }: { width: number; reducedMotion: boolean; motionEnabled: boolean; webglAvailable?: boolean }): SceneQuality {
-  if (!webglAvailable || !motionEnabled || reducedMotion || width <= 760) return 'off';
+export function selectSceneQuality({ width, reducedMotion, motionEnabled, webglAvailable = true, fullMobile = false }: { width: number; reducedMotion: boolean; motionEnabled: boolean; webglAvailable?: boolean; fullMobile?: boolean }): SceneQuality {
+  if (!webglAvailable || !motionEnabled || reducedMotion) return 'off';
+  if (width <= 760) return fullMobile ? 'desktop' : 'off';
   return width <= 1080 ? 'tablet' : 'desktop';
 }
 

@@ -27,15 +27,16 @@ describe('visual theme preferences', () => {
     expect(resolveToneTheme('night', null)).toBe('night');
   });
 
-  it('selects one shared scene quality for desktop and tablet only', () => {
+  it('selects scene quality and supports the full mobile center scene', () => {
     expect(selectSceneQuality({ width: 1440, reducedMotion: false, motionEnabled: true })).toBe('desktop');
     expect(selectSceneQuality({ width: 1024, reducedMotion: false, motionEnabled: true })).toBe('tablet');
     expect(selectSceneQuality({ width: 760, reducedMotion: false, motionEnabled: true })).toBe('off');
+    expect(selectSceneQuality({ width: 390, reducedMotion: false, motionEnabled: true, fullMobile: true })).toBe('desktop');
     expect(selectSceneQuality({ width: 1440, reducedMotion: true, motionEnabled: true })).toBe('off');
     expect(selectSceneQuality({ width: 1440, reducedMotion: false, motionEnabled: false })).toBe('off');
   });
 
-  it('keeps lightweight CSS motion active on mobile unless motion is disabled', () => {
+  it('honors motion and reduced-motion preferences for CSS effects', () => {
     expect(shouldAnimateCssScene({ motionEnabled: true, reducedMotion: false })).toBe(true);
     expect(shouldAnimateCssScene({ motionEnabled: false, reducedMotion: false })).toBe(false);
     expect(shouldAnimateCssScene({ motionEnabled: true, reducedMotion: true })).toBe(false);
