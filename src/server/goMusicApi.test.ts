@@ -62,6 +62,27 @@ describe('go-music-api backup resolver', () => {
     expect(url.searchParams.getAll('sources')).toEqual(['qq']);
   });
 
+  it('falls back to exact search results when the switch endpoint returns weak candidates', async () => {
+    const fetcher = vi.fn(async (request: string | URL) => {
+      const url = new URL(request);
+      if (url.pathname.endsWith('/switch')) {
+        const target = url.searchParams.get('target');
+        return json({ id: `wrong-${target}`, source: target, name: input.title, artist: '其他歌手', duration: 280 });
+      }
+      if (url.pathname.endsWith('/search')) return json({ data: { songs: [
+        { id: 'qq-original', source: 'qq', name: input.title, artist: input.artist, album: '原唱专辑', duration: 245 }
+      ] } });
+      if (url.pathname.endsWith('/inspect')) return json({ valid: true, size: '5.2 MB' });
+      if (url.pathname.endsWith('/lyric')) return json({ data: { lyric: '[00:01.00]备用搜索歌词' } });
+      return json({}, 404);
+    });
+    const result = await resolveWithGoMusicApi(input, {
+      baseUrl: 'http://127.0.0.1:8080', fetcher, score: matchScore, ambiguous: isAmbiguousFallback, eligible: isSafeAutomaticMatch
+    });
+    expect(result).toMatchObject({ actualSource: 'qq', sourceTrackId: 'qq-original', backupProvider: 'go-music-api' });
+    expect(fetcher.mock.calls.some(call => new URL(call[0]).pathname.endsWith('/search'))).toBe(true);
+  });
+
   it('rejects a tiny Kuwo restriction prompt reported as a playable response', async () => {
     const neteaseInput = { ...input, id: 'netease:broken', source: 'netease' as const };
     const fetcher = vi.fn(async (request: string | URL) => {

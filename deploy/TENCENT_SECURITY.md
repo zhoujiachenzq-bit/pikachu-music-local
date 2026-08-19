@@ -1,18 +1,18 @@
-# 腾讯云服务器安全配置准备（v0.3.1）
+# 腾讯云服务器安全配置准备（v0.3.2）
 
 这份清单适用于当前的 Ubuntu 24.04、Caddy、Docker 和 `zqmusic.cn`。应用升级脚本不会修改 Caddy、腾讯云防火墙或 SSH，避免远程部署时把管理员锁在服务器外。
 
 ## 1. 部署应用
 
-GitHub Release 发布后，在服务器检出 v0.3.1，并从仓库目录执行：
+GitHub Release 发布后，在服务器检出 v0.3.2，并从仓库目录执行：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y sqlite3
-sudo bash deploy/tencent-v0.3.1.sh
+sudo bash deploy/tencent-v0.3.2.sh
 ```
 
-脚本会构建 `zqmusic:0.3.1`、将 SQLite 备份到 `/opt/zqmusic-backups`、保留原容器用于回滚，并以只读根文件系统、无额外 capabilities、进程/内存限制和日志轮转启动新容器。应用仅映射 `127.0.0.1:3000`，Caddy 与 `/opt/zqmusic-data` 不变；现有内部备用音源地址会原样保留。
+脚本会构建 `zqmusic:0.3.2`、将 SQLite 备份到 `/opt/zqmusic-backups`、保留原容器用于回滚，并以只读根文件系统、无额外 capabilities、进程/内存限制和日志轮转启动新容器。应用仅映射 `127.0.0.1:3000`，Caddy 与 `/opt/zqmusic-data` 不变；现有内部备用音源地址会原样保留。
 
 部署后手动检查：
 

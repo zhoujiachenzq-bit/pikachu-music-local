@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-VERSION="v0.3.1"
+VERSION="${ZQMUSIC_VERSION:-v0.3.1}"
+[[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "无效版本号：${VERSION}" >&2; exit 1; }
 REPO_URL="https://github.com/zhoujiachenzq-bit/pikachu-music-local.git"
 APP_DIR="/opt/zqmusic-releases/${VERSION}"
 DATA_DIR="/opt/zqmusic-data"
@@ -13,7 +14,7 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 ROLLBACK_CONTAINER="${APP_CONTAINER}-rollback-${STAMP}"
 
 if [[ ${EUID} -ne 0 ]]; then
-  echo "请使用 sudo bash deploy/tencent-v0.3.1.sh 运行。" >&2
+  echo "请使用 sudo bash ${BASH_SOURCE[0]} 运行。" >&2
   exit 1
 fi
 
@@ -108,5 +109,5 @@ done
 curl --fail --silent --show-error https://zqmusic.cn/api/health
 echo
 docker inspect --format 'container={{.Name}} image={{.Config.Image}} readonly={{.HostConfig.ReadonlyRootfs}} pids={{.HostConfig.PidsLimit}} memory={{.HostConfig.Memory}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${APP_CONTAINER}"
-echo "v0.3.1 部署成功。旧容器保留为 ${ROLLBACK_CONTAINER}，确认登录、收藏、歌单和播放后再人工删除。"
+echo "${VERSION} 部署成功。旧容器保留为 ${ROLLBACK_CONTAINER}，确认登录、收藏、歌单和播放后再人工删除。"
 trap - EXIT

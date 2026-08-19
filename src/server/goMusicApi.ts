@@ -141,6 +141,21 @@ function mediaPath(track: Track) {
   return `/api/backup-media?${params}`;
 }
 
+async function validateCandidate(input: Track, candidate: Track, options: ResolveOptions): Promise<Track | null> {
+  const baseUrl = goMusicApiBaseUrl(options.baseUrl);
+  if (!baseUrl) return null;
+  if (!candidate || options.score(input, candidate) < .85 || options.eligible && !options.eligible(input, candidate)) return null;
+  const inspect = new URL('/api/v1/music/inspect', `${baseUrl}/`);
+  inspect.searchParams.set('source', candidate.source); inspect.searchParams.set('id', candidate.sourceTrackId);
+  inspect.searchParams.set('name', candidate.title); inspect.searchParams.set('artist', candidate.artist);
+  if (candidate.duration > 0) inspect.searchParams.set('duration', String(Math.round(candidate.duration / 1000)));
+  const probe = await fetchJson(inspect, options);
+  if (!probe || probe.valid !== true) return null;
+  const contentLength = parseSizeBytes(probe.size);
+  if (candidate.source === 'kuwo' && isLikelyKuwoRestrictionAudio(contentLength, candidate.duration || input.duration)) return null;
+  return candidate;
+}
+
 async function switchCandidate(input: Track, target: MusicSource, options: ResolveOptions): Promise<Track | null> {
   const baseUrl = goMusicApiBaseUrl(options.baseUrl);
   if (!baseUrl) return null;
@@ -151,17 +166,7 @@ async function switchCandidate(input: Track, target: MusicSource, options: Resol
   const response = await fetchJson(url, options);
   const nested = object(response?.data);
   const candidate = toTrack(Object.keys(nested).length ? nested : object(response), target);
-  if (!candidate || options.score(input, candidate) < .85 || options.eligible && !options.eligible(input, candidate)) return null;
-
-  const inspect = new URL('/api/v1/music/inspect', `${baseUrl}/`);
-  inspect.searchParams.set('source', candidate.source); inspect.searchParams.set('id', candidate.sourceTrackId);
-  inspect.searchParams.set('name', candidate.title); inspect.searchParams.set('artist', candidate.artist);
-  if (candidate.duration > 0) inspect.searchParams.set('duration', String(Math.round(candidate.duration / 1000)));
-  const probe = await fetchJson(inspect, options);
-  if (!probe || probe.valid !== true) return null;
-  const contentLength = parseSizeBytes(probe.size);
-  if (candidate.source === 'kuwo' && isLikelyKuwoRestrictionAudio(contentLength, candidate.duration || input.duration)) return null;
-  return candidate;
+  return candidate ? validateCandidate(input, candidate, { ...options, baseUrl }) : null;
 }
 
 async function lyricFor(track: Track, options: GoMusicApiOptions): Promise<string | null> {
@@ -198,7 +203,18 @@ export async function resolveWithGoMusicApi(input: Track, options: ResolveOption
   if (!baseUrl || unavailableUntil > Date.now()) return null;
   const targets = SOURCES.filter(source => source !== input.source);
   const settled = await Promise.allSettled(targets.map(source => switchCandidate(input, source, { ...options, baseUrl })));
-  const ranked = settled.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : [])
+  const switched = settled.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : []);
+  let searched: Track[] = [];
+  if (!switched.length) {
+    const discovered = await searchWithGoMusicApi(`${input.title} ${input.artist}`, { ...options, baseUrl, sources: targets, limit: 40 });
+    const promising = discovered
+      .filter(candidate => options.score(input, candidate) >= .85 && (!options.eligible || options.eligible(input, candidate)))
+      .sort((a, b) => options.score(input, b) - options.score(input, a)).slice(0, 8);
+    const verified = await Promise.allSettled(promising.map(candidate => validateCandidate(input, candidate, { ...options, baseUrl })));
+    searched = verified.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : []);
+  }
+  const unique = new Map([...switched, ...searched].map(candidate => [`${candidate.source}:${candidate.sourceTrackId}`, candidate]));
+  const ranked = [...unique.values()]
     .filter(candidate => !options.eligible || options.eligible(input, candidate))
     .map(candidate => ({ candidate, score: options.score(input, candidate) })).sort((a, b) => b.score - a.score);
   if (!ranked[0] || ranked[0].score < .85 || options.ambiguous(ranked[0], ranked[1])) return null;
