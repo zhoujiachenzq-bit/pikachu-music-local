@@ -58,7 +58,13 @@ if (-not (Test-MusicHouse)) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   }
 
-  Start-Process -FilePath $nodeExecutable -ArgumentList 'dist/server/server/index.js' -WorkingDirectory $projectRoot -WindowStyle Hidden
+  $supervisorScript = Join-Path $projectRoot 'local-server-supervisor.ps1'
+  if (Test-Path -LiteralPath $supervisorScript) {
+    $supervisorArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', "`"$supervisorScript`"")
+    Start-Process -FilePath 'powershell.exe' -ArgumentList $supervisorArguments -WorkingDirectory $projectRoot -WindowStyle Hidden
+  } else {
+    Start-Process -FilePath $nodeExecutable -ArgumentList 'dist/server/server/index.js' -WorkingDirectory $projectRoot -WindowStyle Hidden
+  }
 
   $started = $false
   for ($attempt = 0; $attempt -lt 40; $attempt++) {

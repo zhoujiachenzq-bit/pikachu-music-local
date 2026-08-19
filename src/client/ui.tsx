@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { MusicSource, RecommendedTrack, Track } from '../shared/types';
 import type { MobileSection } from './visualState';
 
-export type IconName = 'add' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'user' | 'volume';
+export type IconName = 'add' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'user' | 'volume' | 'warning';
 
 const iconPaths: Record<IconName, ReactNode> = {
   add: <><path d="M12 5v14M5 12h14"/></>,
@@ -30,6 +30,7 @@ const iconPaths: Record<IconName, ReactNode> = {
   sync: <><path d="M20 7h-5V2"/><path d="M20 7a8 8 0 1 0 1 7"/></>,
   user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
   volume: <><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="M17 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></>,
+  warning: <><path d="M12 3 2.7 20h18.6L12 3Z"/><path d="M12 9v5M12 17.2v.1"/></>,
 };
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {

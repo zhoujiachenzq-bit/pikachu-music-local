@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createDatabase, type Db } from './db.js';
 import { createApp, trustProxyFromEnv } from './app.js';
+import { MediaTicketStore } from './mediaProxy.js';
 
 describe('local API integration', () => {
   let app: FastifyInstance | undefined; let db: Db | undefined;
@@ -95,6 +96,20 @@ describe('local API integration', () => {
     expect(health.headers['x-frame-options']).toBe('DENY');
     expect(health.headers['content-security-policy']).toContain("frame-ancestors 'none'");
     expect(health.headers['cache-control']).toBe('no-store');
+  });
+
+  it('protects compatibility media relay tickets by account and forwards Range', async () => {
+    db = createDatabase(':memory:'); const tickets = new MediaTicketStore();
+    const mediaFetcher = async () => new Response('audio', { status: 206, headers: { 'content-type': 'audio/mp4', 'content-range': 'bytes 0-4/100' } });
+    app = await createApp({ db, logger: false, mediaTickets: tickets, mediaFetcher }); await app.ready();
+    const first = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'MediaA', password: 'Pikachu-2026' } });
+    const cookieA = first.headers['set-cookie']!.split(';')[0]; const userA = first.json().user;
+    const second = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'MediaB', password: 'Pikachu-2026' } });
+    const cookieB = second.headers['set-cookie']!.split(';')[0];
+    const proxyUrl = tickets.issue(userA.id, { id: 'qq:1', source: 'qq', sourceTrackId: '1', title: 'Song', artist: 'Artist', album: '', duration: 1000, coverUrl: null, sourceUrl: null, audioUrl: 'https://isure6.stream.qqmusic.qq.com/song.m4a', lyric: null, actualSource: 'qq', fallback: false })!;
+    expect((await app.inject({ method: 'GET', url: proxyUrl, headers: { cookie: cookieB, range: 'bytes=0-4' } })).statusCode).toBe(404);
+    const streamed = await app.inject({ method: 'GET', url: proxyUrl, headers: { cookie: cookieA, range: 'bytes=0-4' } });
+    expect(streamed.statusCode).toBe(206); expect(streamed.headers['content-type']).toContain('audio/mp4'); expect(streamed.headers['cache-control']).toBe('private, no-store');
   });
 
   it('rejects unsafe all-proxy trust and oversized nested backups', async () => {

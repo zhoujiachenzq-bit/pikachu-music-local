@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDatabase, upsertTrack } from './db.js';
-import { generateDailyRecommendation, listRecommendationHistory } from './recommendations.js';
+import { generateDailyRecommendation, listRecommendationHistory, mapWithConcurrency } from './recommendations.js';
 import type { Track } from '../shared/types.js';
 
 function makeTrack(sourceTrackId: string, title: string, artist: string, source: Track['source'] = 'qq'): Track {
@@ -8,6 +8,14 @@ function makeTrack(sourceTrackId: string, title: string, artist: string, source:
 }
 
 describe('daily recommendations', () => {
+  it('limits concurrent discovery and playback probes', async () => {
+    let active = 0; let peak = 0;
+    const values = await mapWithConcurrency([1, 2, 3, 4, 5, 6], 2, async value => {
+      active += 1; peak = Math.max(peak, active); await new Promise(resolve => setTimeout(resolve, 2)); active -= 1; return value * 2;
+    });
+    expect(values).toEqual([2, 4, 6, 8, 10, 12]); expect(peak).toBe(2);
+  });
+
   it('mixes familiar and exploration tracks with canonical and artist limits', async () => {
     const db = createDatabase(':memory:'); const stamp = new Date().toISOString();
     db.prepare("INSERT INTO users(id,username,password_hash,password_salt,created_at,updated_at) VALUES('u','u','h','s',?,?)").run(stamp, stamp);
@@ -49,6 +57,25 @@ describe('daily recommendations', () => {
     const key = upsertTrack(db, visible).canonicalKey!;
     db.prepare("INSERT INTO recommendation_feedback(user_id,canonical_key,action,created_at,updated_at) VALUES(?,?,'not_interested',?,?)").run('u', key, stamp, stamp);
     expect(listRecommendationHistory(db, 'u')[0].tracks).toHaveLength(0);
+    db.close();
+  });
+
+  it('excludes derivative editions and merges qualified titles into the plain original', async () => {
+    const db = createDatabase(':memory:'); const stamp = new Date().toISOString();
+    db.prepare("INSERT INTO users(id,username,password_hash,password_salt,created_at,updated_at) VALUES('u','u','h','s',?,?)").run(stamp, stamp);
+    const original = makeTrack('original', '退后', '周杰伦', 'qq');
+    const qualified = makeTrack('qualified', '退后（天空灰得像哭过）', '彦茹易', 'kuwo');
+    const derivatives = [
+      makeTrack('live', '退后 Live', '周杰伦', 'netease'),
+      makeTrack('cover', '退后（翻唱）', '其他歌手', 'migu'),
+      makeTrack('dj', '退后 DJ版', 'DJ 某某', 'kuwo')
+    ];
+    const result = await generateDailyRecommendation(db, 'u', '2026-08-18', {
+      discover: async () => [qualified, ...derivatives, original], preflight: async () => true
+    });
+    expect(result.tracks.filter(track => track.title.startsWith('退后'))).toHaveLength(1);
+    expect(result.tracks.find(track => track.title.startsWith('退后'))).toMatchObject({ title: '退后', artist: '周杰伦' });
+    expect(result.tracks.some(track => /翻唱|live|dj版/i.test(track.title))).toBe(false);
     db.close();
   });
 });

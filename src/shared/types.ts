@@ -19,10 +19,12 @@ export interface Track {
 
 export interface ResolvedTrack extends Track {
   audioUrl: string;
+  proxyUrl?: string | null;
   lyric: string | null;
   actualSource: MusicSource;
   fallback: boolean;
   backupProvider?: 'go-music-api';
+  relayed?: boolean;
   sourceUrl: string | null;
 }
 

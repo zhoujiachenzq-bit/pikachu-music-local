@@ -13,7 +13,9 @@ import { createImportJob, createSyncJob, getImportJob, listImportJobs, recoverIm
 import { resolvePlaylistInput, resolveTimedLyric, resolveTrackWithFallback, searchAll, SourceError } from './sources.js';
 import { getDailyRecommendation, listRecommendationHistory, startDailyGeneration } from './recommendations.js';
 import { goMusicApiBaseUrl, openGoMusicApiStream } from './goMusicApi.js';
+import { MediaTicketStore, openMediaTicket } from './mediaProxy.js';
 import { applyRateLimitHeaders, clearRateLimit, consumeRateLimits, positiveEnvInt, type RateLimitRule } from './rateLimit.js';
+import { resetSourceHealthCircuits } from './sourceHealth.js';
 import { SOURCES, type MusicSource, type Track } from '../shared/types.js';
 
 const credentialsSchema = z.object({ username: z.string().trim().min(2).max(24).regex(/^[\p{L}\p{N}_.-]+$/u), password: z.string().min(8).max(72) });
@@ -108,11 +110,14 @@ function safeOrigin(origin: string | undefined, host: string | undefined) {
   } catch { return false; }
 }
 
-export interface AppOptions { db?: Db; staticDir?: string; logger?: boolean; trustProxy?: boolean | string | string[] | number; }
+export interface AppOptions { db?: Db; staticDir?: string; logger?: boolean; trustProxy?: boolean | string | string[] | number; mediaTickets?: MediaTicketStore; mediaFetcher?: typeof fetch; }
 
 export async function createApp(options: AppOptions = {}): Promise<FastifyInstance> {
   const db = options.db || createDatabase();
   const app = Fastify({ logger: options.logger ?? true, bodyLimit: 5 * 1024 * 1024, trustProxy: options.trustProxy ?? trustProxyFromEnv() });
+  const resetSourceCircuits = resetSourceHealthCircuits(db);
+  if (resetSourceCircuits) app.log.info({ resetSourceCircuits }, 'Cleared stale music-source circuit state after startup');
+  const mediaTickets = options.mediaTickets || new MediaTicketStore();
   await app.register(cookie);
 
   const limits = {
@@ -249,7 +254,22 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     if (input) input = upsertTrack(db, input);
     if (!input) { const row = db.prepare('SELECT * FROM tracks WHERE id=?').get(params.id) as Record<string, unknown> | undefined; if (row) input = rowToTrack(row); }
     if (!input) return reply.code(404).send(apiError('TRACK_NOT_FOUND', '歌曲不存在。'));
-    const resolved = await resolveTrackWithFallback(input, db, body.refresh); return { track: resolved };
+    const resolved = await resolveTrackWithFallback(input, db, body.refresh);
+    return { track: { ...resolved, proxyUrl: mediaTickets.issue(user.id, resolved) } };
+  });
+  app.get('/api/media/:token', async (request, reply) => {
+    const user = requireUser(db, request, reply); if (!user) return;
+    const params = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{32}$/) }).parse(request.params);
+    const ticket = mediaTickets.get(params.token, user.id);
+    if (!ticket) return reply.code(404).send(apiError('MEDIA_TICKET_EXPIRED', '兼容播放地址已过期，请重新播放歌曲。'));
+    let upstream: Response;
+    try { upstream = await openMediaTicket(ticket, request.headers.range, options.mediaFetcher); }
+    catch (error) { return reply.code(502).send(apiError('MEDIA_PROXY_FAILED', '兼容连接未能读取音频。', { source: ticket.source, reason: error instanceof Error ? error.message : String(error) })); }
+    for (const header of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+      const value = upstream.headers.get(header); if (value) reply.header(header, value);
+    }
+    reply.header('cache-control', 'private, no-store'); reply.code(upstream.status);
+    return reply.send(Readable.fromWeb(upstream.body as never));
   });
   app.get('/api/backup-media', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;

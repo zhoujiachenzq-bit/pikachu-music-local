@@ -228,7 +228,9 @@ export function upsertTrack(db: Db, track: Track): Track {
   const canonicalKey = track.canonicalKey || canonicalTrackKey(track.title, track.artist);
   db.prepare(`INSERT INTO tracks(id,source,source_track_id,title,artist,album,duration,cover_url,source_url,keyword,display_index,quality,canonical_key,created_at,updated_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(source,source_track_id) DO UPDATE SET
-    title=excluded.title,artist=excluded.artist,album=excluded.album,duration=excluded.duration,
+    title=excluded.title,artist=excluded.artist,
+    album=CASE WHEN excluded.album<>'' THEN excluded.album ELSE tracks.album END,
+    duration=CASE WHEN excluded.duration>0 THEN excluded.duration ELSE tracks.duration END,
     cover_url=COALESCE(excluded.cover_url,tracks.cover_url),source_url=COALESCE(excluded.source_url,tracks.source_url),
     keyword=COALESCE(excluded.keyword,tracks.keyword),display_index=COALESCE(excluded.display_index,tracks.display_index),quality=COALESCE(excluded.quality,tracks.quality),canonical_key=excluded.canonical_key,updated_at=excluded.updated_at`)
     .run(id, track.source, track.sourceTrackId, track.title, track.artist, track.album, track.duration || 0,

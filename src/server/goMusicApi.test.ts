@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Track } from '../shared/types.js';
-import { goMusicApiBaseUrl, goMusicApiStreamUrl, openGoMusicApiStream, resolveWithGoMusicApi } from './goMusicApi.js';
-import { isAmbiguousFallback, matchScore } from './sources.js';
+import { goMusicApiBaseUrl, goMusicApiStreamUrl, openGoMusicApiStream, resolveExactWithGoMusicApi, resolveWithGoMusicApi, searchWithGoMusicApi } from './goMusicApi.js';
+import { isAmbiguousFallback, isSafeAutomaticMatch, matchScore } from './sources.js';
 
 const input: Track = {
   id: 'kuwo:broken', source: 'kuwo', sourceTrackId: 'broken', title: '贝加尔湖畔', artist: '李健',
@@ -30,11 +30,36 @@ describe('go-music-api backup resolver', () => {
       return json({ error: 'no match' }, 404);
     });
     const result = await resolveWithGoMusicApi(input, {
-      baseUrl: 'http://127.0.0.1:8080', fetcher, score: matchScore, ambiguous: isAmbiguousFallback
+      baseUrl: 'http://127.0.0.1:8080', fetcher, score: matchScore, ambiguous: isAmbiguousFallback, eligible: isSafeAutomaticMatch
     });
     expect(result).toMatchObject({ actualSource: 'qq', fallback: true, backupProvider: 'go-music-api', lyric: '[00:01.00]测试歌词' });
     expect(result?.audioUrl).toMatch(/^\/api\/backup-media\?/);
     expect(result?.audioUrl).toContain('source=qq');
+  });
+
+  it('uses an immutable platform id for a validated same-source backup', async () => {
+    const exact = { ...input, id: 'migu:6001|E|SQ', source: 'migu' as const, sourceTrackId: '6001|E|SQ' };
+    const fetcher = vi.fn(async (request: string | URL) => {
+      const url = new URL(request);
+      if (url.pathname.endsWith('/inspect')) return json({ valid: true, size: '4.1 MB' });
+      if (url.pathname.endsWith('/lyric')) return json({ data: { lyric: '[00:02.00]同源歌词' } });
+      return json({}, 404);
+    });
+    await expect(resolveExactWithGoMusicApi(exact, { baseUrl: 'http://127.0.0.1:8080', fetcher })).resolves.toMatchObject({
+      id: exact.id, sourceTrackId: exact.sourceTrackId, actualSource: 'migu', backupProvider: 'go-music-api', fallback: true
+    });
+  });
+
+  it('normalizes multi-source backup search metadata', async () => {
+    const fetcher = vi.fn(async () => json({ data: { songs: [
+      { id: 'qq-1', source: 'qq', name: '退后', artist: '周杰伦', album: '依然范特西', duration: 261, cover: 'https://example.test/cover.jpg' },
+      { id: 'ignored', source: 'kuwo', name: '退后', artist: '周杰伦', duration: 261 }
+    ] } }));
+    const tracks = await searchWithGoMusicApi('退后 周杰伦', { baseUrl: 'http://127.0.0.1:8080', fetcher, sources: ['qq'] });
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]).toMatchObject({ source: 'qq', sourceTrackId: 'qq-1', duration: 261_000, title: '退后', artist: '周杰伦' });
+    const url = new URL(fetcher.mock.calls[0][0]);
+    expect(url.searchParams.getAll('sources')).toEqual(['qq']);
   });
 
   it('rejects a tiny Kuwo restriction prompt reported as a playable response', async () => {
@@ -48,7 +73,7 @@ describe('go-music-api backup resolver', () => {
       return json({ error: 'no match' }, 404);
     });
     await expect(resolveWithGoMusicApi(neteaseInput, {
-      baseUrl: 'http://127.0.0.1:8080', fetcher, score: matchScore, ambiguous: isAmbiguousFallback
+      baseUrl: 'http://127.0.0.1:8080', fetcher, score: matchScore, ambiguous: isAmbiguousFallback, eligible: isSafeAutomaticMatch
     })).resolves.toBeNull();
   });
 
@@ -61,7 +86,7 @@ describe('go-music-api backup resolver', () => {
       return json({ error: 'no match' }, 404);
     });
     await expect(resolveWithGoMusicApi(input, {
-      baseUrl: 'http://127.0.0.1:8080', fetcher, score: matchScore, ambiguous: isAmbiguousFallback
+      baseUrl: 'http://127.0.0.1:8080', fetcher, score: matchScore, ambiguous: isAmbiguousFallback, eligible: isSafeAutomaticMatch
     })).resolves.toBeNull();
     expect(fetcher.mock.calls.some(call => new URL(call[0]).pathname.endsWith('/inspect'))).toBe(false);
   });

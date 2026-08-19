@@ -11,9 +11,15 @@ interface GoMusicApiOptions {
   timeoutMs?: number;
 }
 
+interface SearchOptions extends GoMusicApiOptions {
+  sources?: MusicSource[];
+  limit?: number;
+}
+
 interface ResolveOptions extends GoMusicApiOptions {
   score: (target: Track, candidate: Track) => number;
   ambiguous: (first: ScoredCandidate, second?: ScoredCandidate) => boolean;
+  eligible?: (target: Track, candidate: Track) => boolean;
 }
 
 interface BackupMediaQuery {
@@ -110,6 +116,25 @@ function toTrack(value: Record<string, unknown>, expectedSource: MusicSource): T
   };
 }
 
+export async function searchWithGoMusicApi(query: string, options: SearchOptions = {}): Promise<Track[]> {
+  const baseUrl = goMusicApiBaseUrl(options.baseUrl);
+  const keyword = query.trim();
+  if (!baseUrl || !keyword || unavailableUntil > Date.now()) return [];
+  const sources = options.sources?.length ? options.sources.filter(source => SOURCES.includes(source)) : [...SOURCES];
+  if (!sources.length) return [];
+  const url = new URL('/api/v1/music/search', `${baseUrl}/`);
+  url.searchParams.set('q', keyword); url.searchParams.set('type', 'song');
+  for (const source of sources) url.searchParams.append('sources', source);
+  const response = await fetchJson(url, options);
+  const data = object(response?.data); const songs = Array.isArray(data.songs) ? data.songs : [];
+  const allowed = new Set(sources); const limit = Math.min(100, Math.max(1, options.limit || 30));
+  return songs.flatMap(value => {
+    const item = object(value); const source = string(item.source) as MusicSource;
+    if (!allowed.has(source)) return [];
+    const parsed = toTrack(item, source); return parsed ? [parsed] : [];
+  }).slice(0, limit);
+}
+
 function mediaPath(track: Track) {
   const params = new URLSearchParams({ source: track.source, id: track.sourceTrackId, name: track.title, artist: track.artist });
   if (track.duration > 0) params.set('duration', String(Math.round(track.duration / 1000)));
@@ -126,7 +151,7 @@ async function switchCandidate(input: Track, target: MusicSource, options: Resol
   const response = await fetchJson(url, options);
   const nested = object(response?.data);
   const candidate = toTrack(Object.keys(nested).length ? nested : object(response), target);
-  if (!candidate || options.score(input, candidate) < .85) return null;
+  if (!candidate || options.score(input, candidate) < .85 || options.eligible && !options.eligible(input, candidate)) return null;
 
   const inspect = new URL('/api/v1/music/inspect', `${baseUrl}/`);
   inspect.searchParams.set('source', candidate.source); inspect.searchParams.set('id', candidate.sourceTrackId);
@@ -150,12 +175,31 @@ async function lyricFor(track: Track, options: GoMusicApiOptions): Promise<strin
   return lyric || null;
 }
 
+export async function resolveExactWithGoMusicApi(input: Track, options: GoMusicApiOptions = {}): Promise<ResolvedTrack | null> {
+  const baseUrl = goMusicApiBaseUrl(options.baseUrl);
+  if (!baseUrl || unavailableUntil > Date.now()) return null;
+  const inspect = new URL('/api/v1/music/inspect', `${baseUrl}/`);
+  inspect.searchParams.set('source', input.source); inspect.searchParams.set('id', input.sourceTrackId);
+  inspect.searchParams.set('name', input.title); inspect.searchParams.set('artist', input.artist);
+  if (input.duration > 0) inspect.searchParams.set('duration', String(Math.round(input.duration / 1000)));
+  const probe = await fetchJson(inspect, options);
+  if (!probe || probe.valid !== true) return null;
+  const contentLength = parseSizeBytes(probe.size);
+  if (input.source === 'kuwo' && isLikelyKuwoRestrictionAudio(contentLength, input.duration)) return null;
+  const lyric = await lyricFor(input, { ...options, baseUrl });
+  return {
+    ...input, audioUrl: mediaPath(input), lyric, actualSource: input.source,
+    fallback: true, backupProvider: 'go-music-api'
+  };
+}
+
 export async function resolveWithGoMusicApi(input: Track, options: ResolveOptions): Promise<ResolvedTrack | null> {
   const baseUrl = goMusicApiBaseUrl(options.baseUrl);
   if (!baseUrl || unavailableUntil > Date.now()) return null;
   const targets = SOURCES.filter(source => source !== input.source);
   const settled = await Promise.allSettled(targets.map(source => switchCandidate(input, source, { ...options, baseUrl })));
   const ranked = settled.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : [])
+    .filter(candidate => !options.eligible || options.eligible(input, candidate))
     .map(candidate => ({ candidate, score: options.score(input, candidate) })).sort((a, b) => b.score - a.score);
   if (!ranked[0] || ranked[0].score < .85 || options.ambiguous(ranked[0], ranked[1])) return null;
   const lyric = await lyricFor(ranked[0].candidate, { ...options, baseUrl });

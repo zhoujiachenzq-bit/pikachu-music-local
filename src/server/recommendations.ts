@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity.js';
+import { canonicalTrackKey, isDerivativeTrackVersion, normalizeTrackText, trackFamilyKey, trackVersionPreference } from '../shared/trackIdentity.js';
 import { SOURCES, type DailyRecommendation, type RecommendedTrack, type Track } from '../shared/types.js';
 import { rowToTrack, transaction, upsertTrack, type Db } from './db.js';
 import { listSourceHealth } from './sourceHealth.js';
 import { resolveTrackWithFallback, searchAll } from './sources.js';
+import { positiveEnvInt } from './rateLimit.js';
 
 const activeRuns = new Set<string>();
 const now = () => new Date().toISOString();
@@ -11,6 +12,8 @@ const now = () => new Date().toISOString();
 interface Candidate {
   track: Track;
   canonicalKey: string;
+  familyKey: string;
+  versionPreference: number;
   artistKey: string;
   score: number;
   reason: string;
@@ -20,6 +23,16 @@ interface Candidate {
 export interface RecommendationDependencies {
   discover: (query: string) => Promise<Track[]>;
   preflight: (track: Track) => Promise<boolean>;
+}
+
+export async function mapWithConcurrency<T, R>(values: T[], concurrency: number, worker: (value: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(values.length); let cursor = 0;
+  const runners = Array.from({ length: Math.min(values.length, Math.max(1, concurrency)) }, async () => {
+    while (cursor < values.length) {
+      const index = cursor; cursor += 1; results[index] = await worker(values[index], index);
+    }
+  });
+  await Promise.all(runners); return results;
 }
 
 function seededJitter(value: string): number {
@@ -60,8 +73,38 @@ function localCandidates(db: Db, userId: string, date: string): Candidate[] {
     if (row.last_listened) { const ageDays = (Date.parse(`${date}T12:00:00Z`) - Date.parse(String(row.last_listened))) / 86_400_000; if (ageDays > 30) score += 10; }
     score = score * (weights.get(track.source) || 1) + seededJitter(`${date}|${track.canonicalKey || track.id}`);
     const reason = favorite && !row.last_listened ? '收藏中还没认真听过' : completions > 0 ? '根据你完整听过的歌曲' : playlists > 0 ? '来自你的常听歌单' : '根据最近播放';
-    return { track, canonicalKey: track.canonicalKey || canonicalTrackKey(track.title, track.artist), artistKey: normalizeTrackText(track.artist), score, reason, kind: 'familiar' as const };
+    return {
+      track, canonicalKey: track.canonicalKey || canonicalTrackKey(track.title, track.artist), familyKey: trackFamilyKey(track.title),
+      versionPreference: trackVersionPreference(track.title, track.album), artistKey: normalizeTrackText(track.artist), score, reason, kind: 'familiar' as const
+    };
   });
+}
+
+function collapseRecommendationVersions(candidates: Candidate[]): Candidate[] {
+  const families = new Map<string, Candidate[]>();
+  for (const candidate of candidates) {
+    if (isDerivativeTrackVersion(candidate.track.title, candidate.track.album)) continue;
+    const family = families.get(candidate.familyKey) || [];
+    family.push(candidate); families.set(candidate.familyKey, family);
+  }
+  return [...families.values()].flatMap(family => {
+    const plainTitles = family.filter(item => item.versionPreference === 0);
+    if (plainTitles.length) return plainTitles;
+    return [...family].sort((a, b) => a.versionPreference - b.versionPreference || b.score - a.score).slice(0, 1);
+  });
+}
+
+function collapseStoredRecommendationVersions(tracks: RecommendedTrack[]): RecommendedTrack[] {
+  const families = new Map<string, RecommendedTrack[]>();
+  for (const track of tracks) {
+    if (isDerivativeTrackVersion(track.title, track.album)) continue;
+    const key = trackFamilyKey(track.title); const family = families.get(key) || [];
+    family.push(track); families.set(key, family);
+  }
+  return [...families.values()]
+    .map(family => [...family].sort((a, b) => trackVersionPreference(a.title, a.album) - trackVersionPreference(b.title, b.album) || a.rank - b.rank)[0])
+    .sort((a, b) => a.rank - b.rank)
+    .map((track, index) => ({ ...track, rank: index + 1 }));
 }
 
 function excludedKeys(db: Db, userId: string) {
@@ -76,15 +119,16 @@ function excludedKeys(db: Db, userId: string) {
   return { canonical, artists };
 }
 
-async function pickPlayable(pool: Candidate[], target: number, selected: Candidate[], deps: RecommendationDependencies) {
+async function pickPlayable(pool: Candidate[], target: number, selected: Candidate[], deps: RecommendationDependencies, concurrency: number) {
   const artistCounts = new Map<string, number>(); selected.forEach(item => artistCounts.set(item.artistKey, (artistCounts.get(item.artistKey) || 0) + 1));
   const selectedKeys = new Set(selected.map(item => item.canonicalKey));
+  const selectedFamilies = new Set(selected.map(item => item.familyKey));
   for (let offset = 0; offset < pool.length && selected.length < target; offset += 5) {
-    const batch = pool.slice(offset, offset + 5).filter(item => !selectedKeys.has(item.canonicalKey) && (!item.artistKey || (artistCounts.get(item.artistKey) || 0) < 2));
-    const playable = await Promise.all(batch.map(async item => ({ item, ok: await deps.preflight(item.track).catch(() => false) })));
+    const batch = pool.slice(offset, offset + 5).filter(item => !selectedKeys.has(item.canonicalKey) && !selectedFamilies.has(item.familyKey) && (!item.artistKey || (artistCounts.get(item.artistKey) || 0) < 2));
+    const playable = await mapWithConcurrency(batch, concurrency, async item => ({ item, ok: await deps.preflight(item.track).catch(() => false) }));
     for (const { item, ok } of playable) {
-      if (!ok || selected.length >= target || selectedKeys.has(item.canonicalKey) || (item.artistKey && (artistCounts.get(item.artistKey) || 0) >= 2)) continue;
-      selected.push(item); selectedKeys.add(item.canonicalKey); if (item.artistKey) artistCounts.set(item.artistKey, (artistCounts.get(item.artistKey) || 0) + 1);
+      if (!ok || selected.length >= target || selectedKeys.has(item.canonicalKey) || selectedFamilies.has(item.familyKey) || (item.artistKey && (artistCounts.get(item.artistKey) || 0) >= 2)) continue;
+      selected.push(item); selectedKeys.add(item.canonicalKey); selectedFamilies.add(item.familyKey); if (item.artistKey) artistCounts.set(item.artistKey, (artistCounts.get(item.artistKey) || 0) + 1);
     }
   }
 }
@@ -101,19 +145,27 @@ export async function generateDailyRecommendation(db: Db, userId: string, date: 
       discover: async (query: string) => (await searchAll(db, query, [...SOURCES], 12)).tracks,
       preflight: async (track: Track) => { await resolveTrackWithFallback(track, db); return true; }
     };
-    const discoveries = (await Promise.allSettled(queries.map(query => deps.discover(query)))).flatMap(result => result.status === 'fulfilled' ? result.value : []);
+    const discoverConcurrency = positiveEnvInt('RECOMMENDATION_DISCOVERY_CONCURRENCY', 2, 1, 4);
+    const preflightConcurrency = positiveEnvInt('RECOMMENDATION_PREFLIGHT_CONCURRENCY', 2, 1, 3);
+    const discoveryResults = await mapWithConcurrency(queries, discoverConcurrency, async query => deps.discover(query).catch(() => []));
+    const discoveries = discoveryResults.flat();
     const weights = sourceWeights(db); const exclusions = excludedKeys(db, userId); const byCanonical = new Map<string, Candidate>();
     for (const item of local) byCanonical.set(item.canonicalKey, item);
     for (const discovered of discoveries) {
+      if (isDerivativeTrackVersion(discovered.title, discovered.album)) continue;
       const saved = upsertTrack(db, discovered); const key = saved.canonicalKey || canonicalTrackKey(saved.title, saved.artist); if (byCanonical.has(key)) continue;
-      byCanonical.set(key, { track: saved, canonicalKey: key, artistKey: normalizeTrackText(saved.artist), kind: 'explore', reason: topArtists.some(artist => normalizeTrackText(artist) === normalizeTrackText(saved.artist)) ? '相似歌手探索' : '今日新鲜探索', score: 30 * (weights.get(saved.source) || 1) + seededJitter(`${date}|${key}`) });
+      byCanonical.set(key, {
+        track: saved, canonicalKey: key, familyKey: trackFamilyKey(saved.title), versionPreference: trackVersionPreference(saved.title, saved.album),
+        artistKey: normalizeTrackText(saved.artist), kind: 'explore', reason: topArtists.some(artist => normalizeTrackText(artist) === normalizeTrackText(saved.artist)) ? '相似歌手探索' : '今日新鲜探索',
+        score: 30 * (weights.get(saved.source) || 1) + seededJitter(`${date}|${key}`)
+      });
     }
-    const pool = [...byCanonical.values()].filter(item => !exclusions.canonical.has(item.canonicalKey) && !exclusions.artists.has(item.artistKey));
+    const pool = collapseRecommendationVersions([...byCanonical.values()]).filter(item => !exclusions.canonical.has(item.canonicalKey) && !exclusions.artists.has(item.artistKey));
     const familiar = pool.filter(item => item.kind === 'familiar').sort((a, b) => b.score - a.score); const explore = pool.filter(item => item.kind === 'explore').sort((a, b) => b.score - a.score);
     const selected: Candidate[] = [];
-    await pickPlayable(familiar, 21, selected, deps);
-    await pickPlayable(explore, Math.min(30, selected.length + 9), selected, deps);
-    await pickPlayable([...familiar, ...explore].sort((a, b) => b.score - a.score), 30, selected, deps);
+    await pickPlayable(familiar, 21, selected, deps, preflightConcurrency);
+    await pickPlayable(explore, Math.min(30, selected.length + 9), selected, deps, preflightConcurrency);
+    await pickPlayable([...familiar, ...explore].sort((a, b) => b.score - a.score), 30, selected, deps, preflightConcurrency);
     const stamp = now();
     transaction(db, () => {
       db.prepare('DELETE FROM recommendation_items WHERE run_id=?').run(run!.id);
@@ -132,10 +184,11 @@ export async function generateDailyRecommendation(db: Db, userId: string, date: 
 export function getDailyRecommendation(db: Db, userId: string, date: string): DailyRecommendation | null {
   const row = db.prepare('SELECT * FROM recommendation_runs WHERE user_id=? AND recommendation_date=?').get(userId, date) as Record<string, unknown> | undefined;
   if (!row) return null;
-  const tracks = (db.prepare(`SELECT t.*,ri.rank,ri.score,ri.reason,ri.kind FROM recommendation_items ri JOIN tracks t ON t.id=ri.track_id
+  const storedTracks = (db.prepare(`SELECT t.*,ri.rank,ri.score,ri.reason,ri.kind FROM recommendation_items ri JOIN tracks t ON t.id=ri.track_id
     WHERE ri.run_id=? AND NOT EXISTS (
       SELECT 1 FROM recommendation_feedback rf WHERE rf.user_id=? AND rf.action='not_interested' AND rf.canonical_key=t.canonical_key
     ) ORDER BY ri.rank`).all(String(row.id), userId) as Record<string, unknown>[]).map(item => ({ ...rowToTrack(item), rank: Number(item.rank), score: Number(item.score), reason: String(item.reason), kind: item.kind as RecommendedTrack['kind'] }));
+  const tracks = collapseStoredRecommendationVersions(storedTracks);
   return { id: String(row.id), date: String(row.recommendation_date), status: row.status as DailyRecommendation['status'], generatedAt: row.generated_at ? String(row.generated_at) : null, message: String(row.message || ''), tracks };
 }
 

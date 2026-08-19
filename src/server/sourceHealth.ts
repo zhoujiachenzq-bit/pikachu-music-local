@@ -43,6 +43,13 @@ export function listSourceHealth(db: Db): SourceHealth[] {
   return (db.prepare('SELECT * FROM source_health ORDER BY source,operation').all() as Record<string, unknown>[]).map(rowToHealth);
 }
 
+export function resetSourceHealthCircuits(db: Db): number {
+  const result = db.prepare(`UPDATE source_health
+    SET consecutive_failures=0,circuit_open_until=NULL
+    WHERE consecutive_failures>0 OR circuit_open_until IS NOT NULL`).run();
+  return Number(result.changes || 0);
+}
+
 export async function withSourceHealth<T>(
   db: Db | undefined,
   source: MusicSource,
@@ -77,7 +84,10 @@ export async function withSourceHealth<T>(
       failures=source_health.failures+1,consecutive_failures=source_health.consecutive_failures+1,
       updated_at=excluded.updated_at`).run(source, operation, stamp);
     const updated = db.prepare('SELECT consecutive_failures FROM source_health WHERE source=? AND operation=?').get(source, operation) as { consecutive_failures: number };
-    const openMs = updated.consecutive_failures >= 6 ? 30 * 60_000 : updated.consecutive_failures >= 3 ? 10 * 60_000 : 0;
+    // A proxy/VPN switch can make every provider fail at the same time. Long,
+    // persistent cooldowns made the app stay offline even after networking had
+    // recovered, so keep the breaker short and allow a quick half-open retry.
+    const openMs = updated.consecutive_failures >= 6 ? 2 * 60_000 : updated.consecutive_failures >= 3 ? 30_000 : 0;
     if (openMs) db.prepare('UPDATE source_health SET circuit_open_until=? WHERE source=? AND operation=?').run(new Date(clock() + openMs).toISOString(), source, operation);
     throw error;
   }
