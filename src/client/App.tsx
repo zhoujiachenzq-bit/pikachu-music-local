@@ -10,15 +10,17 @@ import { rangeProgress } from './rangeControl';
 import { ImmersiveBackdrop } from './ImmersiveBackdrop';
 import { useArtworkAccent } from './artworkPalette';
 import { TonePicker, ToneTransitionLayer, type ToneTransitionState } from './TonePicker';
+import { AgentPanel } from './AgentPanel';
 import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
 import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
 import { DEFAULT_VISUAL_PREFERENCES, TONE_THEMES, readVisualPreferences, resolveToneTheme, writeVisualPreferences, type ToneThemeId, type VisualPreferences } from './visualTheme';
-import { SOURCES, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
+import { SOURCES, type AgentClientAction, type AgentClientContext, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
 
 type Lang = 'zh' | 'en';
 type Tab = 'daily' | 'results' | 'favorites' | 'playlists';
 interface BeforeInstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
+interface AgentProactivePrompt { id: string; kind: 'reunion' | 'skip_pattern' | 'source_help'; message: string; suggestedPrompt: string; }
 const copy = {
   zh: {
     shortcuts: '快捷键：Space 播放/暂停 · ←/→ 跳转 · ↑/↓ 音量 · N/P 切歌 · F 收藏',
@@ -137,10 +139,11 @@ export default function App() {
   const [daily, setDaily] = useState<DailyRecommendation | null>(null); const [dailyFallback, setDailyFallback] = useState<DailyRecommendation | null>(null); const [dailyHistory, setDailyHistory] = useState<DailyRecommendation[]>([]); const [dailyDate, setDailyDate] = useState(localDateKey()); const [dailyLoading, setDailyLoading] = useState(false); const [dailyRefresh, setDailyRefresh] = useState(0);
   const [current, setCurrent] = useState<Track | null>(null); const [pendingTrack, setPendingTrack] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [seekDraft, setSeekDraft] = useState<number | null>(null); const [volumeDraft, setVolumeDraft] = useState(.8); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null); const [lyricFollowing, setLyricFollowing] = useState(true); const [findingTimedLyricsFor, setFindingTimedLyricsFor] = useState<string | null>(null); const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [stageMode, setStageMode] = useState<StageMode>(() => startsInMobileLayout() ? 'daily' : 'player'); const [mobileSection, setMobileSection] = useState<MobileSection>('daily'); const [mobileLayout, setMobileLayout] = useState(startsInMobileLayout);
+  const [agentOpen, setAgentOpen] = useState(false); const [agentPrompt, setAgentPrompt] = useState<AgentProactivePrompt | null>(null); const [agentPromptSeed, setAgentPromptSeed] = useState('');
   const [visualPreferences, setVisualPreferences] = useState<VisualPreferences>({ ...DEFAULT_VISUAL_PREFERENCES }); const [previewTone, setPreviewTone] = useState<ToneThemeId | null>(null); const [toneTransition, setToneTransition] = useState<ToneTransitionState | null>(null);
   const [createOpen, setCreateOpen] = useState(false); const [newName, setNewName] = useState(''); const [importOpen, setImportOpen] = useState(false); const [importSource, setImportSource] = useState<MusicSource>('netease'); const [importInput, setImportInput] = useState(''); const [importJob, setImportJob] = useState<ImportJob | null>(null); const [accountOpen, setAccountOpen] = useState(false); const [addTrack, setAddTrack] = useState<Track | null>(null);
   const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const recoveringTrackId = useRef<string | null>(null); const importStream = useRef<EventSource | null>(null); const importReconnectTimer = useRef<number | null>(null); const dailyPollTimer = useRef<number | null>(null); const handledDailyRefresh = useRef(0); const queueContext = useRef<ListeningContext>({ type: 'unknown' }); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const resolveBackoffUntil = useRef(0); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
-  const toneMidpointTimer = useRef<number | null>(null); const toneFinishTimer = useRef<number | null>(null); const seekDragging = useRef(false); const volumeDragging = useRef(false); const volumeSaveTimer = useRef<number | null>(null);
+  const toneMidpointTimer = useRef<number | null>(null); const toneFinishTimer = useRef<number | null>(null); const seekDragging = useRef(false); const volumeDragging = useRef(false); const volumeSaveTimer = useRef<number | null>(null); const agentSpeechVolume = useRef<number | null>(null);
   const listeningTracker = useMemo(() => new ListeningTracker(payload => {
     void fetch('/api/listening-sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => undefined);
   }), []);
@@ -154,6 +157,11 @@ export default function App() {
   const displayedSeekTime = seekDraft ?? Math.min(currentTime, duration || 0);
 
   const showToast = useCallback((message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2600); }, []);
+  const handleAgentSpeechState = useCallback((speaking: boolean) => {
+    const element = audio.current; if (!element) return;
+    if (speaking) { if (agentSpeechVolume.current === null) agentSpeechVolume.current = element.volume; element.volume = agentSpeechVolume.current * .2; }
+    else if (agentSpeechVolume.current !== null) { element.volume = agentSpeechVolume.current; agentSpeechVolume.current = null; }
+  }, []);
   const refreshLibrary = useCallback(async () => {
     const [fav, lists] = await Promise.all([api<{ tracks: Track[] }>('/api/favorites'), api<{ playlists: PlaylistSummary[] }>('/api/playlists')]); setFavorites(fav.tracks); setPlaylists(lists.playlists);
   }, []);
@@ -194,13 +202,18 @@ export default function App() {
   }, []);
   useEffect(() => { document.title = user ? `${user.username}的音乐小屋` : '音乐小屋'; }, [user]);
   useEffect(() => { if (user && !volumeDragging.current) setVolumeDraft(user.volume); }, [user?.volume]);
+  useEffect(() => {
+    if (!user || agentOpen || mobileSection === 'agent') return;
+    const timer = window.setTimeout(() => { void api<{ prompt: AgentProactivePrompt | null }>('/api/agent/proactive').then(result => setAgentPrompt(result.prompt)).catch(() => undefined); }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [user?.id, agentOpen, mobileSection]);
   useEffect(() => () => { if (volumeSaveTimer.current !== null) window.clearTimeout(volumeSaveTimer.current); }, []);
   useEffect(() => {
     const mobile = window.matchMedia('(max-width: 760px)');
     const syncMobileStage = () => {
       setMobileLayout(mobile.matches);
       if (!mobile.matches) return;
-      setMobileSection(section => section === 'search' || section === 'library' ? section : mobileSectionForStage(stageMode));
+      setMobileSection(section => section === 'search' || section === 'library' || section === 'agent' ? section : mobileSectionForStage(stageMode));
     };
     syncMobileStage(); mobile.addEventListener('change', syncMobileStage);
     return () => mobile.removeEventListener('change', syncMobileStage);
@@ -312,7 +325,7 @@ export default function App() {
       setStageMode('player');
     } else if (section === 'search') {
       setTab('results');
-    } else if (tab !== 'favorites' && tab !== 'playlists') {
+    } else if (section === 'library' && tab !== 'favorites' && tab !== 'playlists') {
       setTab('favorites');
     }
   }, [tab]);
@@ -550,6 +563,36 @@ export default function App() {
   }, [saveVisualPreferences, visualPreferences]);
   const setMotionEnabled = useCallback((motionEnabled: boolean) => saveVisualPreferences({ ...visualPreferences, motionEnabled }), [saveVisualPreferences, visualPreferences]);
 
+  const executeAgentAction = useCallback(async (action: AgentClientAction): Promise<{ ok: boolean; message?: string }> => {
+    try {
+      if (action.type === 'play_track') {
+        const ok = await playFromQueue(action.track, action.queue?.length ? action.queue : [action.track], { type: 'unknown' });
+        return ok ? { ok: true, message: `正在播放《${action.track.title}》` } : { ok: false, message: `《${action.track.title}》暂时无法播放。` };
+      }
+      if (action.type === 'pause') { audio.current?.pause(); return { ok: true, message: '已暂停' }; }
+      if (action.type === 'resume') { if (!audio.current) return { ok: false, message: '播放器尚未准备好。' }; await audio.current.play(); return { ok: true, message: '已继续播放' }; }
+      if (action.type === 'next' || action.type === 'previous') {
+        if (!playbackQueue.current.size && !queue.length) return { ok: false, message: '当前播放队列还是空的。' };
+        await playRelative(action.type === 'next' ? 1 : -1); return { ok: true, message: action.type === 'next' ? '已切到下一首' : '已回到上一首' };
+      }
+      if (action.type === 'retry_current') { if (!audio.current || !current) return { ok: false, message: '当前没有可重试的歌曲。' }; await recoverPlayback(audio.current); return { ok: true, message: '已重新连接当前歌曲' }; }
+      if (action.type === 'seek') { if (!audio.current) return { ok: false, message: '播放器尚未准备好。' }; commitSeek(action.seconds); return { ok: true, message: `已定位到 ${formatTime(action.seconds)}` }; }
+      if (action.type === 'set_volume') { const volume = Math.max(0, Math.min(1, action.volume)); if (agentSpeechVolume.current !== null) agentSpeechVolume.current = volume; if (audio.current) audio.current.volume = agentSpeechVolume.current !== null ? volume * .2 : volume; setVolumeDraft(volume); await setPreference({ volume }); return { ok: true, message: `音量已调到 ${Math.round(volume * 100)}%` }; }
+      if (action.type === 'set_play_mode') { await setPreference({ playMode: action.mode }); return { ok: true, message: '播放模式已更新' }; }
+      if (action.type === 'set_theme') {
+        if (!Object.prototype.hasOwnProperty.call(TONE_THEMES, action.theme)) return { ok: false, message: '没有找到这个主题。' };
+        commitToneTheme(action.theme as ToneThemeId, { x: window.innerWidth / 2, y: window.innerHeight / 2 }); return { ok: true, message: '主题已切换' };
+      }
+      if (action.type === 'clear_client_cache') { playbackCache.clear(); resolveRequests.current.clear(); warmedAudio.current.forEach(entry => disposeAudio(entry.element)); warmedAudio.current.clear(); return { ok: true, message: '当前设备的播放缓存已清理' }; }
+      if (action.type === 'navigate') {
+        if (action.section === 'agent') { if (mobileLayout) switchMobileSection('agent'); else setAgentOpen(true); }
+        else switchMobileSection(action.section);
+        return { ok: true, message: '页面已切换' };
+      }
+      return { ok: false, message: '这项操作还没有开放。' };
+    } catch (error) { return { ok: false, message: error instanceof Error ? error.message : '操作没有完成。' }; }
+  }, [commitToneTheme, current, mobileLayout, playFromQueue, playRelative, queue, recoverPlayback, switchMobileSection]);
+
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((event.target as HTMLElement)?.tagName)) return;
@@ -617,8 +660,9 @@ export default function App() {
     {!serviceOnline && <div className="service-notice app-service-notice" role="alert"><Icon name="warning"/><div><strong>音乐服务连接已中断</strong><small>当前页面可能来自缓存，播放与数据操作会在服务恢复后继续。</small></div><button type="button" onClick={() => void retryService()}>重新连接</button></div>}
     <header className="topbar panel">
       <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><span className="brand-kicker">PIKACHU MUSIC</span><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>
-      <div className="header-actions"><div className="language"><button className={lang === 'zh' ? 'active' : ''} onClick={() => void setPreference({ language: 'zh' })}>中</button><button className={lang === 'en' ? 'active' : ''} onClick={() => void setPreference({ language: 'en' })}>EN</button></div><TonePicker activeTheme={activeTone} committedTheme={visualPreferences.theme} lang={lang} motionEnabled={visualPreferences.motionEnabled} onPreview={setPreviewTone} onCommit={commitToneTheme} onMotionChange={setMotionEnabled}/><div className="shortcuts">{t.shortcuts}</div><button className="profile-button" onClick={() => setAccountOpen(true)}><span>{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b></button></div>
+      <div className="header-actions"><div className="language"><button className={lang === 'zh' ? 'active' : ''} onClick={() => void setPreference({ language: 'zh' })}>中</button><button className={lang === 'en' ? 'active' : ''} onClick={() => void setPreference({ language: 'en' })}>EN</button></div><TonePicker activeTheme={activeTone} committedTheme={visualPreferences.theme} lang={lang} motionEnabled={visualPreferences.motionEnabled} onPreview={setPreviewTone} onCommit={commitToneTheme} onMotionChange={setMotionEnabled}/><button className={`agent-launch ${agentOpen ? 'active' : ''}`} onClick={() => setAgentOpen(value => !value)}><Icon name="agent" size={16}/><span>珍奇</span><i/></button><div className="shortcuts">{t.shortcuts}</div><button className="profile-button" onClick={() => setAccountOpen(true)}><span>{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b></button></div>
     </header>
+    {agentPrompt && !agentOpen && mobileSection !== 'agent' && <aside className="agent-proactive-bubble"><button className="agent-proactive-close" aria-label="关闭" onClick={() => { const prompt = agentPrompt; setAgentPrompt(null); void api(`/api/agent/proactive/${prompt.id}/dismiss`, json('POST')).catch(() => undefined); }}><Icon name="close" size={13}/></button><small>珍奇 · JUST NOW</small><p>{agentPrompt.message}</p><button onClick={() => { setAgentPromptSeed(agentPrompt.suggestedPrompt); setAgentPrompt(null); if (mobileLayout) switchMobileSection('agent'); else setAgentOpen(true); }}>{lang === 'zh' ? '和珍奇聊聊' : 'Talk to Zhenqi'}<Icon name="agent" size={14}/></button></aside>}
 
     <main className="workspace">
       <section className="search-panel panel" data-mobile-section="search" data-mobile-active={mobileSection === 'search'}>
@@ -676,6 +720,17 @@ export default function App() {
         <div className="play-modes"><button className={user.playMode === 'list' ? 'active' : ''} title={t.listMode} onClick={() => void setPreference({ playMode: 'list' })}><Icon name="repeat" size={13}/></button><button className={user.playMode === 'loop' ? 'active' : ''} title={t.loopMode} onClick={() => void setPreference({ playMode: 'loop' })}><Icon name="repeatOne" size={13}/></button><button className={user.playMode === 'shuffle' ? 'active' : ''} title={t.shuffleMode} onClick={() => void setPreference({ playMode: 'shuffle' })}><Icon name="shuffle" size={13}/></button><span>{modeLabel}</span></div>
       </section>
     </main>
+    <AgentPanel
+      userId={user.id}
+      lang={lang}
+      open={agentOpen || mobileSection === 'agent'}
+      mobile={mobileLayout}
+      initialPrompt={agentPromptSeed}
+      context={{ currentTrack: current, queue: playbackQueue.current.snapshot(), playing, currentTime, volume: volumeDraft, playMode: user.playMode, mobileSection, toneTheme: activeTone } as AgentClientContext}
+      onClose={() => setAgentOpen(false)}
+      onAction={executeAgentAction}
+      onSpeechState={handleAgentSpeechState}
+    />
     {showMobileMini && current && <MiniPlayer
       track={displayTrack || current}
       playing={playing}

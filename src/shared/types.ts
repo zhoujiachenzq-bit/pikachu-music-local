@@ -99,3 +99,86 @@ export interface DailyRecommendation {
   message: string;
   tracks: RecommendedTrack[];
 }
+
+export type AgentPersona = 'warm' | 'bright' | 'poetic';
+export type AgentConversationKind = 'main' | 'temporary';
+export type AgentToolRisk = 'direct' | 'confirm' | 'forbidden';
+
+export interface AgentAccess {
+  enabled: boolean;
+  entitled: boolean;
+  admin: boolean;
+  configured: boolean;
+  reason?: string;
+}
+
+export interface AgentSettings {
+  assistantName: string;
+  persona: AgentPersona;
+  proactiveEnabled: boolean;
+  memoryEnabled: boolean;
+  autoRead: boolean;
+  voice: string;
+}
+
+export interface AgentConversation {
+  id: string;
+  kind: AgentConversationKind;
+  status: 'active' | 'closed';
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string | null;
+}
+
+export interface AgentMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AgentMemory {
+  id: string;
+  category: 'preference' | 'person' | 'event' | 'plan' | 'context';
+  content: string;
+  confidence: number;
+  inferred: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentClientContext {
+  currentTrack: Track | null;
+  queue: Track[];
+  playing: boolean;
+  currentTime: number;
+  volume: number;
+  playMode: User['playMode'];
+  mobileSection?: 'daily' | 'search' | 'player' | 'library' | 'agent';
+  toneTheme?: string;
+}
+
+export type AgentClientAction =
+  | { type: 'play_track'; track: Track; queue?: Track[]; reason?: string }
+  | { type: 'pause' | 'resume' | 'next' | 'previous' | 'retry_current' }
+  | { type: 'seek'; seconds: number }
+  | { type: 'set_volume'; volume: number }
+  | { type: 'set_play_mode'; mode: User['playMode'] }
+  | { type: 'set_theme'; theme: string }
+  | { type: 'clear_client_cache' }
+  | { type: 'navigate'; section: 'daily' | 'search' | 'player' | 'library' | 'agent' };
+
+export type AgentStreamEvent =
+  | { type: 'text_delta'; delta: string }
+  | { type: 'reason_card'; title: string; body: string; tracks?: Track[] }
+  | { type: 'citation'; title: string; url: string }
+  | { type: 'tool_started'; tool: string }
+  | { type: 'action_required'; actionId: string; tool: string; summary: string; input: unknown; expiresAt: string }
+  | { type: 'client_action'; actionId: string; action: AgentClientAction }
+  | { type: 'action_result'; actionId: string; ok: boolean; message?: string }
+  | { type: 'usage'; model: string; inputTokens: number; outputTokens: number; estimatedCostCny: number }
+  | { type: 'done'; runId: string; messageId: string }
+  | { type: 'error'; code: string; message: string };

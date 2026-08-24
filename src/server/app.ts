@@ -16,6 +16,7 @@ import { goMusicApiBaseUrl, openGoMusicApiStream } from './goMusicApi.js';
 import { MediaTicketStore, openMediaTicket } from './mediaProxy.js';
 import { applyRateLimitHeaders, clearRateLimit, consumeRateLimits, positiveEnvInt, type RateLimitRule } from './rateLimit.js';
 import { resetSourceHealthCircuits } from './sourceHealth.js';
+import { registerAgentRoutes } from './agentRoutes.js';
 import { SOURCES, type MusicSource, type Track } from '../shared/types.js';
 
 const credentialsSchema = z.object({ username: z.string().trim().min(2).max(24).regex(/^[\p{L}\p{N}_.-]+$/u), password: z.string().min(8).max(72) });
@@ -86,7 +87,7 @@ function securityHeaders(reply: FastifyReply, production: boolean) {
   reply.header('x-content-type-options', 'nosniff');
   reply.header('x-frame-options', 'DENY');
   reply.header('referrer-policy', 'strict-origin-when-cross-origin');
-  reply.header('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  reply.header('permissions-policy', 'camera=(), microphone=(self), geolocation=(), payment=(), usb=()');
   reply.header('cross-origin-opener-policy', 'same-origin');
   reply.header('cross-origin-resource-policy', 'same-origin');
   reply.header('content-security-policy', "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob: https: http:; connect-src 'self' https: http:; worker-src 'self'; manifest-src 'self'");
@@ -514,6 +515,8 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     });
     return { ok: true, favorites: listFavorites(db, user.id).length, playlists: listPlaylists(db, user.id).length };
   });
+
+  registerAgentRoutes(app, db);
 
   const staticDir = options.staticDir || resolve('dist/client');
   if (existsSync(staticDir)) {

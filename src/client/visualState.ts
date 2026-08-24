@@ -2,7 +2,7 @@ import type { Track } from '../shared/types';
 import { TONE_THEMES, type ToneThemeId } from './visualTheme';
 
 export type StageMode = 'player' | 'daily';
-export type MobileSection = 'daily' | 'search' | 'player' | 'library';
+export type MobileSection = 'daily' | 'search' | 'player' | 'library' | 'agent';
 
 export interface VisualPalette {
   primary: string;

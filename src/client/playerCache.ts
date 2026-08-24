@@ -94,6 +94,10 @@ export class PlaybackCache {
     if (this.resolved.delete(trackId)) this.persist();
   }
 
+  clear() {
+    this.resolved.clear(); this.lyrics.clear(); this.persist();
+  }
+
   getLyric(trackId: string): string | null {
     const entry = this.lyrics.get(trackId);
     if (!entry || entry.expiresAt <= this.clock()) {
