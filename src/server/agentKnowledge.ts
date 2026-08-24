@@ -52,7 +52,12 @@ function pruneKnowledgeVersions(db: Db, kind: 'classic' | 'douyin', keep: number
 
 export function getKnowledgeVersion(db: Db, id: string) {
   const row = db.prepare('SELECT * FROM knowledge_versions WHERE id=?').get(id) as Record<string, unknown> | undefined;
-  return row ? { id: String(row.id), kind: String(row.kind), status: String(row.status), source: String(row.source), collectedAt: String(row.collected_at), itemCount: Number(row.item_count), checksum: String(row.checksum), message: String(row.message || ''), createdAt: String(row.created_at), activatedAt: row.activated_at ? String(row.activated_at) : null } : null;
+  if (!row) return null;
+  const vector = db.prepare('SELECT COUNT(*) total,SUM(CASE WHEN embedding_json IS NOT NULL THEN 1 ELSE 0 END) embedded FROM knowledge_chunks WHERE version_id=?').get(id) as { total: number; embedded: number | null };
+  return {
+    id: String(row.id), kind: String(row.kind), status: String(row.status), source: String(row.source), collectedAt: String(row.collected_at), itemCount: Number(row.item_count), checksum: String(row.checksum), message: String(row.message || ''), createdAt: String(row.created_at), activatedAt: row.activated_at ? String(row.activated_at) : null,
+    embeddedCount: Number(vector.embedded || 0), embeddingRemaining: Math.max(0, Number(vector.total || 0) - Number(vector.embedded || 0))
+  };
 }
 
 export function listKnowledgeVersions(db: Db) { return (db.prepare('SELECT id FROM knowledge_versions ORDER BY kind,created_at DESC').all() as Array<{ id: string }>).map(row => getKnowledgeVersion(db, row.id)); }

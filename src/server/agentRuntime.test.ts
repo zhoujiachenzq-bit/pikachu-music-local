@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { loadAgentKeyring } from './agentCrypto.js';
-import { buildAgentContext, chooseAgentModelTier, directIntent, type AgentRunInput } from './agentRuntime.js';
+import { buildAgentContext, chooseAgentModelTier, directIntent, AgentRuntime, type AgentRunInput } from './agentRuntime.js';
+import { AgentModelProviderRegistry } from './agentModelProviders.js';
+import { publishKnowledgeVersion } from './agentKnowledge.js';
 import { createDatabase } from './db.js';
-import { createAgentMemory, ensureMainConversation } from './agentStore.js';
+import { createAgentMemory, ensureMainConversation, listAgentMessages } from './agentStore.js';
 
 function addUser(db: ReturnType<typeof createDatabase>, id: string, username: string) {
   const stamp = new Date().toISOString();
@@ -44,5 +46,21 @@ describe('agent deterministic routing', () => {
     expect(disabled.memories).toEqual([]);
     expect(enabled.memories).toEqual([expect.objectContaining({ content: '喜欢民谣', inferred: false })]);
     db.close();
+  });
+
+  it('persists the public knowledge references attached to a generated reply', async () => {
+    const db = createDatabase(':memory:'); addUser(db, 'a', 'Ash'); const keyring = loadAgentKeyring({} as NodeJS.ProcessEnv); const conversation = ensureMainConversation(db, 'a');
+    publishKnowledgeVersion(db, { kind: 'classic', source: 'fixture', collectedAt: new Date().toISOString(), documents: [{ externalId: 'sunny', title: '晴天', artist: '周杰伦', content: '校园 回忆 雨天 安静 怀旧' }] });
+    const fakeProvider = {
+      id: 'deepseek', label: 'Fixture', configured: () => true, modelName: () => 'fixture-model', estimateCostCny: () => 0,
+      capabilities: () => ({ text: true, streaming: true, tools: true, structuredOutput: true, reasoning: false, imageInput: false, audioInput: false }),
+      stream: () => ({ fullStream: (async function* () { yield { type: 'text-delta', text: '可以从《晴天》开始。' }; yield { type: 'finish', totalUsage: { inputTokens: 10, outputTokens: 8 } }; })() })
+    };
+    const runtime = new AgentRuntime(db, keyring, new AgentModelProviderRegistry({} as NodeJS.ProcessEnv, [fakeProvider as never]), { id: 'off', model: 'off', configured: () => false, search: async () => ({ answer: '', citations: [], inputTokens: 0, outputTokens: 0 }) }, { configured: () => false, embed: async () => [] });
+    const input: AgentRunInput = { user: { id: 'a', username: 'Ash' }, conversationId: conversation.id, conversationKind: 'main', message: '想听校园回忆', generation: 1, webSearch: false, context: { currentTrack: null, queue: [], playing: false, currentTime: 0, volume: .8, playMode: 'list' } };
+    const events = []; for await (const event of runtime.run(input)) events.push(event);
+    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'citation', title: '晴天 — 周杰伦', kind: 'knowledge' })]));
+    const assistant = listAgentMessages(db, keyring, 'a', conversation.id).at(-1)!;
+    expect(assistant.metadata?.citations).toEqual([expect.objectContaining({ title: '晴天 — 周杰伦', kind: 'knowledge' })]); db.close();
   });
 });

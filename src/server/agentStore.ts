@@ -107,9 +107,9 @@ export function closeTemporaryConversation(db: Db, userId: string, conversationI
 }
 
 export function saveAgentMessage(db: Db, keyring: AgentKeyring, userId: string, conversationId: string, role: AgentMessage['role'], content: string, metadata: Record<string, unknown> = {}): AgentMessage {
-  const id = randomUUID(); const stamp = now(); const encrypted = encryptAgentText(keyring, userId, 'message', id, content);
+  const id = randomUUID(); const stamp = now(); const encrypted = encryptAgentText(keyring, userId, 'message', id, content); const encryptedMetadata = encryptAgentText(keyring, userId, 'message-metadata', id, JSON.stringify(metadata));
   db.prepare(`INSERT INTO agent_messages(id,conversation_id,user_id,role,content_ciphertext,key_version,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?)`)
-    .run(id, conversationId, userId, role, encrypted.ciphertext, encrypted.keyVersion, JSON.stringify(metadata), stamp);
+    .run(id, conversationId, userId, role, encrypted.ciphertext, encrypted.keyVersion, JSON.stringify({ encrypted: true, ciphertext: encryptedMetadata.ciphertext, keyVersion: encryptedMetadata.keyVersion }), stamp);
   db.prepare('UPDATE agent_conversations SET updated_at=? WHERE id=? AND user_id=?').run(stamp, conversationId, userId);
   return { id, conversationId, role, content, metadata, createdAt: stamp };
 }
@@ -117,11 +117,17 @@ export function saveAgentMessage(db: Db, keyring: AgentKeyring, userId: string, 
 export function listAgentMessages(db: Db, keyring: AgentKeyring, userId: string, conversationId: string, limit = 80): AgentMessage[] {
   const rows = db.prepare(`SELECT * FROM (SELECT * FROM agent_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at`)
     .all(userId, conversationId, Math.max(1, Math.min(20_000, limit))) as Record<string, unknown>[];
-  return rows.map(row => ({
-    id: String(row.id), conversationId: String(row.conversation_id), role: row.role as AgentMessage['role'],
-    content: decryptAgentText(keyring, userId, 'message', String(row.id), String(row.content_ciphertext), String(row.key_version)),
-    metadata: JSON.parse(String(row.metadata_json || '{}')) as Record<string, unknown>, createdAt: String(row.created_at)
-  }));
+  return rows.map(row => {
+    const id = String(row.id); const storedMetadata = JSON.parse(String(row.metadata_json || '{}')) as Record<string, unknown>; let metadata = storedMetadata;
+    if (storedMetadata.encrypted === true && typeof storedMetadata.ciphertext === 'string' && typeof storedMetadata.keyVersion === 'string') {
+      try { metadata = JSON.parse(decryptAgentText(keyring, userId, 'message-metadata', id, storedMetadata.ciphertext, storedMetadata.keyVersion)) as Record<string, unknown>; }
+      catch { metadata = {}; }
+    }
+    return {
+      id, conversationId: String(row.conversation_id), role: row.role as AgentMessage['role'],
+      content: decryptAgentText(keyring, userId, 'message', id, String(row.content_ciphertext), String(row.key_version)), metadata, createdAt: String(row.created_at)
+    };
+  });
 }
 
 function memoryFromRow(row: Record<string, unknown>, keyring: AgentKeyring, userId: string): AgentMemory {

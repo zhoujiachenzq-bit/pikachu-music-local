@@ -238,6 +238,7 @@ export class AgentRuntime {
     const tier: AgentModelTier = providerAvailable ? requestedTier : 'local';
     const runId = createAgentRun(this.db, input.user.id, input.conversationId, input.generation, tier, input.webSearch);
     let assistantText = ''; let inputTokens = 0; let outputTokens = 0; const model = selectedProvider?.modelName(tier) || 'local-fallback';
+    const responseCitations: Array<{ title: string; url?: string; kind: 'web' | 'knowledge'; detail?: string }> = [];
     try {
       updateAgentRun(this.db, runId, input.user.id, 'context_building');
       const userMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'user', input.message, { webSearch: input.webSearch });
@@ -260,7 +261,9 @@ export class AgentRuntime {
         let webContext: { answer: string; citations: Array<{ title: string; url: string }> } | null = null;
         if (input.webSearch && this.webSearchProvider.configured()) {
           const searched = await this.webSearchProvider.search(input.message, controller.signal); webContext = { answer: searched.answer, citations: searched.citations };
-          for (const citation of searched.citations) yield { type: 'citation', title: citation.title, url: citation.url };
+          for (const citation of searched.citations) {
+            const reference = { title: citation.title, url: citation.url, kind: 'web' as const, detail: '本条联网资料' }; responseCitations.push(reference); yield { type: 'citation', ...reference };
+          }
           recordAgentUsage(this.db, {
             userId: input.user.id,
             provider: this.webSearchProvider.id || 'web-search',
@@ -271,7 +274,13 @@ export class AgentRuntime {
             estimatedCostCny: this.webSearchProvider.estimateCostCny?.(searched.inputTokens, searched.outputTokens) || 0
           });
         }
-        const context = { ...await buildAgentContext(this.db, this.keyring, input, this.embeddingProvider, settings.memoryEnabled), webSearch: webContext }; const history = listAgentMessages(this.db, this.keyring, input.user.id, input.conversationId, 40);
+        const builtContext = await buildAgentContext(this.db, this.keyring, input, this.embeddingProvider, settings.memoryEnabled);
+        for (const item of builtContext.knowledge.slice(0, 4)) {
+          const reference = { title: `${item.title}${item.artist ? ` — ${item.artist}` : ''}`, url: item.sourceUrl || undefined, kind: 'knowledge' as const, detail: '本地版本化策展知识' };
+          if (responseCitations.some(current => current.kind === reference.kind && current.title === reference.title)) continue;
+          responseCitations.push(reference); yield { type: 'citation', ...reference };
+        }
+        const context = { ...builtContext, webSearch: webContext }; const history = listAgentMessages(this.db, this.keyring, input.user.id, input.conversationId, 40);
         updateAgentRun(this.db, runId, input.user.id, 'generating');
         const result = selectedProvider!.stream({ tier: tier as 'flash' | 'plus', system: systemPrompt(settings, context), messages: providerMessages(history, userMessage.id), tools: agentTools, signal: controller.signal });
         let toolCall: AgentToolCall | null = null;
@@ -289,7 +298,7 @@ export class AgentRuntime {
       }
       if (!assistantText.trim()) { assistantText = '我刚才没有组织好回答，但不会擅自操作你的数据。可以再说一次你想听什么。'; yield { type: 'text_delta', delta: assistantText }; }
       updateAgentRun(this.db, runId, input.user.id, 'responding');
-      const assistantMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'assistant', assistantText, { model, provider: selectedProvider?.id || 'local' });
+      const assistantMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'assistant', assistantText, { model, provider: selectedProvider?.id || 'local', citations: responseCitations });
       if (input.conversationKind === 'main' && settings.memoryEnabled) this.rememberUserStatement(input.user.id, userMessage.id, input.message);
       const estimatedCostCny = tier === 'local' ? 0 : selectedProvider!.estimateCostCny(model, inputTokens, outputTokens);
       if (tier !== 'local') recordAgentUsage(this.db, { userId: input.user.id, provider: selectedProvider!.id, model, inputTokens, outputTokens, estimatedCostCny });

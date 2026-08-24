@@ -6,8 +6,10 @@ import { Icon } from './ui';
 import type { AgentAccess, AgentClientAction, AgentClientContext, AgentConversation, AgentMemory, AgentMessage, AgentSettings, AgentStreamEvent, Track } from '../shared/types';
 
 interface ReasonCard { id: string; title: string; body: string; tracks: Track[]; }
-interface CitationCard { id: string; title: string; url: string; }
+interface CitationCard { title: string; url?: string; kind: 'web' | 'knowledge'; detail?: string; }
 interface PendingAction { actionId: string; tool: string; summary: string; input: unknown; expiresAt: string; status?: string; }
+interface KnowledgeVersionCard { id: string; kind: string; status: string; source: string; collectedAt: string; itemCount: number; checksum: string; createdAt: string; activatedAt: string | null; embeddedCount: number; embeddingRemaining: number; }
+interface KnowledgeSample { id: string; title: string; artist: string; content: string; sourceUrl: string | null; metadata: Record<string, unknown>; }
 interface AgentPanelProps {
   userId: string;
   lang: 'zh' | 'en';
@@ -30,6 +32,12 @@ const memoryExpiry = (value: string | null, zh: boolean) => {
   if (!value) return zh ? '长期保留' : 'Long term'; const hours = Math.max(1, Math.ceil((Date.parse(value) - Date.now()) / 3_600_000));
   return hours < 48 ? (zh ? `${hours} 小时后失效` : `Expires in ${hours}h`) : (zh ? `${Math.ceil(hours / 24)} 天后失效` : `Expires in ${Math.ceil(hours / 24)}d`);
 };
+const messageCitations = (message: AgentMessage): CitationCard[] => Array.isArray(message.metadata?.citations)
+  ? (message.metadata.citations as unknown[]).flatMap(value => {
+    if (!value || typeof value !== 'object') return []; const item = value as Record<string, unknown>;
+    if (typeof item.title !== 'string') return [];
+    return [{ title: item.title, url: typeof item.url === 'string' ? item.url : undefined, kind: item.kind === 'web' ? 'web' : 'knowledge', detail: typeof item.detail === 'string' ? item.detail : undefined }];
+  }) : [];
 
 export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt, onClose, onAction, onSpeechState }: AgentPanelProps) {
   const zh = lang === 'zh';
@@ -37,10 +45,12 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [conversation, setConversation] = useState<AgentConversation | null>(null); const [mainConversation, setMainConversation] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]); const [input, setInput] = useState(''); const [streaming, setStreaming] = useState(false);
   const [webSearch, setWebSearch] = useState(false); const [reasonCards, setReasonCards] = useState<ReasonCard[]>([]); const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
-  const [citations, setCitations] = useState<CitationCard[]>([]); const [recording, setRecording] = useState(false); const [transcribing, setTranscribing] = useState(false); const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false); const [transcribing, setTranscribing] = useState(false); const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState(''); const [error, setError] = useState(''); const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false); const [memories, setMemories] = useState<AgentMemory[]>([]);
   const [memoryFilter, setMemoryFilter] = useState<MemoryFilter>('all');
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false); const [knowledgeVersions, setKnowledgeVersions] = useState<KnowledgeVersionCard[]>([]); const [knowledgeSample, setKnowledgeSample] = useState<KnowledgeSample[]>([]);
+  const [knowledgeQuery, setKnowledgeQuery] = useState(''); const [knowledgeBusy, setKnowledgeBusy] = useState(false); const [embeddingConfigured, setEmbeddingConfigured] = useState(false);
   const [introOpen, setIntroOpen] = useState(() => window.localStorage.getItem(introKey(userId)) !== 'seen');
   const generation = useRef(0); const streamController = useRef<AbortController | null>(null); const scroller = useRef<HTMLDivElement>(null);
   const streamText = useRef(''); const recorder = useRef<MediaRecorder | null>(null); const recorderStream = useRef<MediaStream | null>(null); const recorderChunks = useRef<Blob[]>([]); const recordingStartedAt = useRef(0); const recordingTimer = useRef<number | null>(null); const speechAudio = useRef<HTMLAudioElement | null>(null);
@@ -88,7 +98,11 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     if (activeGeneration !== generation.current) return;
     if (event.type === 'text_delta') { streamText.current += event.delta; setMessages(value => value.map(message => message.id === draftId ? { ...message, content: message.content + event.delta } : message)); }
     else if (event.type === 'reason_card') setReasonCards(value => [...value, { id: crypto.randomUUID(), title: event.title, body: event.body, tracks: event.tracks || [] }]);
-    else if (event.type === 'citation') setCitations(value => value.some(item => item.url === event.url) ? value : [...value, { id: crypto.randomUUID(), title: event.title, url: event.url }]);
+    else if (event.type === 'citation') setMessages(value => value.map(message => {
+      if (message.id !== draftId) return message; const citations = messageCitations(message); const incoming: CitationCard = { title: event.title, url: event.url, kind: event.kind || 'web', detail: event.detail };
+      if (citations.some(item => item.kind === incoming.kind && item.title === incoming.title && item.url === incoming.url)) return message;
+      return { ...message, metadata: { ...message.metadata, citations: [...citations, incoming] } };
+    }));
     else if (event.type === 'action_required') setPendingActions(value => [...value, { ...event }]);
     else if (event.type === 'client_action') {
       const result = await onAction(event.action); await reportAction(event.actionId, result);
@@ -102,7 +116,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     const activeGeneration = ++generation.current; streamController.current?.abort(); const controller = new AbortController(); streamController.current = controller;
     const stamp = new Date().toISOString(); const userDraft: AgentMessage = { id: `local-user-${activeGeneration}`, conversationId: conversation.id, role: 'user', content: text, createdAt: stamp };
     const assistantDraft: AgentMessage = { id: `local-assistant-${activeGeneration}`, conversationId: conversation.id, role: 'assistant', content: '', createdAt: stamp };
-    streamText.current = ''; setCitations([]); setMessages(value => [...value, userDraft, assistantDraft]); setInput(''); setError(''); setStreaming(true); const thisWebSearch = webSearch; setWebSearch(false);
+    streamText.current = ''; setMessages(value => [...value, userDraft, assistantDraft]); setInput(''); setError(''); setStreaming(true); const thisWebSearch = webSearch; setWebSearch(false);
     try { await streamAgentMessage({ conversationId: conversation.id, message: text, generation: activeGeneration, webSearch: thisWebSearch, context }, streamEvent => { void handleEvent(streamEvent, assistantDraft.id, activeGeneration); }, controller.signal); }
     catch (cause) { if (!controller.signal.aborted) { setError(cause instanceof Error ? cause.message : '珍奇暂时无法连接。'); setMessages(value => value.filter(message => message.id !== assistantDraft.id || message.content)); } }
     finally { if (activeGeneration === generation.current) setStreaming(false); }
@@ -130,7 +144,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const startTemporary = async () => {
     streamController.current?.abort();
     const data = await api<{ conversation: AgentConversation; messages: AgentMessage[] }>('/api/agent/conversations/temporary', json('POST'));
-    setConversation(data.conversation); setMessages([]); setReasonCards([]); setPendingActions([]); setCitations([]); setSettingsOpen(false);
+    setConversation(data.conversation); setMessages([]); setReasonCards([]); setPendingActions([]); setSettingsOpen(false); setMemoriesOpen(false); setKnowledgeOpen(false);
   };
   const leaveTemporary = async () => {
     if (conversation?.kind === 'temporary') await api(`/api/agent/conversations/${conversation.id}`, json('DELETE'));
@@ -146,8 +160,29 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     catch (cause) { setSettings(previous); setError(cause instanceof Error ? cause.message : '设置保存失败。'); }
   };
   const openMemories = async () => {
-    try { const result = await api<{ memories: AgentMemory[] }>('/api/agent/memories'); setMemories(result.memories); setMemoryFilter('all'); setMemoriesOpen(true); setSettingsOpen(false); }
+    try { const result = await api<{ memories: AgentMemory[] }>('/api/agent/memories'); setMemories(result.memories); setMemoryFilter('all'); setMemoriesOpen(true); setKnowledgeOpen(false); setSettingsOpen(false); }
     catch (cause) { setError(cause instanceof Error ? cause.message : '记忆读取失败。'); }
+  };
+  const loadKnowledge = async (query = knowledgeQuery) => {
+    setKnowledgeBusy(true);
+    try {
+      const result = await api<{ versions: KnowledgeVersionCard[]; sample: KnowledgeSample[]; embeddingConfigured: boolean }>(`/api/admin/agent/knowledge?q=${encodeURIComponent(query.trim())}`);
+      setKnowledgeVersions(result.versions); setKnowledgeSample(result.sample); setEmbeddingConfigured(result.embeddingConfigured); setError('');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '知识状态读取失败。'); }
+    finally { setKnowledgeBusy(false); }
+  };
+  const openKnowledge = async () => { setKnowledgeOpen(true); setMemoriesOpen(false); setSettingsOpen(false); await loadKnowledge(''); };
+  const activateKnowledge = async (version: KnowledgeVersionCard) => {
+    if (!window.confirm(`切换到知识版本“${version.source}”？播放器和用户数据不会改变。`)) return;
+    try { await api(`/api/admin/agent/knowledge/${version.id}/activate`, json('POST')); await loadKnowledge(knowledgeQuery); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '知识版本切换失败。'); }
+  };
+  const fillKnowledgeEmbeddings = async (version: KnowledgeVersionCard) => {
+    setKnowledgeBusy(true);
+    try {
+      const result = await api<{ completed: number; failed: number; remaining: boolean }>(`/api/admin/agent/knowledge/${version.id}/embeddings`, json('POST', { limit: 20 }));
+      setError(result.failed ? `完成 ${result.completed} 条，${result.failed} 条暂时失败。` : `已补全 ${result.completed} 条知识向量。`); await loadKnowledge(knowledgeQuery);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '知识向量补全失败。'); setKnowledgeBusy(false); }
   };
   const editMemory = async (memory: AgentMemory) => {
     const content = window.prompt('修改这条记忆', memory.content)?.trim(); if (!content || content === memory.content) return;
@@ -185,7 +220,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   return <aside className={shellClass} aria-label={zh ? '珍奇音乐知己' : 'Zhenqi music companion'}>
     <header className="agent-header">
       <div className="agent-wordmark"><span className="agent-pulse"><i/><i/><i/></span><div><small>MUSIC COMPANION · BETA</small><strong>{settings?.assistantName || '珍奇'}</strong></div></div>
-      <div className="agent-header-actions"><button title={zh ? '临时对话' : 'Temporary chat'} onClick={() => void (conversation?.kind === 'temporary' ? leaveTemporary() : startTemporary())}><Icon name="temporary" size={17}/></button><button title={zh ? '设置' : 'Settings'} onClick={() => { setSettingsOpen(value => !value); setMemoriesOpen(false); }}><Icon name="settings" size={17}/></button>{!mobile && <button title={zh ? '关闭' : 'Close'} onClick={onClose}><Icon name="close" size={17}/></button>}</div>
+      <div className="agent-header-actions"><button title={zh ? '临时对话' : 'Temporary chat'} onClick={() => void (conversation?.kind === 'temporary' ? leaveTemporary() : startTemporary())}><Icon name="temporary" size={17}/></button><button title={zh ? '设置' : 'Settings'} onClick={() => { setSettingsOpen(value => !value); setMemoriesOpen(false); setKnowledgeOpen(false); }}><Icon name="settings" size={17}/></button>{!mobile && <button title={zh ? '关闭' : 'Close'} onClick={onClose}><Icon name="close" size={17}/></button>}</div>
     </header>
     {conversation?.kind === 'temporary' && <div className="agent-temporary-banner"><Icon name="temporary" size={15}/><span>{zh ? '临时对话：不形成长期记忆，关闭即删除。' : 'Temporary: no long-term memory; deleted when closed.'}</span><button onClick={() => void leaveTemporary()}>{zh ? '返回主对话' : 'Back'}</button></div>}
     {introOpen && <section className="agent-intro">
@@ -199,7 +234,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       <label className="agent-toggle"><input type="checkbox" checked={settings.memoryEnabled} onChange={event => void updateSettings({ memoryEnabled: event.target.checked })}/><span>{zh ? '允许使用与记录长期记忆' : 'Use and save long-term memory'}</span></label>
       <label className="agent-toggle"><input type="checkbox" checked={settings.autoRead} onChange={event => void updateSettings({ autoRead: event.target.checked })}/><span>{zh ? '自动朗读珍奇回复' : 'Read replies aloud'}</span></label>
       <label>{zh ? '音色' : 'Voice'}<select value={settings.voice} onChange={event => void updateSettings({ voice: event.target.value })}><option value="Cherry">Cherry</option><option value="Serena">Serena</option><option value="Ethan">Ethan</option><option value="Chelsie">Chelsie</option></select></label>
-      <div className="agent-data-actions"><button onClick={() => void openMemories()}>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</button><button onClick={() => void exportArchive()}>{zh ? '导出加密档案' : 'Export encrypted archive'}</button><label>{zh ? '恢复档案' : 'Restore archive'}<input type="file" accept="application/json" onChange={event => { const file = event.target.files?.[0]; if (file) void restoreArchive(file); event.currentTarget.value = ''; }}/></label></div>
+      <div className="agent-data-actions"><button onClick={() => void openMemories()}>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</button>{access?.admin && <button onClick={() => void openKnowledge()}>{zh ? '知识版本' : 'Knowledge'}</button>}<button onClick={() => void exportArchive()}>{zh ? '导出加密档案' : 'Export encrypted archive'}</button><label>{zh ? '恢复档案' : 'Restore archive'}<input type="file" accept="application/json" onChange={event => { const file = event.target.files?.[0]; if (file) void restoreArchive(file); event.currentTarget.value = ''; }}/></label></div>
     </section>}
     {!introOpen && memoriesOpen && <section className="agent-memory-panel">
       <header><div><small>MEMORY VAULT</small><h2>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</h2></div><button onClick={() => setMemoriesOpen(false)}><Icon name="close" size={16}/></button></header>
@@ -213,13 +248,24 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       </article>) : <div className="agent-memory-empty">{memories.length ? (zh ? '这个类别还没有记忆。' : 'No memories in this category.') : (zh ? '珍奇还没有保存长期记忆。' : 'No long-term memories yet.')}</div>}</div>
       <button className="danger-link" disabled={!memories.length} onClick={async () => { if (!window.confirm('清空珍奇的全部长期记忆？此操作无法撤销。')) return; await api('/api/agent/memories', json('DELETE')); setMemories([]); }}>{zh ? '清空全部长期记忆' : 'Clear all memories'}</button>
     </section>}
+    {!introOpen && knowledgeOpen && <section className="agent-knowledge-panel">
+      <header><div><small>KNOWLEDGE LEDGER</small><h2>{zh ? '珍奇的知识版本' : 'Knowledge versions'}</h2></div><button onClick={() => setKnowledgeOpen(false)}><Icon name="close" size={16}/></button></header>
+      <p>{zh ? '版本切换只影响珍奇的公共音乐知识，不会修改播放列表、收藏或私人记忆。' : 'Version changes affect only public music knowledge.'}</p>
+      <form onSubmit={event => { event.preventDefault(); void loadKnowledge(knowledgeQuery); }}><input value={knowledgeQuery} onChange={event => setKnowledgeQuery(event.target.value)} placeholder={zh ? '检索歌曲、歌手、情绪或场景' : 'Search title, artist, mood or scene'}/><button disabled={knowledgeBusy}>{zh ? '检索' : 'Search'}</button></form>
+      <div className="agent-knowledge-scroll">
+        <section className="agent-knowledge-versions"><h3>{zh ? '版本账本' : 'Version ledger'}</h3>{knowledgeVersions.map(version => <article key={version.id} className={version.status === 'active' ? 'active' : ''}>
+          <div><span>{version.kind === 'classic' ? (zh ? '经典库' : 'Classic') : (zh ? '趋势库' : 'Trends')}</span><strong>{version.source}</strong><small>{version.itemCount} {zh ? '条' : 'items'} · {version.embeddedCount}/{version.itemCount} {zh ? '向量' : 'vectors'}</small></div>
+          <div>{version.status === 'active' ? <b>{zh ? '正在使用' : 'Active'}</b> : <button onClick={() => void activateKnowledge(version)}>{zh ? '切换' : 'Activate'}</button>}<button disabled={knowledgeBusy || !embeddingConfigured || version.embeddingRemaining === 0} title={!embeddingConfigured ? (zh ? '未配置百炼向量服务，本地全文检索仍可用' : 'Embedding provider is not configured') : ''} onClick={() => void fillKnowledgeEmbeddings(version)}>{version.embeddingRemaining ? (zh ? '补向量' : 'Embed') : (zh ? '已完成' : 'Ready')}</button></div>
+        </article>)}</section>
+        <section className="agent-knowledge-results"><h3>{knowledgeQuery.trim() ? (zh ? `“${knowledgeQuery.trim()}”的检索结果` : `Results for “${knowledgeQuery.trim()}”`) : (zh ? '输入关键词检查知识召回' : 'Enter a query to inspect retrieval')}</h3>{knowledgeSample.map(item => <article key={item.id}><strong>{item.title}</strong><small>{item.artist || (zh ? '未知歌手' : 'Unknown artist')}</small><p>{item.content}</p><span>{item.sourceUrl ? (zh ? '外部来源可追溯' : 'External source') : (zh ? '内置策展知识' : 'Bundled editorial')}</span></article>)}</section>
+      </div>
+    </section>}
     {!introOpen && access && !access.entitled && <section className="agent-access"><span>INVITE ONLY</span><h2>{zh ? '珍奇还在小范围试住。' : 'Zhenqi is in a small preview.'}</h2><p>{access.reason}</p><div><input value={inviteCode} onChange={event => setInviteCode(event.target.value)} placeholder={zh ? '输入邀请码' : 'Invite code'}/><button className="btn primary" onClick={() => void redeem()}>{zh ? '唤醒' : 'Redeem'}</button></div></section>}
     {!introOpen && access?.entitled && !access.configured && <section className="agent-access"><span>SAFE OFFLINE</span><h2>{access.reason}</h2><p>{zh ? '音乐小屋其他功能不受影响。' : 'All music features remain available.'}</p></section>}
     {!introOpen && access?.entitled && access.configured && <>
       <div className="agent-messages" ref={scroller} aria-live="polite">
         {!messages.length && <div className="agent-empty"><span className="agent-cursor"/><h2>{zh ? `晚上好，我是${settings?.assistantName || '珍奇'}。` : `Hi, I’m ${settings?.assistantName || 'Zhenqi'}.`}</h2><p>{zh ? '说说你此刻想听什么，或者直接让我暂停、切歌、找一首歌。' : 'Tell me what fits this moment, or ask me to control playback.'}</p><div>{['来点适合夜晚的歌', '换一首', '检查最近为什么播放失败'].map(value => <button key={value} onClick={() => void send(undefined, value)}>{value}</button>)}</div></div>}
-        {messages.map(message => <article key={message.id} className={`agent-message ${message.role}`}><small>{message.role === 'user' ? (zh ? '你' : 'YOU') : (settings?.assistantName || '珍奇')}</small><p>{message.content || (streaming ? '▋' : '')}</p>{message.role === 'assistant' && message.content && <button className={`agent-read ${speakingMessageId === message.id ? 'active' : ''}`} onClick={() => void readText(message.content, message.id)}><Icon name="speaker" size={13}/>{speakingMessageId === message.id ? (zh ? '停止' : 'Stop') : (zh ? '朗读' : 'Read')}</button>}</article>)}
-        {!!citations.length && <section className="agent-citations"><small>{zh ? '本条联网来源' : 'Web sources'}</small><div>{citations.map((citation, index) => <a key={citation.id} href={citation.url} target="_blank" rel="noreferrer"><b>{index + 1}</b><span>{citation.title}</span></a>)}</div></section>}
+        {messages.map(message => { const references = messageCitations(message); return <article key={message.id} className={`agent-message ${message.role}`}><small>{message.role === 'user' ? (zh ? '你' : 'YOU') : (settings?.assistantName || '珍奇')}</small><p>{message.content || (streaming ? '▋' : '')}</p>{!!references.length && <section className="agent-citations"><small>{references.some(item => item.kind === 'web') ? (zh ? '本条回答的资料' : 'Sources for this reply') : (zh ? '本条使用的策展知识' : 'Curated knowledge used')}</small><div>{references.map((citation, index) => citation.url ? <a key={`${citation.kind}-${citation.url}`} href={citation.url} target="_blank" rel="noreferrer"><b>{index + 1}</b><span>{citation.title}<small>{citation.detail}</small></span></a> : <div className="agent-citation-local" key={`${citation.kind}-${citation.title}`}><b>{index + 1}</b><span>{citation.title}<small>{citation.detail}</small></span></div>)}</div></section>}{message.role === 'assistant' && message.content && <button className={`agent-read ${speakingMessageId === message.id ? 'active' : ''}`} onClick={() => void readText(message.content, message.id)}><Icon name="speaker" size={13}/>{speakingMessageId === message.id ? (zh ? '停止' : 'Stop') : (zh ? '朗读' : 'Read')}</button>}</article>; })}
         {reasonCards.map(card => <section className="agent-reason-card" key={card.id}><small>SCENE QUEUE</small><h3>{card.title}</h3><p>{card.body}</p><div>{card.tracks.map((track, index) => <button key={track.id} onClick={() => void onAction({ type: 'play_track', track, queue: card.tracks, reason: card.body })}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{track.title}</strong><small>{track.artist}</small></span><Icon name="play" size={14}/></button>)}</div></section>)}
         {pendingActions.map(item => <section className="agent-confirm-card" key={item.actionId}><small>CONFIRMATION</small><h3>{item.summary}</h3><p>{zh ? '这是会修改数据的操作，珍奇不会替你决定。' : 'This changes data and requires your decision.'}</p>{item.status ? <strong>{item.status}</strong> : <div><button className="btn ghost" onClick={() => void resolvePending(item, false)}>{zh ? '取消' : 'Cancel'}</button><button className="btn primary" onClick={() => void resolvePending(item, true)}>{zh ? '确认' : 'Confirm'}</button></div>}</section>)}
       </div>

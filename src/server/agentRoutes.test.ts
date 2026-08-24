@@ -48,4 +48,16 @@ describe('agent API', () => {
       if (previous.deepseek === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = previous.deepseek;
     }
   });
+
+  it('exposes version and retrieval health only to the configured agent admin', async () => {
+    const previous = process.env.AGENT_ADMIN_USERNAMES; process.env.AGENT_ADMIN_USERNAMES = 'masyu';
+    try {
+      db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+      const admin = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'masyu', password: 'Pikachu-2026' } }); const adminCookie = admin.headers['set-cookie']!.split(';')[0];
+      const result = await app.inject({ method: 'GET', url: '/api/admin/agent/knowledge?q=%E6%99%B4%E5%A4%A9', headers: { cookie: adminCookie } });
+      expect(result.statusCode).toBe(200); expect(result.json()).toMatchObject({ embeddingConfigured: false, versions: expect.arrayContaining([expect.objectContaining({ source: 'bundled-curated-v2-300', itemCount: 300, embeddedCount: 0, embeddingRemaining: 300 })]), sample: expect.arrayContaining([expect.objectContaining({ title: '晴天', artist: '周杰伦' })]) });
+      const ordinary = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'ordinary-user', password: 'Pikachu-2026' } }); const ordinaryCookie = ordinary.headers['set-cookie']!.split(';')[0];
+      expect((await app.inject({ method: 'GET', url: '/api/admin/agent/knowledge', headers: { cookie: ordinaryCookie } })).statusCode).toBe(403);
+    } finally { if (previous === undefined) delete process.env.AGENT_ADMIN_USERNAMES; else process.env.AGENT_ADMIN_USERNAMES = previous; }
+  });
 });

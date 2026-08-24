@@ -1,7 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { createDatabase } from './db.js';
-import { activateKnowledgeVersion, listKnowledgeChunksMissingEmbeddings, publishKnowledgeVersion, retrieveKnowledge, setKnowledgeChunkEmbedding, verifyKnowledgeSignature } from './agentKnowledge.js';
+import { activateKnowledgeVersion, getKnowledgeVersion, listKnowledgeChunksMissingEmbeddings, publishKnowledgeVersion, retrieveKnowledge, setKnowledgeChunkEmbedding, verifyKnowledgeSignature } from './agentKnowledge.js';
 
 describe('versioned agent knowledge', () => {
   it('publishes atomically, retrieves by mixed ranking and can roll back', () => {
@@ -33,6 +33,7 @@ describe('versioned agent knowledge', () => {
     const chunks = listKnowledgeChunksMissingEmbeddings(db, version.id, 10); expect(chunks).toHaveLength(2);
     for (const chunk of chunks) setKnowledgeChunkEmbedding(db, chunk.id, chunk.title === '安静' ? [1, 0] : [0, 1]);
     expect(retrieveKnowledge(db, '给我一首歌', 1, [0, 1])[0]).toMatchObject({ title: '热烈' });
+    expect(getKnowledgeVersion(db, version.id)).toMatchObject({ embeddedCount: 2, embeddingRemaining: 0 });
     expect(listKnowledgeChunksMissingEmbeddings(db, version.id, 10)).toEqual([]); db.close();
   });
 });

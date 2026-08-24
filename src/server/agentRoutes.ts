@@ -283,7 +283,9 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
   });
 
   app.get('/api/admin/agent/knowledge', async (request, reply) => {
-    if (!requireAdmin(db, request, reply)) return; return { versions: listKnowledgeVersions(db), sample: retrieveKnowledge(db, String((request.query as { q?: string }).q || ''), 8) };
+    if (!requireAdmin(db, request, reply)) return;
+    const { q } = z.object({ q: z.string().trim().max(160).default('') }).parse(request.query || {});
+    return { versions: listKnowledgeVersions(db), sample: retrieveKnowledge(db, q, 8), embeddingConfigured: knowledgeEmbeddingProvider.configured() };
   });
   app.post('/api/admin/agent/knowledge/publish', async (request, reply) => {
     const body = z.object({ kind: z.enum(['classic', 'douyin']), source: z.string().trim().min(1).max(120), collectedAt: z.string().datetime(), documents: z.array(knowledgeDocumentSchema).min(1).max(1000), checksum: z.string().regex(/^[a-f\d]{64}$/i).optional() }).parse(request.body);
