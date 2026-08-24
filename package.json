@@ -1,6 +1,6 @@
 {
   "name": "pikachu-music-local",
-  "version": "0.4.0-beta.2",
+  "version": "0.4.0-beta.3",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -13,7 +13,8 @@
     "start": "node dist/server/server/index.js",
     "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "agent:publish-trends": "tsx scripts/publish-trend-knowledge.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^3.0.31",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDatabase, upsertTrack } from './db.js';
 import { loadAgentKeyring } from './agentCrypto.js';
-import { createAgentInvite, createAgentMemory, createAgentRun, createToolAction, ensureMainConversation, inferListeningPreferenceMemories, listAgentMemories, listAgentMessages, nextAgentProactivePrompt, redeemAgentInvite, rememberAgentMemory, retrieveAgentMemories, saveAgentMessage, setAgentMemoryEmbedding, updateToolAction } from './agentStore.js';
+import { createAgentInvite, createAgentMemory, createAgentRun, createToolAction, ensureMainConversation, inferListeningPreferenceMemories, listAgentMemories, listAgentMessages, nextAgentProactivePrompt, redeemAgentInvite, rememberAgentMemory, retrieveAgentMemories, saveAgentMessage, setAgentMemoryEmbedding, updateAgentSettings, updateToolAction } from './agentStore.js';
 
 function addUser(db: ReturnType<typeof createDatabase>, id: string, username: string) {
   const stamp = new Date().toISOString(); db.prepare('INSERT INTO users(id,username,password_hash,password_salt,created_at,updated_at) VALUES(?,?,?,?,?,?)').run(id, username, 'hash', 'salt', stamp, stamp);
@@ -39,6 +39,16 @@ describe('agent data isolation and action ledger', () => {
     const old = new Date('2026-07-01T00:00:00.000Z').toISOString(); db.prepare(`INSERT INTO listening_sessions(id,user_id,track_id,context_type,started_at,updated_at,played_ms,duration_ms) VALUES(?,?,?,'search',?,?,?,?)`).run('listen-old', 'a', track.id, old, old, 90000, 180000);
     const first = nextAgentProactivePrompt(db, 'a', new Date('2026-08-24T08:00:00.000Z')); expect(first?.kind).toBe('reunion');
     expect(nextAgentProactivePrompt(db, 'a', new Date('2026-08-24T09:00:00.000Z'))).toBeNull(); db.close();
+  });
+
+  it('uses per-kind quiet periods and immediately respects the user switch', () => {
+    const db = createDatabase(':memory:'); addUser(db, 'a', 'Ash'); const track = upsertTrack(db, { id: 'qq:old-2', source: 'qq', sourceTrackId: 'old-2', title: '旧日旋律', artist: '原唱', album: '', duration: 180000, coverUrl: null, sourceUrl: null });
+    const old = new Date('2026-07-01T00:00:00.000Z').toISOString(); db.prepare(`INSERT INTO listening_sessions(id,user_id,track_id,context_type,started_at,updated_at,played_ms,duration_ms) VALUES(?,?,?,'search',?,?,?,?)`).run('listen-old-2', 'a', track.id, old, old, 90000, 180000);
+    expect(nextAgentProactivePrompt(db, 'a', new Date('2026-08-01T08:00:00.000Z'))?.kind).toBe('reunion');
+    expect(nextAgentProactivePrompt(db, 'a', new Date('2026-08-08T08:00:00.000Z'))).toBeNull();
+    expect(nextAgentProactivePrompt(db, 'a', new Date('2026-08-16T08:00:00.000Z'))?.kind).toBe('reunion');
+    updateAgentSettings(db, 'a', { proactiveEnabled: false });
+    expect(nextAgentProactivePrompt(db, 'a', new Date('2026-09-01T08:00:00.000Z'))).toBeNull(); db.close();
   });
 
   it('deduplicates memories and lets explicit contradictions replace the previous preference', () => {

@@ -52,7 +52,15 @@ export function updateAgentSettings(db: Db, userId: string, settings: Partial<Ag
   return next;
 }
 
-export interface AgentProactivePrompt { id: string; kind: 'reunion' | 'skip_pattern' | 'source_help'; message: string; suggestedPrompt: string; }
+export type AgentProactiveKind = 'reunion' | 'skip_pattern' | 'recommendation_shift' | 'source_help';
+export interface AgentProactivePrompt { id: string; kind: AgentProactiveKind; message: string; suggestedPrompt: string; }
+
+const proactiveKindCooldownMs: Record<AgentProactiveKind, number> = {
+  skip_pattern: 24 * 60 * 60_000,
+  recommendation_shift: 3 * 24 * 60 * 60_000,
+  source_help: 3 * 24 * 60 * 60_000,
+  reunion: 14 * 24 * 60 * 60_000
+};
 
 export function nextAgentProactivePrompt(db: Db, userId: string, at = new Date()): AgentProactivePrompt | null {
   const settings = ensureAgentSettings(db, userId); if (!settings.proactiveEnabled) return null;
@@ -61,13 +69,22 @@ export function nextAgentProactivePrompt(db: Db, userId: string, at = new Date()
   if (Number(daily.count) >= 2 || (daily.latest && daily.latest >= sinceCooldown)) return null;
   const recentSkip = db.prepare(`SELECT COUNT(*) count FROM listening_sessions WHERE user_id=? AND skipped=1 AND updated_at>=?`).get(userId, new Date(at.getTime() - 2 * 60 * 60_000).toISOString()) as { count: number };
   const latestListen = db.prepare('SELECT MAX(updated_at) latest FROM listening_sessions WHERE user_id=?').get(userId) as { latest: string | null };
+  const recentSourceFailures = db.prepare('SELECT COUNT(*) count FROM listening_sessions WHERE user_id=? AND error_code IS NOT NULL AND updated_at>=?').get(userId, sinceDay) as { count: number };
   const unhealthy = db.prepare('SELECT COUNT(*) count FROM source_health WHERE circuit_open_until>? OR consecutive_failures>=3').get(at.toISOString()) as { count: number };
+  const recentRecommendations = db.prepare(`SELECT rr.id,SUM(CASE WHEN ri.kind='explore' THEN 1 ELSE 0 END) explore,COUNT(ri.track_id) total
+    FROM recommendation_runs rr JOIN recommendation_items ri ON ri.run_id=rr.id WHERE rr.user_id=? AND rr.status='completed'
+    GROUP BY rr.id,rr.recommendation_date ORDER BY rr.recommendation_date DESC LIMIT 2`).all(userId) as Array<{ id: string; explore: number; total: number }>;
+  const recommendationShift = recentRecommendations.length === 2 && recentRecommendations.every(row => Number(row.total) >= 5)
+    ? Math.abs(Number(recentRecommendations[0].explore) / Number(recentRecommendations[0].total) - Number(recentRecommendations[1].explore) / Number(recentRecommendations[1].total)) >= .35
+    : false;
   let candidate: Omit<AgentProactivePrompt, 'id'> | null = null;
   if (Number(recentSkip.count) >= 3) candidate = { kind: 'skip_pattern', message: '连续几首都没对上感觉。要不要让我换一种方向？', suggestedPrompt: '结合我刚才连续跳过的歌，换一种风格推荐五首' };
+  else if (recommendationShift) candidate = { kind: 'recommendation_shift', message: '今天的推荐比上一次更偏探索。要不要让我解释变化，或者调回熟悉一点？', suggestedPrompt: '解释今天推荐为什么变化，并给我熟悉与探索各三首' };
   else if (latestListen.latest && Date.parse(latestListen.latest) < at.getTime() - 7 * 24 * 60 * 60_000) candidate = { kind: 'reunion', message: '好久不见。要不要从一首熟悉但很久没听的歌开始？', suggestedPrompt: '从我很久没听的收藏里挑五首，先不要保存歌单' };
-  else if (Number(unhealthy.count) > 0) candidate = { kind: 'source_help', message: '有一个音源最近不太稳定，珍奇可以帮你检查，但不会读取敏感日志。', suggestedPrompt: '检查最近的音源健康并告诉我是否需要处理' };
+  else if (Number(recentSourceFailures.count) >= 2 && Number(unhealthy.count) > 0) candidate = { kind: 'source_help', message: '你最近遇到过几次播放失败。珍奇可以检查脱敏后的音源状态，不会读取敏感日志。', suggestedPrompt: '检查最近的音源健康并告诉我是否需要处理' };
   if (!candidate) return null;
-  const duplicate = db.prepare('SELECT 1 FROM agent_proactive_events WHERE user_id=? AND kind=? AND shown_at>=?').get(userId, candidate.kind, sinceDay); if (duplicate) return null;
+  const kindSince = new Date(at.getTime() - proactiveKindCooldownMs[candidate.kind]).toISOString();
+  const duplicate = db.prepare('SELECT 1 FROM agent_proactive_events WHERE user_id=? AND kind=? AND shown_at>=?').get(userId, candidate.kind, kindSince); if (duplicate) return null;
   const id = randomUUID(); db.prepare('INSERT INTO agent_proactive_events(id,user_id,kind,shown_at) VALUES(?,?,?,?)').run(id, userId, candidate.kind, at.toISOString()); return { id, ...candidate };
 }
 

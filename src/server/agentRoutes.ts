@@ -19,6 +19,8 @@ import { ensureClassicKnowledgeSeed } from './classicKnowledgeSeed.js';
 import { BailianEmbeddingProvider, BailianSpeechProvider } from './agentProviders.js';
 import { AgentModelProviderRegistry } from './agentModelProviders.js';
 import { SOURCES, type AgentClientAction, type AgentStreamEvent } from '../shared/types.js';
+import { decodeAgentAudioBase64, normalizeAgentAudioMime } from './agentVoice.js';
+import { finishTrendUpdateRun, listTrendUpdateRuns, runTrendRehearsal, startTrendUpdateRun } from './agentTrends.js';
 
 const apiError = (code: string, message: string, details?: unknown) => ({ error: { code, message, ...(details === undefined ? {} : { details }) } });
 const sourceSchema = z.enum(SOURCES);
@@ -233,13 +235,16 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     return { ok: true, merged: { messages, memories } };
   });
 
-  app.post('/api/agent/voice/transcribe', async (request, reply) => {
+  app.post('/api/agent/voice/transcribe', { bodyLimit: 14 * 1024 * 1024 }, async (request, reply) => {
     const user = requireAgent(db, keyring, request, reply); if (!user) return;
     const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150); if (monthlyAgentCost(db) >= budget) return reply.code(503).send(apiError('AGENT_BUDGET_EXHAUSTED', '本月珍奇语音额度已暂停，文字和音乐功能仍可使用。'));
     if (!speechProvider.configured()) return reply.code(503).send(apiError('AGENT_SPEECH_NOT_CONFIGURED', '语音识别尚未配置。'));
-    const body = z.object({ audioBase64: z.string().min(16).max(14_000_000).regex(/^[a-zA-Z0-9+/=]+$/), mimeType: z.enum(['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/ogg']), durationSeconds: z.number().positive().max(60) }).parse(request.body);
-    const bytes = Buffer.from(body.audioBase64, 'base64'); if (!bytes.length || bytes.length > 10 * 1024 * 1024) return reply.code(413).send(apiError('AGENT_AUDIO_TOO_LARGE', '单段录音不能超过 10MB。'));
-    try { const text = await speechProvider.transcribe({ base64: bytes.toString('base64'), mimeType: body.mimeType }); recordAgentUsage(db, { userId: user.id, provider: 'bailian-asr', model: speechProvider.config.asrModel, asrSeconds: body.durationSeconds }); return { text }; }
+    const body = z.object({ audioBase64: z.string().min(4).max(14_000_000), mimeType: z.string().trim().min(1).max(100), durationSeconds: z.number().positive().max(60) }).parse(request.body);
+    const mimeType = normalizeAgentAudioMime(body.mimeType); if (!mimeType) return reply.code(415).send(apiError('AGENT_AUDIO_TYPE_UNSUPPORTED', '当前录音格式不受支持。'));
+    let bytes: Buffer; try { bytes = decodeAgentAudioBase64(body.audioBase64); }
+    catch (error) { const tooLarge = error instanceof Error && error.message === 'AGENT_AUDIO_TOO_LARGE'; return reply.code(tooLarge ? 413 : 400).send(apiError(tooLarge ? 'AGENT_AUDIO_TOO_LARGE' : 'AGENT_AUDIO_INVALID', tooLarge ? '单段录音不能超过 10MB。' : '录音数据无效。')); }
+    const controller = new AbortController(); request.raw.once('aborted', () => controller.abort()); reply.header('cache-control', 'private, no-store');
+    try { const text = await speechProvider.transcribe({ base64: bytes.toString('base64'), mimeType, signal: controller.signal }); recordAgentUsage(db, { userId: user.id, provider: 'bailian-asr', model: speechProvider.config.asrModel, asrSeconds: body.durationSeconds }); return { text }; }
     catch { return reply.code(502).send(apiError('AGENT_ASR_FAILED', '这段录音没有识别成功，原始录音已丢弃。')); }
   });
 
@@ -249,7 +254,8 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     if (!speechProvider.configured()) return reply.code(503).send(apiError('AGENT_SPEECH_NOT_CONFIGURED', '语音合成尚未配置。'));
     const body = z.object({ text: z.string().trim().min(1).max(1500), voice: z.enum(['Cherry', 'Serena', 'Ethan', 'Chelsie']).default('Cherry'), persona: z.enum(['warm', 'bright', 'poetic']).default('warm') }).parse(request.body);
     const instructions = body.persona === 'bright' ? '轻快、有活力、带着真诚笑意，但不要夸张。' : body.persona === 'poetic' ? '语速舒缓、克制、有轻微画面感，不要矫饰。' : '自然、温暖、机灵，像熟悉的朋友一样表达。';
-    try { const result = await speechProvider.synthesize({ text: body.text, voice: body.voice, instructions }); recordAgentUsage(db, { userId: user.id, provider: 'bailian-tts', model: speechProvider.config.ttsModel, ttsCharacters: body.text.length }); reply.header('content-type', result.contentType); reply.header('cache-control', 'private, no-store'); return reply.send(result.audio); }
+    const controller = new AbortController(); request.raw.once('aborted', () => controller.abort());
+    try { const result = await speechProvider.synthesize({ text: body.text, voice: body.voice, instructions, signal: controller.signal }); recordAgentUsage(db, { userId: user.id, provider: 'bailian-tts', model: speechProvider.config.ttsModel, ttsCharacters: body.text.length }); reply.header('content-type', result.contentType); reply.header('cache-control', 'private, no-store'); return reply.send(result.audio); }
     catch { return reply.code(502).send(apiError('AGENT_TTS_FAILED', '语音回复暂时生成失败，可以继续阅读文字。')); }
   });
 
@@ -287,6 +293,21 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     const { q } = z.object({ q: z.string().trim().max(160).default('') }).parse(request.query || {});
     return { versions: listKnowledgeVersions(db), sample: retrieveKnowledge(db, q, 8), embeddingConfigured: knowledgeEmbeddingProvider.configured() };
   });
+  app.get('/api/admin/agent/trends/status', async (request, reply) => {
+    if (!requireAdmin(db, request, reply)) return;
+    const active = db.prepare("SELECT id,source,collected_at,item_count,activated_at FROM knowledge_versions WHERE kind='douyin' AND status='active' ORDER BY activated_at DESC LIMIT 1").get() as Record<string, unknown> | undefined;
+    return {
+      schedule: { timezone: 'Asia/Shanghai', expression: '0 9 * * 1', computerTaskRequired: true },
+      configuration: { douyin: Boolean(process.env.DOUYIN_CLIENT_KEY && process.env.DOUYIN_CLIENT_SECRET), publish: Boolean(process.env.KNOWLEDGE_PUBLISH_HMAC_KEY), qishuiSnapshot: true },
+      activeVersion: active ? { id: String(active.id), source: String(active.source), collectedAt: String(active.collected_at), itemCount: Number(active.item_count), activatedAt: active.activated_at ? String(active.activated_at) : null } : null,
+      runs: listTrendUpdateRuns(db)
+    };
+  });
+  app.post('/api/admin/agent/trends/rehearse', async (request, reply) => {
+    if (!requireAdmin(db, request, reply)) return;
+    try { return { rehearsal: runTrendRehearsal(db), runs: listTrendUpdateRuns(db, 5) }; }
+    catch (error) { return reply.code(400).send(apiError('TREND_REHEARSAL_FAILED', error instanceof Error ? error.message : '趋势知识流水线演练失败。')); }
+  });
   app.post('/api/admin/agent/knowledge/publish', async (request, reply) => {
     const body = z.object({ kind: z.enum(['classic', 'douyin']), source: z.string().trim().min(1).max(120), collectedAt: z.string().datetime(), documents: z.array(knowledgeDocumentSchema).min(1).max(1000), checksum: z.string().regex(/^[a-f\d]{64}$/i).optional() }).parse(request.body);
     const rawBody = JSON.stringify(body); const timestamp = String(request.headers['x-zhenqi-timestamp'] || ''); const nonce = String(request.headers['x-zhenqi-nonce'] || ''); const signature = String(request.headers['x-zhenqi-signature'] || ''); const secret = process.env.KNOWLEDGE_PUBLISH_HMAC_KEY || '';
@@ -295,8 +316,15 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     const computed = createHash('sha256').update(JSON.stringify(body.documents.map(item => ({ ...item, metadata: item.metadata || {} })))).digest('hex');
     if (body.checksum && body.checksum !== computed) return reply.code(400).send(apiError('KNOWLEDGE_CHECKSUM_MISMATCH', '知识内容校验失败。'));
     db.prepare('INSERT INTO knowledge_publish_nonces(nonce,used_at) VALUES(?,?)').run(nonce, new Date().toISOString());
-    try { return reply.code(201).send({ version: publishKnowledgeVersion(db, { ...body, checksum: computed }) }); }
-    catch (error) { return reply.code(400).send(apiError('KNOWLEDGE_VALIDATION_FAILED', error instanceof Error ? error.message : '知识版本校验失败。')); }
+    const updateRunId = body.kind === 'douyin' ? startTrendUpdateRun(db, body.source, 'live') : null;
+    try {
+      const version = publishKnowledgeVersion(db, { ...body, checksum: computed });
+      if (updateRunId) finishTrendUpdateRun(db, updateRunId, { status: 'completed', itemCount: body.documents.length, versionId: version.id, message: `趋势知识版本 ${version.source} 已原子启用。` });
+      return reply.code(201).send({ version });
+    } catch (error) {
+      if (updateRunId) finishTrendUpdateRun(db, updateRunId, { status: 'failed', message: error instanceof Error ? error.message : '知识版本校验失败。' });
+      return reply.code(400).send(apiError('KNOWLEDGE_VALIDATION_FAILED', error instanceof Error ? error.message : '知识版本校验失败。'));
+    }
   });
   app.post('/api/admin/agent/knowledge/:id/activate', async (request, reply) => {
     if (!requireAdmin(db, request, reply)) return; const { id } = z.object({ id: z.string().uuid() }).parse(request.params); const version = activateKnowledgeVersion(db, id); if (!version) return reply.code(404).send(apiError('KNOWLEDGE_VERSION_NOT_FOUND', '知识版本不存在。')); return { version };

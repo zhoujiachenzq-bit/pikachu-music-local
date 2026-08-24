@@ -88,7 +88,9 @@ export class BailianSpeechProvider implements SpeechProvider {
     if (!this.config.apiKey) throw new Error('BAILIAN_NOT_CONFIGURED'); const timeout = timeoutSignal(50_000, input.signal);
     try {
       const response = await this.fetcher(`${this.config.apiBaseURL}/services/aigc/multimodal-generation/generation`, { method: 'POST', headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' }, signal: timeout.signal, body: JSON.stringify({ model: this.config.ttsModel, input: { text: input.text, voice: input.voice, language_type: /[\u3400-\u9fff]/.test(input.text) ? 'Chinese' : 'English', instructions: input.instructions || '自然、温暖、克制地表达。', optimize_instructions: true } }) });
-      const payload = await providerJson(response); const url = String((payload.output as { audio?: { url?: string } } | undefined)?.audio?.url || ''); if (!/^https:\/\//.test(url)) throw new Error('TTS_AUDIO_MISSING'); const audioResponse = await this.fetcher(url, { signal: timeout.signal }); if (!audioResponse.ok) throw new Error('TTS_AUDIO_FETCH_FAILED'); const audio = Buffer.from(await audioResponse.arrayBuffer()); if (!audio.length || audio.length > 12 * 1024 * 1024) throw new Error('TTS_AUDIO_INVALID'); return { audio, contentType: audioResponse.headers.get('content-type') || 'audio/wav' };
+      const payload = await providerJson(response); const url = String((payload.output as { audio?: { url?: string } } | undefined)?.audio?.url || ''); if (!/^https:\/\//.test(url)) throw new Error('TTS_AUDIO_MISSING'); const audioResponse = await this.fetcher(url, { signal: timeout.signal }); if (!audioResponse.ok) throw new Error('TTS_AUDIO_FETCH_FAILED');
+      const contentType = (audioResponse.headers.get('content-type') || '').split(';', 1)[0].trim().toLocaleLowerCase(); if (!contentType.startsWith('audio/')) throw new Error('TTS_AUDIO_TYPE_INVALID');
+      const audio = Buffer.from(await audioResponse.arrayBuffer()); if (!audio.length || audio.length > 12 * 1024 * 1024) throw new Error('TTS_AUDIO_INVALID'); return { audio, contentType };
     } finally { timeout.clear(); }
   }
 }

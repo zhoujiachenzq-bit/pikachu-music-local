@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createDatabase, type Db } from './db.js';
 import { createApp } from './app.js';
+import { buildTrendPublishPayload, signKnowledgePublishPayload, TREND_REHEARSAL_FIXTURE } from './agentTrends.js';
 
 describe('agent API', () => {
   let db: Db | undefined; let app: FastifyInstance | undefined;
@@ -59,5 +60,25 @@ describe('agent API', () => {
       const ordinary = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'ordinary-user', password: 'Pikachu-2026' } }); const ordinaryCookie = ordinary.headers['set-cookie']!.split(';')[0];
       expect((await app.inject({ method: 'GET', url: '/api/admin/agent/knowledge', headers: { cookie: ordinaryCookie } })).statusCode).toBe(403);
     } finally { if (previous === undefined) delete process.env.AGENT_ADMIN_USERNAMES; else process.env.AGENT_ADMIN_USERNAMES = previous; }
+  });
+
+  it('rehearses and publishes trend knowledge without letting fixtures replace the active version', async () => {
+    const previous = { admin: process.env.AGENT_ADMIN_USERNAMES, secret: process.env.KNOWLEDGE_PUBLISH_HMAC_KEY }; process.env.AGENT_ADMIN_USERNAMES = 'masyu'; process.env.KNOWLEDGE_PUBLISH_HMAC_KEY = 'integration-publish-secret';
+    try {
+      db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+      const registered = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'masyu', password: 'Pikachu-2026' } }); const cookie = registered.headers['set-cookie']!.split(';')[0];
+      const rehearsal = await app.inject({ method: 'POST', url: '/api/admin/agent/trends/rehearse', headers: { cookie } });
+      expect(rehearsal.statusCode).toBe(200); expect(rehearsal.json().rehearsal).toMatchObject({ itemCount: 5, duplicateCount: 1 });
+      expect(db.prepare("SELECT id FROM knowledge_versions WHERE kind='douyin' AND status='active'").get()).toBeUndefined();
+
+      const payload = buildTrendPublishPayload({ ...TREND_REHEARSAL_FIXTURE, provider: 'douyin' }); const signed = signKnowledgePublishPayload(payload, 'integration-publish-secret');
+      const publish = await app.inject({ method: 'POST', url: '/api/admin/agent/knowledge/publish', headers: signed.headers, payload: signed.body });
+      expect(publish.statusCode).toBe(201); expect(publish.json().version).toMatchObject({ kind: 'douyin', status: 'active', itemCount: 5 });
+      const status = await app.inject({ method: 'GET', url: '/api/admin/agent/trends/status', headers: { cookie } });
+      expect(status.statusCode).toBe(200); expect(status.json()).toMatchObject({ configuration: { publish: true, qishuiSnapshot: true }, activeVersion: { itemCount: 5 }, runs: expect.arrayContaining([expect.objectContaining({ mode: 'live', status: 'completed' })]) });
+    } finally {
+      if (previous.admin === undefined) delete process.env.AGENT_ADMIN_USERNAMES; else process.env.AGENT_ADMIN_USERNAMES = previous.admin;
+      if (previous.secret === undefined) delete process.env.KNOWLEDGE_PUBLISH_HMAC_KEY; else process.env.KNOWLEDGE_PUBLISH_HMAC_KEY = previous.secret;
+    }
   });
 });

@@ -10,6 +10,8 @@ interface CitationCard { title: string; url?: string; kind: 'web' | 'knowledge';
 interface PendingAction { actionId: string; tool: string; summary: string; input: unknown; expiresAt: string; status?: string; }
 interface KnowledgeVersionCard { id: string; kind: string; status: string; source: string; collectedAt: string; itemCount: number; checksum: string; createdAt: string; activatedAt: string | null; embeddedCount: number; embeddingRemaining: number; }
 interface KnowledgeSample { id: string; title: string; artist: string; content: string; sourceUrl: string | null; metadata: Record<string, unknown>; }
+interface TrendUpdateRun { id: string; source: string; mode: string; status: string; startedAt: string; completedAt: string | null; itemCount: number; versionId: string | null; message: string; }
+interface TrendStatus { schedule: { timezone: string; expression: string; computerTaskRequired: boolean }; configuration: { douyin: boolean; publish: boolean; qishuiSnapshot: boolean }; activeVersion: { id: string; source: string; collectedAt: string; itemCount: number; activatedAt: string | null } | null; runs: TrendUpdateRun[]; }
 interface AgentPanelProps {
   userId: string;
   lang: 'zh' | 'en';
@@ -20,6 +22,7 @@ interface AgentPanelProps {
   onClose: () => void;
   onAction: (action: AgentClientAction) => Promise<{ ok: boolean; message?: string }>;
   onSpeechState?: (speaking: boolean) => void;
+  onProactivePreferenceChange?: (enabled: boolean) => void;
 }
 
 const introKey = (userId: string) => `pikachu:agent-intro:v1:${userId}`;
@@ -39,7 +42,7 @@ const messageCitations = (message: AgentMessage): CitationCard[] => Array.isArra
     return [{ title: item.title, url: typeof item.url === 'string' ? item.url : undefined, kind: item.kind === 'web' ? 'web' : 'knowledge', detail: typeof item.detail === 'string' ? item.detail : undefined }];
   }) : [];
 
-export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt, onClose, onAction, onSpeechState }: AgentPanelProps) {
+export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt, onClose, onAction, onSpeechState, onProactivePreferenceChange }: AgentPanelProps) {
   const zh = lang === 'zh';
   const [access, setAccess] = useState<AgentAccess | null>(null); const [settings, setSettings] = useState<AgentSettings | null>(null);
   const [conversation, setConversation] = useState<AgentConversation | null>(null); const [mainConversation, setMainConversation] = useState<AgentConversation | null>(null);
@@ -51,6 +54,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [memoryFilter, setMemoryFilter] = useState<MemoryFilter>('all');
   const [knowledgeOpen, setKnowledgeOpen] = useState(false); const [knowledgeVersions, setKnowledgeVersions] = useState<KnowledgeVersionCard[]>([]); const [knowledgeSample, setKnowledgeSample] = useState<KnowledgeSample[]>([]);
   const [knowledgeQuery, setKnowledgeQuery] = useState(''); const [knowledgeBusy, setKnowledgeBusy] = useState(false); const [embeddingConfigured, setEmbeddingConfigured] = useState(false);
+  const [trendStatus, setTrendStatus] = useState<TrendStatus | null>(null);
   const [introOpen, setIntroOpen] = useState(() => window.localStorage.getItem(introKey(userId)) !== 'seen');
   const generation = useRef(0); const streamController = useRef<AbortController | null>(null); const scroller = useRef<HTMLDivElement>(null);
   const streamText = useRef(''); const recorder = useRef<MediaRecorder | null>(null); const recorderStream = useRef<MediaStream | null>(null); const recorderChunks = useRef<Blob[]>([]); const recordingStartedAt = useRef(0); const recordingTimer = useRef<number | null>(null); const speechAudio = useRef<HTMLAudioElement | null>(null);
@@ -156,7 +160,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   };
   const updateSettings = async (patch: Partial<AgentSettings>) => {
     if (!settings) return; const previous = settings; setSettings({ ...settings, ...patch });
-    try { const result = await api<{ settings: AgentSettings }>('/api/agent/settings', json('PATCH', patch)); setSettings(result.settings); }
+    try { const result = await api<{ settings: AgentSettings }>('/api/agent/settings', json('PATCH', patch)); setSettings(result.settings); if (patch.proactiveEnabled !== undefined) onProactivePreferenceChange?.(patch.proactiveEnabled); }
     catch (cause) { setSettings(previous); setError(cause instanceof Error ? cause.message : '设置保存失败。'); }
   };
   const openMemories = async () => {
@@ -166,8 +170,12 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const loadKnowledge = async (query = knowledgeQuery) => {
     setKnowledgeBusy(true);
     try {
-      const result = await api<{ versions: KnowledgeVersionCard[]; sample: KnowledgeSample[]; embeddingConfigured: boolean }>(`/api/admin/agent/knowledge?q=${encodeURIComponent(query.trim())}`);
+      const [result, trends] = await Promise.all([
+        api<{ versions: KnowledgeVersionCard[]; sample: KnowledgeSample[]; embeddingConfigured: boolean }>(`/api/admin/agent/knowledge?q=${encodeURIComponent(query.trim())}`),
+        api<TrendStatus>('/api/admin/agent/trends/status')
+      ]);
       setKnowledgeVersions(result.versions); setKnowledgeSample(result.sample); setEmbeddingConfigured(result.embeddingConfigured); setError('');
+      setTrendStatus(trends);
     } catch (cause) { setError(cause instanceof Error ? cause.message : '知识状态读取失败。'); }
     finally { setKnowledgeBusy(false); }
   };
@@ -183,6 +191,11 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       const result = await api<{ completed: number; failed: number; remaining: boolean }>(`/api/admin/agent/knowledge/${version.id}/embeddings`, json('POST', { limit: 20 }));
       setError(result.failed ? `完成 ${result.completed} 条，${result.failed} 条暂时失败。` : `已补全 ${result.completed} 条知识向量。`); await loadKnowledge(knowledgeQuery);
     } catch (cause) { setError(cause instanceof Error ? cause.message : '知识向量补全失败。'); setKnowledgeBusy(false); }
+  };
+  const rehearseTrendPipeline = async () => {
+    setKnowledgeBusy(true);
+    try { const result = await api<{ rehearsal: { itemCount: number; duplicateCount: number; derivativeCount: number }; runs: TrendUpdateRun[] }>('/api/admin/agent/trends/rehearse', json('POST')); setError(`演练通过：${result.rehearsal.itemCount} 条有效记录，合并 ${result.rehearsal.duplicateCount} 条重复项。正式知识未改变。`); await loadKnowledge(knowledgeQuery); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '趋势流水线演练失败。'); setKnowledgeBusy(false); }
   };
   const editMemory = async (memory: AgentMemory) => {
     const content = window.prompt('修改这条记忆', memory.content)?.trim(); if (!content || content === memory.content) return;
@@ -213,7 +226,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     catch (cause) { setError(cause instanceof Error ? cause.message : '操作状态更新失败。'); }
   };
 
-  const shellClass = `agent-panel ${mobile ? 'agent-panel-mobile' : 'agent-panel-drawer'} ${open ? 'open' : ''}`;
+  const shellClass = `agent-panel ${mobile ? 'agent-panel-mobile' : 'agent-panel-center'} ${open ? 'open' : ''}`;
   const visibleMemories = memoryFilter === 'all' ? memories : memories.filter(memory => memory.category === memoryFilter);
   const memoryStats = { explicit: memories.filter(memory => !memory.inferred).length, inferred: memories.filter(memory => memory.inferred).length, temporary: memories.filter(memory => Boolean(memory.expiresAt)).length };
   if (!open) return null;
@@ -232,8 +245,9 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       <label>{zh ? '称呼' : 'Name'}<input value={settings.assistantName} onChange={event => setSettings({ ...settings, assistantName: event.target.value })} onBlur={() => void updateSettings({ assistantName: settings.assistantName })}/></label>
       <div><span>{zh ? '性格' : 'Persona'}</span>{(['warm', 'bright', 'poetic'] as const).map(persona => <button key={persona} className={settings.persona === persona ? 'active' : ''} onClick={() => void updateSettings({ persona })}>{persona === 'warm' ? '温暖机灵' : persona === 'bright' ? '活泼治愈' : '克制诗意'}</button>)}</div>
       <label className="agent-toggle"><input type="checkbox" checked={settings.memoryEnabled} onChange={event => void updateSettings({ memoryEnabled: event.target.checked })}/><span>{zh ? '允许使用与记录长期记忆' : 'Use and save long-term memory'}</span></label>
+      <label className="agent-toggle"><input type="checkbox" checked={settings.proactiveEnabled} onChange={event => void updateSettings({ proactiveEnabled: event.target.checked })}/><span>{zh ? '允许克制的主动陪伴（每日最多两次）' : 'Allow quiet proactive check-ins (max twice daily)'}</span></label>
       <label className="agent-toggle"><input type="checkbox" checked={settings.autoRead} onChange={event => void updateSettings({ autoRead: event.target.checked })}/><span>{zh ? '自动朗读珍奇回复' : 'Read replies aloud'}</span></label>
-      <label>{zh ? '音色' : 'Voice'}<select value={settings.voice} onChange={event => void updateSettings({ voice: event.target.value })}><option value="Cherry">Cherry</option><option value="Serena">Serena</option><option value="Ethan">Ethan</option><option value="Chelsie">Chelsie</option></select></label>
+      <label>{zh ? '音色' : 'Voice'}<span className="agent-voice-controls"><select value={settings.voice} onChange={event => void updateSettings({ voice: event.target.value })}><option value="Cherry">Cherry</option><option value="Serena">Serena</option><option value="Ethan">Ethan</option><option value="Chelsie">Chelsie</option></select><button type="button" onClick={() => void readText(zh ? '你好，我是珍奇。今晚想听点什么？' : 'Hi, I am Zhenqi. What would you like to hear?', 'voice-preview')}>{speakingMessageId === 'voice-preview' ? (zh ? '停止' : 'Stop') : (zh ? '试听' : 'Preview')}</button></span></label>
       <div className="agent-data-actions"><button onClick={() => void openMemories()}>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</button>{access?.admin && <button onClick={() => void openKnowledge()}>{zh ? '知识版本' : 'Knowledge'}</button>}<button onClick={() => void exportArchive()}>{zh ? '导出加密档案' : 'Export encrypted archive'}</button><label>{zh ? '恢复档案' : 'Restore archive'}<input type="file" accept="application/json" onChange={event => { const file = event.target.files?.[0]; if (file) void restoreArchive(file); event.currentTarget.value = ''; }}/></label></div>
     </section>}
     {!introOpen && memoriesOpen && <section className="agent-memory-panel">
@@ -253,6 +267,11 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       <p>{zh ? '版本切换只影响珍奇的公共音乐知识，不会修改播放列表、收藏或私人记忆。' : 'Version changes affect only public music knowledge.'}</p>
       <form onSubmit={event => { event.preventDefault(); void loadKnowledge(knowledgeQuery); }}><input value={knowledgeQuery} onChange={event => setKnowledgeQuery(event.target.value)} placeholder={zh ? '检索歌曲、歌手、情绪或场景' : 'Search title, artist, mood or scene'}/><button disabled={knowledgeBusy}>{zh ? '检索' : 'Search'}</button></form>
       <div className="agent-knowledge-scroll">
+        <section className="agent-trend-status">
+          <header><div><h3>{zh ? '每周趋势流水线' : 'Weekly trend pipeline'}</h3><p>{zh ? '固定夹具只验证清洗、查重、衍生标记与签名，不会写入正式知识。' : 'The fixture validates normalization and signing without touching active knowledge.'}</p></div><button disabled={knowledgeBusy} onClick={() => void rehearseTrendPipeline()}>{zh ? '运行演练' : 'Rehearse'}</button></header>
+          <div className="agent-trend-flags"><span className={trendStatus?.configuration.douyin ? 'ready' : ''}>{zh ? '抖音权限' : 'Douyin'} · {trendStatus?.configuration.douyin ? (zh ? '已配置' : 'Ready') : (zh ? '待审核' : 'Pending')}</span><span className={trendStatus?.configuration.publish ? 'ready' : ''}>{zh ? '发布签名' : 'Signing'} · {trendStatus?.configuration.publish ? (zh ? '已配置' : 'Ready') : (zh ? '未配置' : 'Missing')}</span><span className="ready">{zh ? '汽水快照适配 · 已准备' : 'Qishui snapshots · Ready'}</span></div>
+          {trendStatus?.runs[0] && <article><strong>{trendStatus.runs[0].mode === 'fixture' ? (zh ? '最近演练' : 'Latest rehearsal') : (zh ? '最近更新' : 'Latest update')}</strong><span className={trendStatus.runs[0].status}>{trendStatus.runs[0].status}</span><p>{trendStatus.runs[0].message}</p><small>{new Date(trendStatus.runs[0].startedAt).toLocaleString(zh ? 'zh-CN' : 'en-US')}</small></article>}
+        </section>
         <section className="agent-knowledge-versions"><h3>{zh ? '版本账本' : 'Version ledger'}</h3>{knowledgeVersions.map(version => <article key={version.id} className={version.status === 'active' ? 'active' : ''}>
           <div><span>{version.kind === 'classic' ? (zh ? '经典库' : 'Classic') : (zh ? '趋势库' : 'Trends')}</span><strong>{version.source}</strong><small>{version.itemCount} {zh ? '条' : 'items'} · {version.embeddedCount}/{version.itemCount} {zh ? '向量' : 'vectors'}</small></div>
           <div>{version.status === 'active' ? <b>{zh ? '正在使用' : 'Active'}</b> : <button onClick={() => void activateKnowledge(version)}>{zh ? '切换' : 'Activate'}</button>}<button disabled={knowledgeBusy || !embeddingConfigured || version.embeddingRemaining === 0} title={!embeddingConfigured ? (zh ? '未配置百炼向量服务，本地全文检索仍可用' : 'Embedding provider is not configured') : ''} onClick={() => void fillKnowledgeEmbeddings(version)}>{version.embeddingRemaining ? (zh ? '补向量' : 'Embed') : (zh ? '已完成' : 'Ready')}</button></div>

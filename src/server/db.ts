@@ -336,6 +336,21 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
       nonce TEXT PRIMARY KEY,
       used_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS knowledge_update_runs (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      mode TEXT NOT NULL CHECK(mode IN ('fixture','live')),
+      status TEXT NOT NULL CHECK(status IN ('running','completed','failed')),
+      scheduled_for TEXT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      item_count INTEGER NOT NULL DEFAULT 0,
+      version_id TEXT REFERENCES knowledge_versions(id) ON DELETE SET NULL,
+      message TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_knowledge_update_runs_created ON knowledge_update_runs(created_at DESC);
     CREATE TABLE IF NOT EXISTS agent_archive_records (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       archive_record_id TEXT NOT NULL,
@@ -366,6 +381,7 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
   db.prepare('DELETE FROM source_cache WHERE expires_at <= ?').run(now());
   db.prepare('DELETE FROM login_attempts WHERE reset_at <= ?').run(now());
   db.prepare('DELETE FROM rate_limits WHERE reset_at <= ?').run(now());
+  db.prepare('DELETE FROM knowledge_publish_nonces WHERE used_at <= ?').run(new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString());
   db.prepare("UPDATE recommendation_runs SET status='failed',message='服务重启，可重新生成',updated_at=? WHERE status IN ('queued','running')").run(now());
   const agentMigration = db.prepare("SELECT 1 FROM app_migrations WHERE id='agent-v040-grandfather'").get();
   if (!agentMigration) transaction(db, () => {
