@@ -192,8 +192,12 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .motion-off .agent-pulse i { animation: none; }
 @media (prefers-reduced-motion: reduce) { .agent-pulse i, .agent-cursor { animation: none; } }
 .agent-header-actions { display: flex; align-items: center; gap: 5px; }
-.agent-header-actions button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--control-bg); cursor: pointer; }
-.agent-header-actions button:hover { color: var(--brand); border-color: var(--line-strong); }
+.agent-header-actions button { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: linear-gradient(145deg, color-mix(in srgb, var(--surface-2), transparent 8%), color-mix(in srgb, var(--surface-0), transparent 5%)); cursor: pointer; box-shadow: inset 0 1px rgba(255,255,255,.055), 0 7px 18px rgba(0,0,0,.14); transition: color .2s ease, border-color .2s ease, background .2s ease, transform .2s ease, box-shadow .2s ease; }
+.agent-header-actions button:hover { color: var(--brand); border-color: color-mix(in srgb, var(--brand), transparent 48%); transform: translateY(-2px); box-shadow: inset 0 1px rgba(255,255,255,.08), 0 11px 24px rgba(0,0,0,.22), 0 0 18px color-mix(in srgb, var(--brand), transparent 86%); }
+.agent-header-actions button:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.agent-header-actions button[aria-pressed='true'] { color: var(--brand-ink); border-color: var(--brand); background: var(--brand); box-shadow: 0 8px 22px color-mix(in srgb, var(--brand), transparent 76%); }
+.agent-header-actions .agent-action-return { margin-left: 3px; color: var(--text-strong); border-color: color-mix(in srgb, var(--brand), transparent 62%); }
+.agent-header-actions .agent-action-return:hover { color: var(--brand-ink); border-color: var(--brand); background: var(--brand); transform: translateX(-2px); }
 .agent-temporary-banner { padding: 8px 13px; display: flex; align-items: center; gap: 7px; color: var(--muted); border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--brand), transparent 94%); font-size: 8px; }
 .agent-temporary-banner span { flex: 1; }.agent-temporary-banner button { padding: 3px 7px; border: 0; color: var(--brand); background: transparent; cursor: pointer; font-size: 8px; }
 .agent-intro, .agent-access { margin: auto; padding: 30px 26px; max-width: 390px; }

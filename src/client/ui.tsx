@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { MusicSource, RecommendedTrack, Track } from '../shared/types';
 import type { MobileSection } from './visualState';
 
-export type IconName = 'add' | 'agent' | 'backup' | 'close' | 'dislike' | 'download' | 'globe' | 'headphones' | 'heart' | 'import' | 'library' | 'microphone' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'send' | 'settings' | 'shuffle' | 'sparkles' | 'speaker' | 'sync' | 'temporary' | 'user' | 'volume' | 'warning';
+export type IconName = 'add' | 'agent' | 'backup' | 'close' | 'dislike' | 'download' | 'globe' | 'headphones' | 'heart' | 'import' | 'library' | 'microphone' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'return' | 'search' | 'send' | 'settings' | 'shuffle' | 'sparkles' | 'speaker' | 'sync' | 'temporary' | 'user' | 'volume' | 'warning';
 
 const iconPaths: Record<IconName, ReactNode> = {
   add: <><path d="M12 5v14M5 12h14"/></>,
@@ -27,14 +27,15 @@ const iconPaths: Record<IconName, ReactNode> = {
   repeat: <><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></>,
   repeatOne: <><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/><path d="M11 10h2v5"/></>,
   restore: <><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21v-4h14v4"/></>,
+  return: <><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></>,
   send: <><path d="m3 11 18-8-8 18-2-8-8-2Z"/><path d="m11 13 4-4"/></>,
-  settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V3h4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9A1.7 1.7 0 0 0 21 10h.1v4H21a1.7 1.7 0 0 0-1.6 1Z"/></>,
+  settings: <><path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3"/></>,
   shuffle: <><path d="M3 6h3c5 0 7 12 12 12h3"/><path d="m17 14 4 4-4 4M3 18h3c2 0 3-1 4-3M14 8c1-1 2-2 4-2h3"/><path d="m17 2 4 4-4 4"/></>,
   sparkles: <><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"/><path d="m19 14 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z"/></>,
   speaker: <><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="M17 9a4 4 0 0 1 0 6"/></>,
   sync: <><path d="M20 7h-5V2"/><path d="M20 7a8 8 0 1 0 1 7"/></>,
-  temporary: <><path d="M6 3h12M6 21h12M8 3c0 5 2 6 4 9-2 3-4 4-4 9M16 3c0 5-2 6-4 9 2 3 4 4 4 9"/></>,
+  temporary: <><path d="M10.1 2.182a10 10 0 0 1 3.8 0M13.9 21.818a10 10 0 0 1-3.8 0M17.609 3.72a10 10 0 0 1 2.69 2.7M2.182 13.9a10 10 0 0 1 0-3.8M20.28 17.61a10 10 0 0 1-2.7 2.69M21.818 10.1a10 10 0 0 1 0 3.8M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="m6.163 21.117-2.906.85a1 1 0 0 1-1.236-1.169l.965-2.98"/></>,
   user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
   volume: <><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="M17 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></>,
   warning: <><path d="M12 3 2.7 20h18.6L12 3Z"/><path d="M12 9v5M12 17.2v.1"/></>,
