@@ -1,7 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { createDatabase } from './db.js';
-import { activateKnowledgeVersion, publishKnowledgeVersion, retrieveKnowledge, verifyKnowledgeSignature } from './agentKnowledge.js';
+import { activateKnowledgeVersion, listKnowledgeChunksMissingEmbeddings, publishKnowledgeVersion, retrieveKnowledge, setKnowledgeChunkEmbedding, verifyKnowledgeSignature } from './agentKnowledge.js';
 
 describe('versioned agent knowledge', () => {
   it('publishes atomically, retrieves by mixed ranking and can roll back', () => {
@@ -23,5 +23,16 @@ describe('versioned agent knowledge', () => {
     expect(verifyKnowledgeSignature(body, { timestamp, nonce, signature }, secret, () => Number(timestamp))).toBe(true);
     expect(verifyKnowledgeSignature(`${body}x`, { timestamp, nonce, signature }, secret, () => Number(timestamp))).toBe(false);
     expect(verifyKnowledgeSignature(body, { timestamp, nonce, signature }, secret, () => Number(timestamp) + 6 * 60_000)).toBe(false);
+  });
+
+  it('adds vector ranking without exposing private memory or breaking lexical fallback', () => {
+    const db = createDatabase(':memory:'); const version = publishKnowledgeVersion(db, { kind: 'classic', source: 'fixture-vector', collectedAt: new Date().toISOString(), documents: [
+      { externalId: 'calm', title: '安静', artist: '歌手甲', content: '夜晚 放松' },
+      { externalId: 'energy', title: '热烈', artist: '歌手乙', content: '运动 高能' }
+    ] });
+    const chunks = listKnowledgeChunksMissingEmbeddings(db, version.id, 10); expect(chunks).toHaveLength(2);
+    for (const chunk of chunks) setKnowledgeChunkEmbedding(db, chunk.id, chunk.title === '安静' ? [1, 0] : [0, 1]);
+    expect(retrieveKnowledge(db, '给我一首歌', 1, [0, 1])[0]).toMatchObject({ title: '热烈' });
+    expect(listKnowledgeChunksMissingEmbeddings(db, version.id, 10)).toEqual([]); db.close();
   });
 });

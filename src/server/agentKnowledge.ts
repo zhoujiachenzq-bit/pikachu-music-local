@@ -65,16 +65,18 @@ export function activateKnowledgeVersion(db: Db, id: string) {
 
 function ftsQuery(query: string) { return query.normalize('NFKC').split(/[^\p{L}\p{N}]+/u).map(value => value.trim()).filter(value => value.length > 1).slice(0, 8).map(value => `"${value.replace(/"/g, '""')}"`).join(' OR '); }
 
-export function retrieveKnowledge(db: Db, query: string, limit = 8) {
+export function retrieveKnowledge(db: Db, query: string, limit = 8, queryEmbedding?: number[]) {
   const expression = ftsQuery(query); if (!expression) return [];
   const lexical = db.prepare(`SELECT kc.id,kc.content,kd.title,kd.artist,kd.source_url,kd.metadata_json,bm25(knowledge_chunks_fts) score
     FROM knowledge_chunks_fts JOIN knowledge_chunks kc ON kc.id=knowledge_chunks_fts.chunk_id JOIN knowledge_documents kd ON kd.id=kc.document_id JOIN knowledge_versions kv ON kv.id=kc.version_id
     WHERE knowledge_chunks_fts MATCH ? AND kv.status='active' ORDER BY score LIMIT 20`).all(expression) as Record<string, unknown>[];
-  const pool = db.prepare(`SELECT kc.id,kc.content,kd.title,kd.artist,kd.source_url,kd.metadata_json FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id JOIN knowledge_versions kv ON kv.id=kc.version_id WHERE kv.status='active' LIMIT 1500`).all() as Record<string, unknown>[];
+  const pool = db.prepare(`SELECT kc.id,kc.content,kc.embedding_json,kd.title,kd.artist,kd.source_url,kd.metadata_json FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id JOIN knowledge_versions kv ON kv.id=kc.version_id WHERE kv.status='active' LIMIT 1500`).all() as Record<string, unknown>[];
   const target = semanticTokens(query); const semantic = pool.map(row => ({ row, score: overlapScore(target, semanticTokens(`${row.title} ${row.artist} ${row.content}`)) })).filter(item => item.score > 0).sort((a, b) => b.score - a.score).slice(0, 20).map(item => item.row);
+  const vector = queryEmbedding?.length ? pool.map(row => ({ row, score: vectorScore(queryEmbedding, row.embedding_json) })).filter(item => item.score > 0).sort((a, b) => b.score - a.score).slice(0, 20).map(item => item.row) : [];
   const ranks = new Map<string, { row: Record<string, unknown>; score: number }>();
   for (const [index, row] of lexical.entries()) ranks.set(String(row.id), { row, score: 1 / (60 + index + 1) });
   for (const [index, row] of semantic.entries()) { const current = ranks.get(String(row.id)); ranks.set(String(row.id), { row, score: (current?.score || 0) + 1 / (60 + index + 1) }); }
+  for (const [index, row] of vector.entries()) { const current = ranks.get(String(row.id)); ranks.set(String(row.id), { row, score: (current?.score || 0) + 1 / (60 + index + 1) }); }
   return [...ranks.values()].sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(20, limit))).map(({ row }) => ({ id: String(row.id), title: String(row.title), artist: String(row.artist), content: String(row.content), sourceUrl: row.source_url ? String(row.source_url) : null, metadata: JSON.parse(String(row.metadata_json || '{}')) as Record<string, unknown> }));
 }
 
@@ -86,3 +88,22 @@ function semanticTokens(value: string) {
 }
 
 function overlapScore(first: Set<string>, second: Set<string>) { if (!first.size || !second.size) return 0; let overlap = 0; first.forEach(token => { if (second.has(token)) overlap += 1; }); return overlap / Math.sqrt(first.size * second.size); }
+
+function vectorScore(query: number[], raw: unknown) {
+  if (!raw) return 0; let candidate: number[];
+  try { candidate = JSON.parse(String(raw)) as number[]; } catch { return 0; }
+  if (candidate.length !== query.length || candidate.some(value => !Number.isFinite(value))) return 0;
+  let dot = 0; let first = 0; let second = 0;
+  for (let index = 0; index < query.length; index += 1) { dot += query[index] * candidate[index]; first += query[index] ** 2; second += candidate[index] ** 2; }
+  return first && second ? Math.max(0, dot / Math.sqrt(first * second)) : 0;
+}
+
+export function listKnowledgeChunksMissingEmbeddings(db: Db, versionId: string, limit = 100) {
+  return db.prepare(`SELECT kc.id,kc.content,kd.title,kd.artist FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id WHERE kc.version_id=? AND kc.embedding_json IS NULL ORDER BY kc.created_at LIMIT ?`)
+    .all(versionId, Math.max(1, Math.min(500, limit))) as Array<{ id: string; content: string; title: string; artist: string }>;
+}
+
+export function setKnowledgeChunkEmbedding(db: Db, chunkId: string, embedding: number[]) {
+  if (!embedding.length || embedding.length > 4096 || embedding.some(value => !Number.isFinite(value))) throw new Error('知识向量无效。');
+  return Number(db.prepare('UPDATE knowledge_chunks SET embedding_json=? WHERE id=?').run(JSON.stringify(embedding), chunkId).changes) > 0;
+}

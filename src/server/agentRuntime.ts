@@ -5,14 +5,15 @@ import { rowToTrack, upsertTrack } from './db.js';
 import { searchAll } from './sources.js';
 import { canonicalTrackKey, isDerivativeTrackVersion } from '../shared/trackIdentity.js';
 import { SOURCES, type AgentClientAction, type AgentClientContext, type AgentMessage, type AgentSettings, type AgentStreamEvent, type Track } from '../shared/types.js';
-import { BailianWebSearchProvider, type WebSearchProvider } from './agentProviders.js';
+import { BailianEmbeddingProvider, BailianWebSearchProvider, type EmbeddingProvider, type WebSearchProvider } from './agentProviders.js';
 import { AgentModelProviderRegistry, type AgentModelTier } from './agentModelProviders.js';
 import type { AgentKeyring } from './agentCrypto.js';
 import { retrieveKnowledge } from './agentKnowledge.js';
 import {
-  createAgentMemory, createAgentRun, createToolAction, ensureAgentSettings, listAgentMemories, listAgentMessages, monthlyAgentCost,
-  recordAgentUsage, saveAgentMessage, updateAgentRun
+  createAgentRun, createToolAction, ensureAgentSettings, inferListeningPreferenceMemories, listAgentMessages, monthlyAgentCost, recordAgentUsage, rememberAgentMemory,
+  retrieveAgentMemories, saveAgentMessage, setAgentMemoryEmbedding, updateAgentRun
 } from './agentStore.js';
+import { extractExplicitMemoryCandidates } from './agentMemory.js';
 
 const agentTools = {
   control_player: tool({
@@ -88,13 +89,15 @@ function compactTrack(track: Track) {
   return { id: track.id, source: track.source, sourceTrackId: track.sourceTrackId, title: track.title, artist: track.artist, album: track.album, duration: track.duration, coverUrl: track.coverUrl, sourceUrl: track.sourceUrl };
 }
 
-function buildContext(db: Db, keyring: AgentKeyring, input: AgentRunInput) {
+export async function buildAgentContext(db: Db, keyring: AgentKeyring, input: AgentRunInput, embeddingProvider: EmbeddingProvider, memoryEnabled: boolean) {
   const favorites = db.prepare(`SELECT t.title,t.artist,t.source FROM favorites f JOIN tracks t ON t.id=f.track_id WHERE f.user_id=? ORDER BY f.created_at DESC LIMIT 12`).all(input.user.id);
   const listening = db.prepare(`SELECT t.title,t.artist,ls.played_ms,ls.duration_ms,ls.completed,ls.skipped,ls.updated_at FROM listening_sessions ls JOIN tracks t ON t.id=ls.track_id WHERE ls.user_id=? ORDER BY ls.updated_at DESC LIMIT 16`).all(input.user.id);
   const playlists = db.prepare('SELECT name,description FROM playlists WHERE user_id=? ORDER BY updated_at DESC LIMIT 8').all(input.user.id);
   const sourceHealth = db.prepare('SELECT source,operation,successes,failures,consecutive_failures,average_latency_ms,circuit_open_until FROM source_health ORDER BY source,operation').all();
-  const memories = listAgentMemories(db, keyring, input.user.id, 16).map(memory => ({ category: memory.category, content: memory.content, confidence: memory.confidence, inferred: memory.inferred, expiresAt: memory.expiresAt }));
-  const knowledge = retrieveKnowledge(db, input.message, 8);
+  if (memoryEnabled) inferListeningPreferenceMemories(db, keyring, input.user.id);
+  const queryEmbedding = embeddingProvider.configured() ? await embeddingProvider.embed(input.message).catch(() => undefined) : undefined;
+  const memories = memoryEnabled ? retrieveAgentMemories(db, keyring, input.user.id, input.message, 12, queryEmbedding).map(memory => ({ category: memory.category, content: memory.content, confidence: memory.confidence, inferred: memory.inferred, expiresAt: memory.expiresAt })) : [];
+  const knowledge = retrieveKnowledge(db, input.message, 8, queryEmbedding);
   return {
     current: input.context.currentTrack ? compactTrack(input.context.currentTrack) : null,
     playing: input.context.playing, playMode: input.context.playMode, volume: input.context.volume,
@@ -156,7 +159,8 @@ export class AgentRuntime {
     private readonly db: Db,
     private readonly keyring: AgentKeyring,
     private readonly modelProviders = new AgentModelProviderRegistry(),
-    private readonly webSearchProvider: WebSearchProvider = new BailianWebSearchProvider()
+    private readonly webSearchProvider: WebSearchProvider = new BailianWebSearchProvider(),
+    private readonly embeddingProvider: EmbeddingProvider = new BailianEmbeddingProvider()
   ) {}
 
   cancel(userId: string) { this.active.get(userId)?.abort(); this.active.delete(userId); }
@@ -267,7 +271,7 @@ export class AgentRuntime {
             estimatedCostCny: this.webSearchProvider.estimateCostCny?.(searched.inputTokens, searched.outputTokens) || 0
           });
         }
-        const context = { ...buildContext(this.db, this.keyring, input), webSearch: webContext }; const history = listAgentMessages(this.db, this.keyring, input.user.id, input.conversationId, 40);
+        const context = { ...await buildAgentContext(this.db, this.keyring, input, this.embeddingProvider, settings.memoryEnabled), webSearch: webContext }; const history = listAgentMessages(this.db, this.keyring, input.user.id, input.conversationId, 40);
         updateAgentRun(this.db, runId, input.user.id, 'generating');
         const result = selectedProvider!.stream({ tier: tier as 'flash' | 'plus', system: systemPrompt(settings, context), messages: providerMessages(history, userMessage.id), tools: agentTools, signal: controller.signal });
         let toolCall: AgentToolCall | null = null;
@@ -286,7 +290,7 @@ export class AgentRuntime {
       if (!assistantText.trim()) { assistantText = '我刚才没有组织好回答，但不会擅自操作你的数据。可以再说一次你想听什么。'; yield { type: 'text_delta', delta: assistantText }; }
       updateAgentRun(this.db, runId, input.user.id, 'responding');
       const assistantMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'assistant', assistantText, { model, provider: selectedProvider?.id || 'local' });
-      if (input.conversationKind === 'main' && settings.memoryEnabled) this.extractSimpleMemory(input.user.id, userMessage.id, input.message);
+      if (input.conversationKind === 'main' && settings.memoryEnabled) this.rememberUserStatement(input.user.id, userMessage.id, input.message);
       const estimatedCostCny = tier === 'local' ? 0 : selectedProvider!.estimateCostCny(model, inputTokens, outputTokens);
       if (tier !== 'local') recordAgentUsage(this.db, { userId: input.user.id, provider: selectedProvider!.id, model, inputTokens, outputTokens, estimatedCostCny });
       updateAgentRun(this.db, runId, input.user.id, 'completed');
@@ -297,17 +301,14 @@ export class AgentRuntime {
     } finally { if (this.active.get(input.user.id) === controller) this.active.delete(input.user.id); }
   }
 
-  private extractSimpleMemory(userId: string, sourceMessageId: string, message: string) {
-    const candidates: Array<{ pattern: RegExp; category: 'preference' | 'person' | 'plan'; expiresAt?: string }> = [
-      { pattern: /(?:我喜欢|我爱听|我偏爱)([^\n。！？!?]{2,80})/, category: 'preference' },
-      { pattern: /(?:我不喜欢|别给我推荐)([^\n。！？!?]{2,80})/, category: 'preference' },
-      { pattern: /(?:我叫|你可以叫我)([^\n。！？!?]{1,30})/, category: 'person' },
-      { pattern: /(?:我打算|我想要|我准备)([^\n。！？!?]{2,100})/, category: 'plan' }
-    ];
-    for (const candidate of candidates) {
-      const match = message.match(candidate.pattern); if (!match) continue; const content = match[0].trim();
-      const existing = listAgentMemories(this.db, this.keyring, userId, 100).some(memory => normalize(memory.content) === normalize(content));
-      if (!existing) createAgentMemory(this.db, this.keyring, userId, { category: candidate.category, content, confidence: 1, inferred: false, sourceMessageId });
+  private rememberUserStatement(userId: string, sourceMessageId: string, message: string) {
+    for (const candidate of extractExplicitMemoryCandidates(message)) {
+      const remembered = rememberAgentMemory(this.db, this.keyring, userId, { ...candidate, sourceMessageId });
+      if ((remembered.change === 'created' || remembered.change === 'updated') && this.embeddingProvider.configured()) {
+        void this.embeddingProvider.embed(remembered.memory.content)
+          .then(embedding => setAgentMemoryEmbedding(this.db, this.keyring, userId, remembered.memory.id, embedding))
+          .catch(() => undefined);
+      }
     }
   }
 }

@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.js';
 import type { AgentAccess, AgentConversation, AgentMemory, AgentMessage, AgentPersona, AgentSettings, AgentToolRisk } from '../shared/types.js';
 import { decryptAgentText, encryptAgentText, type AgentKeyring } from './agentCrypto.js';
+import { agentMemoryKey, memoryRelevanceScore, normalizeMemoryText, type AgentMemoryCandidate } from './agentMemory.js';
 
 const now = () => new Date().toISOString();
 const bool = (value: unknown) => Boolean(Number(value));
@@ -145,13 +146,77 @@ export function createAgentMemory(db: Db, keyring: AgentKeyring, userId: string,
   return { id, category: input.category, content: input.content.trim(), confidence: input.confidence, inferred: input.inferred, expiresAt: input.expiresAt || null, createdAt: stamp, updatedAt: stamp };
 }
 
+export function rememberAgentMemory(db: Db, keyring: AgentKeyring, userId: string, input: AgentMemoryCandidate & { sourceMessageId?: string }): { memory: AgentMemory; change: 'created' | 'updated' | 'refreshed' | 'ignored' } {
+  const current = listAgentMemories(db, keyring, userId, 500); const key = agentMemoryKey(input);
+  const matched = current.find(memory => agentMemoryKey(memory) === key);
+  if (!matched) return { memory: createAgentMemory(db, keyring, userId, { ...input, sourceMessageId: input.sourceMessageId }), change: 'created' };
+  const same = normalizeMemoryText(matched.content) === normalizeMemoryText(input.content);
+  if (!same && input.inferred && !matched.inferred) return { memory: matched, change: 'ignored' };
+  if (same && input.inferred && matched.inferred && input.confidence <= matched.confidence) return { memory: matched, change: 'ignored' };
+  const stamp = now(); const confidence = Math.max(matched.confidence, input.confidence);
+  if (same) db.prepare('UPDATE agent_memories SET confidence=?,inferred=?,source_message_id=?,expires_at=?,updated_at=? WHERE id=? AND user_id=?')
+    .run(confidence, Number(input.inferred), input.sourceMessageId || null, input.expiresAt || null, stamp, matched.id, userId);
+  else {
+    const encrypted = encryptAgentText(keyring, userId, 'memory', matched.id, input.content.trim());
+    db.prepare(`UPDATE agent_memories SET category=?,content_ciphertext=?,embedding_ciphertext=NULL,embedding_key_version=NULL,key_version=?,confidence=?,inferred=?,source_message_id=?,expires_at=?,updated_at=? WHERE id=? AND user_id=?`)
+      .run(input.category, encrypted.ciphertext, encrypted.keyVersion, confidence, Number(input.inferred), input.sourceMessageId || null, input.expiresAt || null, stamp, matched.id, userId);
+  }
+  return {
+    memory: { ...matched, category: input.category, content: input.content.trim(), confidence, inferred: input.inferred, expiresAt: input.expiresAt || null, updatedAt: stamp },
+    change: same ? 'refreshed' : 'updated'
+  };
+}
+
 export function updateAgentMemory(db: Db, keyring: AgentKeyring, userId: string, id: string, content: string): AgentMemory | null {
   const row = db.prepare('SELECT * FROM agent_memories WHERE id=? AND user_id=?').get(id, userId) as Record<string, unknown> | undefined;
   if (!row) return null;
   const encrypted = encryptAgentText(keyring, userId, 'memory', id, content.trim()); const stamp = now();
-  db.prepare('UPDATE agent_memories SET content_ciphertext=?,key_version=?,inferred=0,confidence=1,updated_at=? WHERE id=? AND user_id=?')
+  db.prepare('UPDATE agent_memories SET content_ciphertext=?,embedding_ciphertext=NULL,embedding_key_version=NULL,key_version=?,inferred=0,confidence=1,updated_at=? WHERE id=? AND user_id=?')
     .run(encrypted.ciphertext, encrypted.keyVersion, stamp, id, userId);
   return memoryFromRow({ ...row, content_ciphertext: encrypted.ciphertext, key_version: encrypted.keyVersion, inferred: 0, confidence: 1, updated_at: stamp }, keyring, userId);
+}
+
+export function setAgentMemoryEmbedding(db: Db, keyring: AgentKeyring, userId: string, id: string, embedding: number[]): boolean {
+  if (!embedding.length || embedding.length > 4096 || embedding.some(value => !Number.isFinite(value))) throw new Error('记忆向量无效。');
+  const exists = db.prepare('SELECT 1 FROM agent_memories WHERE id=? AND user_id=?').get(id, userId); if (!exists) return false;
+  const encrypted = encryptAgentText(keyring, userId, 'memory-embedding', id, JSON.stringify(embedding));
+  return Number(db.prepare('UPDATE agent_memories SET embedding_ciphertext=?,embedding_key_version=? WHERE id=? AND user_id=?').run(encrypted.ciphertext, encrypted.keyVersion, id, userId).changes) > 0;
+}
+
+function cosine(first: number[], second: number[]) {
+  if (!first.length || first.length !== second.length) return 0; let dot = 0; let a = 0; let b = 0;
+  for (let index = 0; index < first.length; index += 1) { dot += first[index] * second[index]; a += first[index] ** 2; b += second[index] ** 2; }
+  return a && b ? dot / Math.sqrt(a * b) : 0;
+}
+
+export function retrieveAgentMemories(db: Db, keyring: AgentKeyring, userId: string, query: string, limit = 12, queryEmbedding?: number[]): AgentMemory[] {
+  const stamp = now(); const rows = db.prepare('SELECT * FROM agent_memories WHERE user_id=? AND (expires_at IS NULL OR expires_at>?) ORDER BY updated_at DESC LIMIT 500').all(userId, stamp) as Record<string, unknown>[];
+  return rows.map(row => {
+    const memory = memoryFromRow(row, keyring, userId); let vector = 0;
+    if (queryEmbedding?.length && row.embedding_ciphertext && row.embedding_key_version) {
+      try {
+        const embedding = JSON.parse(decryptAgentText(keyring, userId, 'memory-embedding', memory.id, String(row.embedding_ciphertext), String(row.embedding_key_version))) as number[];
+        vector = Math.max(0, cosine(queryEmbedding, embedding));
+      } catch { vector = 0; }
+    }
+    return { memory, score: memoryRelevanceScore(memory, query) + vector * .42 };
+  }).sort((first, second) => second.score - first.score || second.memory.updatedAt.localeCompare(first.memory.updatedAt))
+    .slice(0, Math.max(1, Math.min(50, limit))).map(item => item.memory);
+}
+
+export function inferListeningPreferenceMemories(db: Db, keyring: AgentKeyring, userId: string, at = new Date()) {
+  const since = new Date(at.getTime() - 30 * 24 * 60 * 60_000).toISOString();
+  const rows = db.prepare(`SELECT t.artist,COUNT(*) plays,SUM(CASE WHEN ls.completed=1 THEN 1 ELSE 0 END) completed_count,SUM(CASE WHEN ls.skipped=1 THEN 1 ELSE 0 END) skipped_count
+    FROM listening_sessions ls JOIN tracks t ON t.id=ls.track_id WHERE ls.user_id=? AND ls.updated_at>=? AND TRIM(t.artist)!=''
+    GROUP BY LOWER(TRIM(t.artist)) HAVING completed_count>=4 ORDER BY completed_count DESC,plays DESC LIMIT 5`).all(userId, since) as Array<{ artist: string; plays: number; completed_count: number; skipped_count: number }>;
+  const expiresAt = new Date(at.getTime() + 180 * 24 * 60 * 60_000).toISOString(); const results: ReturnType<typeof rememberAgentMemory>[] = [];
+  for (const row of rows) {
+    if (Number(row.skipped_count) / Math.max(1, Number(row.plays)) > .25) continue;
+    results.push(rememberAgentMemory(db, keyring, userId, {
+      category: 'preference', content: `喜欢${String(row.artist).trim()}的歌曲`, confidence: Math.min(.88, .58 + Number(row.completed_count) * .04), inferred: true, expiresAt
+    }));
+  }
+  return results;
 }
 
 export function deleteAgentMemory(db: Db, userId: string, id?: string): number {

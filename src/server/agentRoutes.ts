@@ -14,9 +14,9 @@ import {
   getAgentAccess, getConversation, isAgentAdmin, listAgentInvites, listAgentMemories, listAgentMessages, monthlyAgentCost, redeemAgentInvite,
   createAgentMemory, dismissAgentProactivePrompt, nextAgentProactivePrompt, recordAgentUsage, saveAgentMessage, updateAgentMemory, updateAgentSettings, updateToolAction
 } from './agentStore.js';
-import { activateKnowledgeVersion, listKnowledgeVersions, publishKnowledgeVersion, retrieveKnowledge, verifyKnowledgeSignature } from './agentKnowledge.js';
+import { activateKnowledgeVersion, listKnowledgeChunksMissingEmbeddings, listKnowledgeVersions, publishKnowledgeVersion, retrieveKnowledge, setKnowledgeChunkEmbedding, verifyKnowledgeSignature } from './agentKnowledge.js';
 import { ensureClassicKnowledgeSeed } from './classicKnowledgeSeed.js';
-import { BailianSpeechProvider } from './agentProviders.js';
+import { BailianEmbeddingProvider, BailianSpeechProvider } from './agentProviders.js';
 import { AgentModelProviderRegistry } from './agentModelProviders.js';
 import { SOURCES, type AgentClientAction, type AgentStreamEvent } from '../shared/types.js';
 
@@ -63,7 +63,7 @@ function writeSse(reply: FastifyReply, event: AgentStreamEvent) {
 
 export function registerAgentRoutes(app: FastifyInstance, db: Db) {
   const keyring = loadAgentKeyring(); const modelProviders = new AgentModelProviderRegistry(); const runtime = new AgentRuntime(db, keyring, modelProviders);
-  const speechProvider = new BailianSpeechProvider();
+  const speechProvider = new BailianSpeechProvider(); const knowledgeEmbeddingProvider = new BailianEmbeddingProvider();
   ensureClassicKnowledgeSeed(db);
 
   app.get('/api/agent/access', async (request, reply) => {
@@ -298,5 +298,17 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
   });
   app.post('/api/admin/agent/knowledge/:id/activate', async (request, reply) => {
     if (!requireAdmin(db, request, reply)) return; const { id } = z.object({ id: z.string().uuid() }).parse(request.params); const version = activateKnowledgeVersion(db, id); if (!version) return reply.code(404).send(apiError('KNOWLEDGE_VERSION_NOT_FOUND', '知识版本不存在。')); return { version };
+  });
+  app.post('/api/admin/agent/knowledge/:id/embeddings', async (request, reply) => {
+    if (!requireAdmin(db, request, reply)) return;
+    if (!knowledgeEmbeddingProvider.configured()) return reply.code(503).send(apiError('AGENT_EMBEDDING_NOT_CONFIGURED', '向量服务尚未配置；全文检索仍可正常使用。'));
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params); const { limit } = z.object({ limit: z.number().int().min(1).max(100).default(20) }).parse(request.body || {});
+    if (!db.prepare('SELECT 1 FROM knowledge_versions WHERE id=?').get(id)) return reply.code(404).send(apiError('KNOWLEDGE_VERSION_NOT_FOUND', '知识版本不存在。'));
+    const chunks = listKnowledgeChunksMissingEmbeddings(db, id, limit); let completed = 0; const failures: string[] = [];
+    for (const chunk of chunks) {
+      try { const embedding = await knowledgeEmbeddingProvider.embed(`${chunk.title} ${chunk.artist} ${chunk.content}`); setKnowledgeChunkEmbedding(db, chunk.id, embedding); completed += 1; }
+      catch { failures.push(chunk.id); }
+    }
+    return { completed, failed: failures.length, failures, remaining: listKnowledgeChunksMissingEmbeddings(db, id, 1).length > 0 };
   });
 }

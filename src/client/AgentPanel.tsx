@@ -21,6 +21,15 @@ interface AgentPanelProps {
 }
 
 const introKey = (userId: string) => `pikachu:agent-intro:v1:${userId}`;
+type MemoryFilter = 'all' | AgentMemory['category'];
+const memoryFilters: MemoryFilter[] = ['all', 'preference', 'person', 'plan', 'event', 'context'];
+const memoryLabel = (filter: MemoryFilter, zh: boolean) => zh
+  ? ({ all: '全部', preference: '偏好', person: '关于我', plan: '计划', event: '经历', context: '近期' } as const)[filter]
+  : ({ all: 'All', preference: 'Taste', person: 'About me', plan: 'Plans', event: 'Events', context: 'Recent' } as const)[filter];
+const memoryExpiry = (value: string | null, zh: boolean) => {
+  if (!value) return zh ? '长期保留' : 'Long term'; const hours = Math.max(1, Math.ceil((Date.parse(value) - Date.now()) / 3_600_000));
+  return hours < 48 ? (zh ? `${hours} 小时后失效` : `Expires in ${hours}h`) : (zh ? `${Math.ceil(hours / 24)} 天后失效` : `Expires in ${Math.ceil(hours / 24)}d`);
+};
 
 export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt, onClose, onAction, onSpeechState }: AgentPanelProps) {
   const zh = lang === 'zh';
@@ -31,6 +40,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [citations, setCitations] = useState<CitationCard[]>([]); const [recording, setRecording] = useState(false); const [transcribing, setTranscribing] = useState(false); const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState(''); const [error, setError] = useState(''); const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false); const [memories, setMemories] = useState<AgentMemory[]>([]);
+  const [memoryFilter, setMemoryFilter] = useState<MemoryFilter>('all');
   const [introOpen, setIntroOpen] = useState(() => window.localStorage.getItem(introKey(userId)) !== 'seen');
   const generation = useRef(0); const streamController = useRef<AbortController | null>(null); const scroller = useRef<HTMLDivElement>(null);
   const streamText = useRef(''); const recorder = useRef<MediaRecorder | null>(null); const recorderStream = useRef<MediaStream | null>(null); const recorderChunks = useRef<Blob[]>([]); const recordingStartedAt = useRef(0); const recordingTimer = useRef<number | null>(null); const speechAudio = useRef<HTMLAudioElement | null>(null);
@@ -136,7 +146,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     catch (cause) { setSettings(previous); setError(cause instanceof Error ? cause.message : '设置保存失败。'); }
   };
   const openMemories = async () => {
-    try { const result = await api<{ memories: AgentMemory[] }>('/api/agent/memories'); setMemories(result.memories); setMemoriesOpen(true); setSettingsOpen(false); }
+    try { const result = await api<{ memories: AgentMemory[] }>('/api/agent/memories'); setMemories(result.memories); setMemoryFilter('all'); setMemoriesOpen(true); setSettingsOpen(false); }
     catch (cause) { setError(cause instanceof Error ? cause.message : '记忆读取失败。'); }
   };
   const editMemory = async (memory: AgentMemory) => {
@@ -169,6 +179,8 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   };
 
   const shellClass = `agent-panel ${mobile ? 'agent-panel-mobile' : 'agent-panel-drawer'} ${open ? 'open' : ''}`;
+  const visibleMemories = memoryFilter === 'all' ? memories : memories.filter(memory => memory.category === memoryFilter);
+  const memoryStats = { explicit: memories.filter(memory => !memory.inferred).length, inferred: memories.filter(memory => memory.inferred).length, temporary: memories.filter(memory => Boolean(memory.expiresAt)).length };
   if (!open) return null;
   return <aside className={shellClass} aria-label={zh ? '珍奇音乐知己' : 'Zhenqi music companion'}>
     <header className="agent-header">
@@ -184,12 +196,23 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     {!introOpen && settingsOpen && settings && <section className="agent-settings">
       <label>{zh ? '称呼' : 'Name'}<input value={settings.assistantName} onChange={event => setSettings({ ...settings, assistantName: event.target.value })} onBlur={() => void updateSettings({ assistantName: settings.assistantName })}/></label>
       <div><span>{zh ? '性格' : 'Persona'}</span>{(['warm', 'bright', 'poetic'] as const).map(persona => <button key={persona} className={settings.persona === persona ? 'active' : ''} onClick={() => void updateSettings({ persona })}>{persona === 'warm' ? '温暖机灵' : persona === 'bright' ? '活泼治愈' : '克制诗意'}</button>)}</div>
-      <label className="agent-toggle"><input type="checkbox" checked={settings.memoryEnabled} onChange={event => void updateSettings({ memoryEnabled: event.target.checked })}/><span>{zh ? '允许提取长期偏好记忆' : 'Allow long-term preference memory'}</span></label>
+      <label className="agent-toggle"><input type="checkbox" checked={settings.memoryEnabled} onChange={event => void updateSettings({ memoryEnabled: event.target.checked })}/><span>{zh ? '允许使用与记录长期记忆' : 'Use and save long-term memory'}</span></label>
       <label className="agent-toggle"><input type="checkbox" checked={settings.autoRead} onChange={event => void updateSettings({ autoRead: event.target.checked })}/><span>{zh ? '自动朗读珍奇回复' : 'Read replies aloud'}</span></label>
       <label>{zh ? '音色' : 'Voice'}<select value={settings.voice} onChange={event => void updateSettings({ voice: event.target.value })}><option value="Cherry">Cherry</option><option value="Serena">Serena</option><option value="Ethan">Ethan</option><option value="Chelsie">Chelsie</option></select></label>
       <div className="agent-data-actions"><button onClick={() => void openMemories()}>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</button><button onClick={() => void exportArchive()}>{zh ? '导出加密档案' : 'Export encrypted archive'}</button><label>{zh ? '恢复档案' : 'Restore archive'}<input type="file" accept="application/json" onChange={event => { const file = event.target.files?.[0]; if (file) void restoreArchive(file); event.currentTarget.value = ''; }}/></label></div>
     </section>}
-    {!introOpen && memoriesOpen && <section className="agent-memory-panel"><header><div><small>MEMORY VAULT</small><h2>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</h2></div><button onClick={() => setMemoriesOpen(false)}><Icon name="close" size={16}/></button></header><p>{zh ? '原话与推断分开标记；你修改后会变成明确事实。' : 'Your words and inferences are labeled separately.'}</p><div>{memories.length ? memories.map(memory => <article key={memory.id}><span>{memory.inferred ? '可能' : memory.category}</span><p>{memory.content}</p><div><button onClick={() => void editMemory(memory)}>编辑</button><button onClick={() => void removeMemory(memory)}>删除</button></div></article>) : <div className="agent-memory-empty">{zh ? '珍奇还没有保存长期记忆。' : 'No long-term memories yet.'}</div>}</div><button className="danger-link" disabled={!memories.length} onClick={async () => { if (!window.confirm('清空珍奇的全部长期记忆？此操作无法撤销。')) return; await api('/api/agent/memories', json('DELETE')); setMemories([]); }}>{zh ? '清空全部长期记忆' : 'Clear all memories'}</button></section>}
+    {!introOpen && memoriesOpen && <section className="agent-memory-panel">
+      <header><div><small>MEMORY VAULT</small><h2>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</h2></div><button onClick={() => setMemoriesOpen(false)}><Icon name="close" size={16}/></button></header>
+      <p>{zh ? '只有与你当前问题相关的少量记忆会进入上下文。原话与推断分开标记；你修改后会变成明确事实。' : 'Only a few relevant memories enter each request. Your words and inferences remain visibly separate.'}</p>
+      <div className="agent-memory-stats"><span><b>{memoryStats.explicit}</b>{zh ? '明确记忆' : 'Explicit'}</span><span><b>{memoryStats.inferred}</b>{zh ? '可能推断' : 'Inferred'}</span><span><b>{memoryStats.temporary}</b>{zh ? '自动失效' : 'Expiring'}</span></div>
+      <nav className="agent-memory-filters" aria-label={zh ? '记忆类别' : 'Memory categories'}>{memoryFilters.map(filter => <button key={filter} className={memoryFilter === filter ? 'active' : ''} onClick={() => setMemoryFilter(filter)}>{memoryLabel(filter, zh)}<small>{filter === 'all' ? memories.length : memories.filter(memory => memory.category === filter).length}</small></button>)}</nav>
+      <div className="agent-memory-list">{visibleMemories.length ? visibleMemories.map(memory => <article key={memory.id}>
+        <span className={memory.inferred ? 'inferred' : 'explicit'}>{memory.inferred ? (zh ? '可能' : 'Maybe') : (zh ? '原话' : 'Said')}</span>
+        <div><small>{memoryLabel(memory.category, zh)} · {memoryExpiry(memory.expiresAt, zh)}</small><p>{memory.content}</p></div>
+        <div><button onClick={() => void editMemory(memory)}>{zh ? '编辑' : 'Edit'}</button><button onClick={() => void removeMemory(memory)}>{zh ? '删除' : 'Delete'}</button></div>
+      </article>) : <div className="agent-memory-empty">{memories.length ? (zh ? '这个类别还没有记忆。' : 'No memories in this category.') : (zh ? '珍奇还没有保存长期记忆。' : 'No long-term memories yet.')}</div>}</div>
+      <button className="danger-link" disabled={!memories.length} onClick={async () => { if (!window.confirm('清空珍奇的全部长期记忆？此操作无法撤销。')) return; await api('/api/agent/memories', json('DELETE')); setMemories([]); }}>{zh ? '清空全部长期记忆' : 'Clear all memories'}</button>
+    </section>}
     {!introOpen && access && !access.entitled && <section className="agent-access"><span>INVITE ONLY</span><h2>{zh ? '珍奇还在小范围试住。' : 'Zhenqi is in a small preview.'}</h2><p>{access.reason}</p><div><input value={inviteCode} onChange={event => setInviteCode(event.target.value)} placeholder={zh ? '输入邀请码' : 'Invite code'}/><button className="btn primary" onClick={() => void redeem()}>{zh ? '唤醒' : 'Redeem'}</button></div></section>}
     {!introOpen && access?.entitled && !access.configured && <section className="agent-access"><span>SAFE OFFLINE</span><h2>{access.reason}</h2><p>{zh ? '音乐小屋其他功能不受影响。' : 'All music features remain available.'}</p></section>}
     {!introOpen && access?.entitled && access.configured && <>

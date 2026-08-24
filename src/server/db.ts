@@ -240,6 +240,7 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
       category TEXT NOT NULL CHECK(category IN ('preference','person','event','plan','context')),
       content_ciphertext TEXT NOT NULL,
       embedding_ciphertext TEXT,
+      embedding_key_version TEXT,
       key_version TEXT NOT NULL,
       confidence REAL NOT NULL DEFAULT 1,
       inferred INTEGER NOT NULL DEFAULT 0,
@@ -354,6 +355,8 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
   if (!importColumns.has('retry_track_ids_json')) db.exec("ALTER TABLE import_jobs ADD COLUMN retry_track_ids_json TEXT NOT NULL DEFAULT '[]'");
   const listeningColumns = new Set((db.prepare('PRAGMA table_info(listening_sessions)').all() as Array<{ name: string }>).map(column => column.name));
   if (!listeningColumns.has('origin_backup_id')) db.exec('ALTER TABLE listening_sessions ADD COLUMN origin_backup_id TEXT');
+  const agentMemoryColumns = new Set((db.prepare('PRAGMA table_info(agent_memories)').all() as Array<{ name: string }>).map(column => column.name));
+  if (!agentMemoryColumns.has('embedding_key_version')) db.exec('ALTER TABLE agent_memories ADD COLUMN embedding_key_version TEXT');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_listening_backup_origin ON listening_sessions(user_id,origin_backup_id) WHERE origin_backup_id IS NOT NULL');
   const tracksWithoutCanonicalKey = db.prepare("SELECT id,title,artist FROM tracks WHERE canonical_key='' OR canonical_key IS NULL").all() as Array<{ id: string; title: string; artist: string }>;
   const updateCanonicalKey = db.prepare('UPDATE tracks SET canonical_key=? WHERE id=?');
