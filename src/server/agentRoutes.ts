@@ -17,6 +17,7 @@ import {
 import { activateKnowledgeVersion, listKnowledgeVersions, publishKnowledgeVersion, retrieveKnowledge, verifyKnowledgeSignature } from './agentKnowledge.js';
 import { ensureClassicKnowledgeSeed } from './classicKnowledgeSeed.js';
 import { BailianSpeechProvider } from './agentProviders.js';
+import { AgentModelProviderRegistry } from './agentModelProviders.js';
 import { SOURCES, type AgentClientAction, type AgentStreamEvent } from '../shared/types.js';
 
 const apiError = (code: string, message: string, details?: unknown) => ({ error: { code, message, ...(details === undefined ? {} : { details }) } });
@@ -61,7 +62,7 @@ function writeSse(reply: FastifyReply, event: AgentStreamEvent) {
 }
 
 export function registerAgentRoutes(app: FastifyInstance, db: Db) {
-  const keyring = loadAgentKeyring(); const runtime = new AgentRuntime(db, keyring);
+  const keyring = loadAgentKeyring(); const modelProviders = new AgentModelProviderRegistry(); const runtime = new AgentRuntime(db, keyring, modelProviders);
   const speechProvider = new BailianSpeechProvider();
   ensureClassicKnowledgeSeed(db);
 
@@ -274,6 +275,11 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     if (!requireAdmin(db, request, reply)) return;
     const rows = db.prepare(`SELECT usage_date,provider,model,SUM(input_tokens) input_tokens,SUM(output_tokens) output_tokens,SUM(search_calls) search_calls,SUM(asr_seconds) asr_seconds,SUM(tts_characters) tts_characters,SUM(estimated_cost_cny) estimated_cost_cny FROM agent_usage_daily GROUP BY usage_date,provider,model ORDER BY usage_date DESC`).all();
     return { monthlyCostCny: monthlyAgentCost(db), budgetCny: Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150), rows };
+  });
+
+  app.get('/api/admin/agent/providers', async (request, reply) => {
+    if (!requireAdmin(db, request, reply)) return;
+    return runtime.providerStatus();
   });
 
   app.get('/api/admin/agent/knowledge', async (request, reply) => {

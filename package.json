@@ -16,6 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ai-sdk/deepseek": "^3.0.31",
     "@ai-sdk/openai-compatible": "^3.0.35",
     "@fastify/cookie": "^11.1.2",
     "@fastify/static": "^10.1.2",

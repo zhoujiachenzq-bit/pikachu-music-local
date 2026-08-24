@@ -15,7 +15,29 @@ GitHub 同类项目的可取做法已经转换为本项目自己的确定性流�
 
 推荐候选采用“用户意图 → 本地偏好/知识召回 → 四源真实歌曲搜索 → 衍生版本和身份校验 → 确定性排序 → 模型解释”的顺序。模型不能生成歌曲 ID 或音频地址；跳过、部分播放、完整播放、重听和时间衰减只作为排序信号，一次短期行为不会改写用户的稳定偏好。
 
-珍奇配置模板见 `.env.example`。开发环境没有百炼密钥时会进入本地安全降级模式，暂停完整陪伴聊天、联网和语音，但切歌、找歌、推荐和诊断仍可工作，音乐小屋的其他功能完全不受影响。
+珍奇配置模板见 `.env.example`。开发环境没有所选模型服务的密钥时会进入本地安全降级模式，暂停完整陪伴聊天、联网和语音，但切歌、找歌、推荐和诊断仍可工作，音乐小屋的其他功能完全不受影响。
+
+### 可替换模型接口
+
+珍奇的对话层采用类似 Hello-Agents 的“统一接口＋服务商适配器＋能力声明”结构，业务工具不直接依赖任何模型厂商。目前提供：
+
+- `deepseek`：默认选择，使用 DeepSeek V4 Flash/Pro 负责文字对话、推理和受控工具规划。
+- `bailian`：百炼 Qwen 对话模型；百炼的向量、联网、ASR 和 TTS 仍是彼此独立的辅助能力。
+- `custom`：任何真正兼容 OpenAI Chat Completions 和工具调用协议的服务。
+- `auto`：只在没有明确隐私路由要求时，按 DeepSeek、百炼、Custom 的固定顺序选择已经配置的服务。
+
+显式设置 `AGENT_MODEL_PROVIDER=deepseek|bailian|custom` 后，目标服务不可用只会进入本地安全降级，不会把对话自动转发给另一家服务。站长可通过 `/api/admin/agent/providers` 查看脱敏后的选择状态、模型名与能力声明，接口永不返回 API Key。
+
+本地密钥写入仓库根目录的 `.env`；该文件已被 Git 忽略，Node 服务启动时会自动加载。最小 DeepSeek 配置：
+
+```dotenv
+AGENT_MODEL_PROVIDER=deepseek
+DEEPSEEK_API_KEY=只保存在本机的密钥
+DEEPSEEK_MODEL_FLASH=deepseek-v4-flash
+DEEPSEEK_MODEL_PLUS=deepseek-v4-pro
+```
+
+当前 DeepSeek 默认模型按文本模型使用，不把图片或语音伪装成可用能力。图片理解后续交给独立视觉 Provider，语音由 ASR/TTS Provider 处理；这样更换主对话模型不会影响这些功能。
 
 ## 启动
 

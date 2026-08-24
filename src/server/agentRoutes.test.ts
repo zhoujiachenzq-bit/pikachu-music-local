@@ -24,4 +24,28 @@ describe('agent API', () => {
     expect(response.statusCode).toBe(200); expect(response.headers['content-type']).toContain('text/event-stream'); expect(response.body).toContain('"type":"client_action"'); expect(response.body).toContain('"type":"pause"');
     expect(response.body).toContain('"type":"done"');
   });
+
+  it('shows the admin a secret-free model provider status', async () => {
+    const previous = {
+      admin: process.env.AGENT_ADMIN_USERNAMES,
+      selected: process.env.AGENT_MODEL_PROVIDER,
+      deepseek: process.env.DEEPSEEK_API_KEY
+    };
+    process.env.AGENT_ADMIN_USERNAMES = 'masyu';
+    process.env.AGENT_MODEL_PROVIDER = 'deepseek';
+    process.env.DEEPSEEK_API_KEY = 'server-secret-must-not-leak';
+    try {
+      db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+      const registered = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'masyu', password: 'Pikachu-2026' } });
+      const cookie = registered.headers['set-cookie']!.split(';')[0];
+      const response = await app.inject({ method: 'GET', url: '/api/admin/agent/providers', headers: { cookie } });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ selectionMode: 'deepseek', providers: expect.arrayContaining([expect.objectContaining({ id: 'deepseek', configured: true, selected: true })]) });
+      expect(response.body).not.toContain('server-secret-must-not-leak');
+    } finally {
+      if (previous.admin === undefined) delete process.env.AGENT_ADMIN_USERNAMES; else process.env.AGENT_ADMIN_USERNAMES = previous.admin;
+      if (previous.selected === undefined) delete process.env.AGENT_MODEL_PROVIDER; else process.env.AGENT_MODEL_PROVIDER = previous.selected;
+      if (previous.deepseek === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = previous.deepseek;
+    }
+  });
 });

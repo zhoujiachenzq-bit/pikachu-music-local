@@ -5,7 +5,8 @@ import { rowToTrack, upsertTrack } from './db.js';
 import { searchAll } from './sources.js';
 import { canonicalTrackKey, isDerivativeTrackVersion } from '../shared/trackIdentity.js';
 import { SOURCES, type AgentClientAction, type AgentClientContext, type AgentMessage, type AgentSettings, type AgentStreamEvent, type Track } from '../shared/types.js';
-import { BailianModelProvider, BailianWebSearchProvider, estimateBailianCost, type AgentModelTier, type WebSearchProvider } from './agentProviders.js';
+import { BailianWebSearchProvider, type WebSearchProvider } from './agentProviders.js';
+import { AgentModelProviderRegistry, type AgentModelTier } from './agentModelProviders.js';
 import type { AgentKeyring } from './agentCrypto.js';
 import { retrieveKnowledge } from './agentKnowledge.js';
 import {
@@ -149,12 +150,17 @@ function conciseToolSummary(toolName: string) {
 }
 
 export class AgentRuntime {
-  private readonly provider: BailianModelProvider;
   private readonly active = new Map<string, AbortController>();
 
-  constructor(private readonly db: Db, private readonly keyring: AgentKeyring, provider = new BailianModelProvider(), private readonly webSearchProvider: WebSearchProvider = new BailianWebSearchProvider()) { this.provider = provider; }
+  constructor(
+    private readonly db: Db,
+    private readonly keyring: AgentKeyring,
+    private readonly modelProviders = new AgentModelProviderRegistry(),
+    private readonly webSearchProvider: WebSearchProvider = new BailianWebSearchProvider()
+  ) {}
 
   cancel(userId: string) { this.active.get(userId)?.abort(); this.active.delete(userId); }
+  providerStatus() { return { selectionMode: this.modelProviders.selectionMode(), providers: this.modelProviders.statuses() }; }
 
   private async *executeTool(runId: string, input: AgentRunInput, call: AgentToolCall): AsyncGenerator<AgentStreamEvent, string> {
     yield { type: 'tool_started', tool: call.toolName };
@@ -223,11 +229,11 @@ export class AgentRuntime {
     this.cancel(input.user.id); const controller = new AbortController(); this.active.set(input.user.id, controller);
     input.signal?.addEventListener('abort', () => controller.abort(), { once: true });
     const settings = ensureAgentSettings(this.db, input.user.id); const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150);
-    const cost = monthlyAgentCost(this.db); const providerAvailable = this.provider.configured() && cost < budget;
+    const cost = monthlyAgentCost(this.db); const selectedProvider = cost < budget ? this.modelProviders.selected() : null; const providerAvailable = Boolean(selectedProvider);
     const requestedTier = chooseAgentModelTier(input.message, input.webSearch, cost, budget);
     const tier: AgentModelTier = providerAvailable ? requestedTier : 'local';
     const runId = createAgentRun(this.db, input.user.id, input.conversationId, input.generation, tier, input.webSearch);
-    let assistantText = ''; let inputTokens = 0; let outputTokens = 0; let model = this.provider.modelName(tier);
+    let assistantText = ''; let inputTokens = 0; let outputTokens = 0; const model = selectedProvider?.modelName(tier) || 'local-fallback';
     try {
       updateAgentRun(this.db, runId, input.user.id, 'context_building');
       const userMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'user', input.message, { webSearch: input.webSearch });
@@ -243,7 +249,7 @@ export class AgentRuntime {
         const recommend = /(推荐|来点|换一首|听什么)/.test(input.message);
         if (playMatch) assistantText = yield* this.executeTool(runId, input, { toolName: 'play_song', input: { title: playMatch[1].trim() } });
         else if (recommend) assistantText = yield* this.executeTool(runId, input, { toolName: 'recommend_music', input: { query: input.message.replace(/[给我推荐来点听什么]/g, ' ').trim() || '华语流行', count: 5, discovery: 'balanced', playFirst: /换一首/.test(input.message) } });
-        else assistantText = `我是${settings.assistantName}。现在是本地安全降级模式，还可以帮你切歌、搜歌、看推荐和检查音源；配置百炼密钥后，我才能进行完整的陪伴对话。`;
+        else assistantText = `我是${settings.assistantName}。现在是本地安全降级模式，还可以帮你切歌、搜歌、看推荐和检查音源；配置选定模型服务的 API 密钥后，我才能进行完整的陪伴对话。`;
         yield { type: 'text_delta', delta: assistantText };
       } else {
         updateAgentRun(this.db, runId, input.user.id, 'retrieving');
@@ -251,11 +257,19 @@ export class AgentRuntime {
         if (input.webSearch && this.webSearchProvider.configured()) {
           const searched = await this.webSearchProvider.search(input.message, controller.signal); webContext = { answer: searched.answer, citations: searched.citations };
           for (const citation of searched.citations) yield { type: 'citation', title: citation.title, url: citation.url };
-          recordAgentUsage(this.db, { userId: input.user.id, provider: 'bailian-web-search', model: this.provider.modelName('flash'), inputTokens: searched.inputTokens, outputTokens: searched.outputTokens, searchCalls: 1, estimatedCostCny: estimateBailianCost(this.provider.modelName('flash'), searched.inputTokens, searched.outputTokens) });
+          recordAgentUsage(this.db, {
+            userId: input.user.id,
+            provider: this.webSearchProvider.id || 'web-search',
+            model: this.webSearchProvider.model || 'web-search',
+            inputTokens: searched.inputTokens,
+            outputTokens: searched.outputTokens,
+            searchCalls: 1,
+            estimatedCostCny: this.webSearchProvider.estimateCostCny?.(searched.inputTokens, searched.outputTokens) || 0
+          });
         }
         const context = { ...buildContext(this.db, this.keyring, input), webSearch: webContext }; const history = listAgentMessages(this.db, this.keyring, input.user.id, input.conversationId, 40);
         updateAgentRun(this.db, runId, input.user.id, 'generating');
-        const result = this.provider.stream({ tier: tier as 'flash' | 'plus', system: systemPrompt(settings, context), messages: providerMessages(history, userMessage.id), tools: agentTools, signal: controller.signal });
+        const result = selectedProvider!.stream({ tier: tier as 'flash' | 'plus', system: systemPrompt(settings, context), messages: providerMessages(history, userMessage.id), tools: agentTools, signal: controller.signal });
         let toolCall: AgentToolCall | null = null;
         for await (const part of result.fullStream) {
           if (part.type === 'text-delta') { assistantText += part.text; yield { type: 'text_delta', delta: part.text }; }
@@ -271,10 +285,10 @@ export class AgentRuntime {
       }
       if (!assistantText.trim()) { assistantText = '我刚才没有组织好回答，但不会擅自操作你的数据。可以再说一次你想听什么。'; yield { type: 'text_delta', delta: assistantText }; }
       updateAgentRun(this.db, runId, input.user.id, 'responding');
-      const assistantMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'assistant', assistantText, { model });
+      const assistantMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'assistant', assistantText, { model, provider: selectedProvider?.id || 'local' });
       if (input.conversationKind === 'main' && settings.memoryEnabled) this.extractSimpleMemory(input.user.id, userMessage.id, input.message);
-      const estimatedCostCny = tier === 'local' ? 0 : estimateBailianCost(model, inputTokens, outputTokens);
-      if (tier !== 'local') recordAgentUsage(this.db, { userId: input.user.id, provider: 'bailian', model, inputTokens, outputTokens, estimatedCostCny });
+      const estimatedCostCny = tier === 'local' ? 0 : selectedProvider!.estimateCostCny(model, inputTokens, outputTokens);
+      if (tier !== 'local') recordAgentUsage(this.db, { userId: input.user.id, provider: selectedProvider!.id, model, inputTokens, outputTokens, estimatedCostCny });
       updateAgentRun(this.db, runId, input.user.id, 'completed');
       yield { type: 'usage', model, inputTokens, outputTokens, estimatedCostCny }; yield { type: 'done', runId, messageId: assistantMessage.id };
     } catch (error) {

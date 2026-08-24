@@ -1,7 +1,5 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { embed, streamText, type ModelMessage, type ToolSet } from 'ai';
-
-export type AgentModelTier = 'flash' | 'plus' | 'local';
+import { embed } from 'ai';
 
 export interface AgentProviderConfig {
   apiKey: string | null;
@@ -26,33 +24,15 @@ export function loadAgentProviderConfig(env: NodeJS.ProcessEnv = process.env): A
   };
 }
 
-export interface ModelProvider { configured(): boolean; modelName(tier: AgentModelTier): string; }
 export interface EmbeddingProvider { configured(): boolean; embed(text: string): Promise<number[]>; }
 export interface SpeechProvider { configured(): boolean; transcribe(input: { base64: string; mimeType: string; signal?: AbortSignal }): Promise<string>; synthesize(input: { text: string; voice: string; instructions?: string; signal?: AbortSignal }): Promise<{ audio: Buffer; contentType: string }>; }
 export interface WebSearchResult { answer: string; citations: Array<{ title: string; url: string }>; inputTokens: number; outputTokens: number; }
-export interface WebSearchProvider { configured(): boolean; search(query: string, signal?: AbortSignal): Promise<WebSearchResult>; }
-
-export class BailianModelProvider {
-  readonly config: AgentProviderConfig;
-  private readonly provider;
-
-  constructor(config = loadAgentProviderConfig()) {
-    this.config = config;
-    this.provider = config.apiKey ? createOpenAICompatible({ name: 'bailian', apiKey: config.apiKey, baseURL: config.baseURL }) : null;
-  }
-
-  configured() { return Boolean(this.provider); }
-  modelName(tier: AgentModelTier) { return tier === 'plus' ? this.config.plusModel : tier === 'flash' ? this.config.flashModel : 'local-fallback'; }
-
-  stream<TOOLS extends ToolSet>(input: { tier: Exclude<AgentModelTier, 'local'>; system: string; messages: ModelMessage[]; tools: TOOLS; webSearch?: boolean; signal?: AbortSignal }) {
-    if (!this.provider) throw new Error('BAILIAN_NOT_CONFIGURED');
-    return streamText({
-      model: this.provider(this.modelName(input.tier)), system: input.system, messages: input.messages, tools: input.tools,
-      toolChoice: 'auto', maxOutputTokens: input.tier === 'plus' ? 1800 : 1000, abortSignal: input.signal,
-      providerOptions: input.webSearch ? { bailian: { enable_search: true, search_options: { enable_source: true, citation_format: '[ref_<number>]', search_strategy: 'turbo' } } } : undefined,
-      timeout: { totalMs: 60_000, chunkMs: 15_000 }
-    });
-  }
+export interface WebSearchProvider {
+  readonly id?: string;
+  readonly model?: string;
+  configured(): boolean;
+  search(query: string, signal?: AbortSignal): Promise<WebSearchResult>;
+  estimateCostCny?(inputTokens: number, outputTokens: number): number;
 }
 
 export class BailianEmbeddingProvider implements EmbeddingProvider {
@@ -79,6 +59,8 @@ function collectCitations(value: unknown, result = new Map<string, string>()): M
 }
 
 export class BailianWebSearchProvider implements WebSearchProvider {
+  readonly id = 'bailian-web-search';
+  get model() { return this.config.flashModel; }
   constructor(readonly config = loadAgentProviderConfig(), private readonly fetcher: typeof fetch = fetch) {}
   configured() { return Boolean(this.config.apiKey); }
   async search(query: string, signal?: AbortSignal): Promise<WebSearchResult> {
@@ -89,6 +71,7 @@ export class BailianWebSearchProvider implements WebSearchProvider {
       return { answer: String(choices?.[0]?.message?.content || ''), citations: [...collectCitations(payload)].slice(0, 8).map(([url, title]) => ({ url, title })), inputTokens: Number(usage?.prompt_tokens || 0), outputTokens: Number(usage?.completion_tokens || 0) };
     } finally { timeout.clear(); }
   }
+  estimateCostCny(inputTokens: number, outputTokens: number) { return estimateBailianCost(this.config.flashModel, inputTokens, outputTokens); }
 }
 
 export class BailianSpeechProvider implements SpeechProvider {
