@@ -50,6 +50,32 @@ describe('agent API', () => {
     }
   });
 
+  it('gives the admin a bounded usage ledger and one-time invitation codes', async () => {
+    const previous = { admin: process.env.AGENT_ADMIN_USERNAMES, budget: process.env.AGENT_MONTHLY_BUDGET_CNY };
+    process.env.AGENT_ADMIN_USERNAMES = 'masyu'; process.env.AGENT_MONTHLY_BUDGET_CNY = '10';
+    try {
+      db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+      const registered = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'masyu', password: 'Pikachu-2026' } });
+      const cookie = registered.headers['set-cookie']!.split(';')[0]; const user = db.prepare('SELECT id FROM users WHERE username=?').get('masyu') as { id: string };
+      const today = new Date().toISOString().slice(0, 10); const old = new Date(Date.now() - 60 * 24 * 60 * 60_000).toISOString().slice(0, 10);
+      const insert = db.prepare('INSERT INTO agent_usage_daily(usage_date,user_id,provider,model,input_tokens,output_tokens,estimated_cost_cny) VALUES(?,?,?,?,?,?,?)');
+      insert.run(today, user.id, 'deepseek', 'flash', 100, 20, 8.5); insert.run(old, user.id, 'deepseek', 'flash', 999, 999, 9);
+
+      const usage = await app.inject({ method: 'GET', url: '/api/admin/agent/usage?days=7', headers: { cookie } });
+      expect(usage.statusCode).toBe(200); expect(usage.json()).toMatchObject({ monthlyCostCny: 8.5, budgetCny: 10, state: 'flash_only', periodDays: 7, rows: [expect.objectContaining({ input_tokens: 100 })] });
+
+      const created = await app.inject({ method: 'POST', url: '/api/admin/agent/invites', headers: { cookie }, payload: { maxUses: 2, expiresInDays: 14, note: 'preview' } });
+      expect(created.statusCode).toBe(201); const invite = created.json().invite; expect(invite.code).toMatch(/^ZQ-[A-F\d]{12}$/);
+      const listed = await app.inject({ method: 'GET', url: '/api/admin/agent/invites', headers: { cookie } });
+      expect(listed.statusCode).toBe(200); expect(listed.json().invites[0]).toMatchObject({ id: invite.id, maxUses: 2, disabled: false, note: 'preview' }); expect(listed.body).not.toContain(invite.code);
+      expect((await app.inject({ method: 'PATCH', url: `/api/admin/agent/invites/${invite.id}`, headers: { cookie }, payload: { disabled: true } })).statusCode).toBe(200);
+      expect((await app.inject({ method: 'PATCH', url: '/api/admin/agent/invites/00000000-0000-4000-8000-000000000000', headers: { cookie }, payload: { disabled: true } })).statusCode).toBe(404);
+    } finally {
+      if (previous.admin === undefined) delete process.env.AGENT_ADMIN_USERNAMES; else process.env.AGENT_ADMIN_USERNAMES = previous.admin;
+      if (previous.budget === undefined) delete process.env.AGENT_MONTHLY_BUDGET_CNY; else process.env.AGENT_MONTHLY_BUDGET_CNY = previous.budget;
+    }
+  });
+
   it('exposes version and retrieval health only to the configured agent admin', async () => {
     const previous = process.env.AGENT_ADMIN_USERNAMES; process.env.AGENT_ADMIN_USERNAMES = 'masyu';
     try {

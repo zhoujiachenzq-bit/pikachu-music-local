@@ -3,6 +3,7 @@ import { api, json } from './api';
 import { streamAgentMessage } from './agentStream';
 import { decryptAgentArchive, encryptAgentArchive, type EncryptedAgentArchive } from './agentArchiveCrypto';
 import { Icon } from './ui';
+import { AgentAdminPanel } from './AgentAdminPanel';
 import type { AgentAccess, AgentClientAction, AgentClientContext, AgentConversation, AgentMemory, AgentMessage, AgentSettings, AgentStreamEvent, Track } from '../shared/types';
 
 interface ReasonCard { id: string; title: string; body: string; tracks: Track[]; }
@@ -55,6 +56,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [knowledgeOpen, setKnowledgeOpen] = useState(false); const [knowledgeVersions, setKnowledgeVersions] = useState<KnowledgeVersionCard[]>([]); const [knowledgeSample, setKnowledgeSample] = useState<KnowledgeSample[]>([]);
   const [knowledgeQuery, setKnowledgeQuery] = useState(''); const [knowledgeBusy, setKnowledgeBusy] = useState(false); const [embeddingConfigured, setEmbeddingConfigured] = useState(false);
   const [trendStatus, setTrendStatus] = useState<TrendStatus | null>(null);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(() => window.localStorage.getItem(introKey(userId)) !== 'seen');
   const generation = useRef(0); const streamController = useRef<AbortController | null>(null); const scroller = useRef<HTMLDivElement>(null);
   const streamText = useRef(''); const recorder = useRef<MediaRecorder | null>(null); const recorderStream = useRef<MediaStream | null>(null); const recorderChunks = useRef<Blob[]>([]); const recordingStartedAt = useRef(0); const recordingTimer = useRef<number | null>(null); const speechAudio = useRef<HTMLAudioElement | null>(null);
@@ -164,7 +166,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     catch (cause) { setSettings(previous); setError(cause instanceof Error ? cause.message : '设置保存失败。'); }
   };
   const openMemories = async () => {
-    try { const result = await api<{ memories: AgentMemory[] }>('/api/agent/memories'); setMemories(result.memories); setMemoryFilter('all'); setMemoriesOpen(true); setKnowledgeOpen(false); setSettingsOpen(false); }
+    try { const result = await api<{ memories: AgentMemory[] }>('/api/agent/memories'); setMemories(result.memories); setMemoryFilter('all'); setMemoriesOpen(true); setKnowledgeOpen(false); setSettingsOpen(false); setAdminOpen(false); }
     catch (cause) { setError(cause instanceof Error ? cause.message : '记忆读取失败。'); }
   };
   const loadKnowledge = async (query = knowledgeQuery) => {
@@ -179,7 +181,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     } catch (cause) { setError(cause instanceof Error ? cause.message : '知识状态读取失败。'); }
     finally { setKnowledgeBusy(false); }
   };
-  const openKnowledge = async () => { setKnowledgeOpen(true); setMemoriesOpen(false); setSettingsOpen(false); await loadKnowledge(''); };
+  const openKnowledge = async () => { setKnowledgeOpen(true); setMemoriesOpen(false); setSettingsOpen(false); setAdminOpen(false); await loadKnowledge(''); };
   const activateKnowledge = async (version: KnowledgeVersionCard) => {
     if (!window.confirm(`切换到知识版本“${version.source}”？播放器和用户数据不会改变。`)) return;
     try { await api(`/api/admin/agent/knowledge/${version.id}/activate`, json('POST')); await loadKnowledge(knowledgeQuery); }
@@ -233,7 +235,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   return <aside className={shellClass} aria-label={zh ? '珍奇音乐知己' : 'Zhenqi music companion'}>
     <header className="agent-header">
       <div className="agent-wordmark"><span className="agent-pulse"><i/><i/><i/></span><div><small>MUSIC COMPANION · BETA</small><strong>{settings?.assistantName || '珍奇'}</strong></div></div>
-      <div className="agent-header-actions"><button className="agent-action-temporary" aria-label={zh ? '切换临时对话' : 'Toggle temporary chat'} aria-pressed={conversation?.kind === 'temporary'} title={zh ? '临时对话：不形成长期记忆' : 'Temporary chat: no long-term memory'} onClick={() => void (conversation?.kind === 'temporary' ? leaveTemporary() : startTemporary())}><Icon name="temporary" size={18}/></button><button className="agent-action-settings" aria-label={zh ? '珍奇设置' : 'Zhenqi settings'} aria-pressed={settingsOpen} title={zh ? '珍奇设置' : 'Zhenqi settings'} onClick={() => { setSettingsOpen(value => !value); setMemoriesOpen(false); setKnowledgeOpen(false); }}><Icon name="settings" size={18}/></button>{!mobile && <button className="agent-action-return" aria-label={zh ? '返回播放器' : 'Return to player'} title={zh ? '返回播放器' : 'Return to player'} onClick={onClose}><Icon name="return" size={18}/></button>}</div>
+      <div className="agent-header-actions"><button className="agent-action-temporary" aria-label={zh ? '切换临时对话' : 'Toggle temporary chat'} aria-pressed={conversation?.kind === 'temporary'} title={zh ? '临时对话：不形成长期记忆' : 'Temporary chat: no long-term memory'} onClick={() => void (conversation?.kind === 'temporary' ? leaveTemporary() : startTemporary())}><Icon name="temporary" size={18}/></button><button className="agent-action-settings" aria-label={zh ? '珍奇设置' : 'Zhenqi settings'} aria-pressed={settingsOpen} title={zh ? '珍奇设置' : 'Zhenqi settings'} onClick={() => { setSettingsOpen(value => !value); setMemoriesOpen(false); setKnowledgeOpen(false); setAdminOpen(false); }}><Icon name="settings" size={18}/></button>{!mobile && <button className="agent-action-return" aria-label={zh ? '返回播放器' : 'Return to player'} title={zh ? '返回播放器' : 'Return to player'} onClick={onClose}><Icon name="return" size={18}/></button>}</div>
     </header>
     {conversation?.kind === 'temporary' && <div className="agent-temporary-banner"><Icon name="temporary" size={15}/><span>{zh ? '临时对话：不形成长期记忆，关闭即删除。' : 'Temporary: no long-term memory; deleted when closed.'}</span><button onClick={() => void leaveTemporary()}>{zh ? '返回主对话' : 'Back'}</button></div>}
     {introOpen && <section className="agent-intro">
@@ -248,8 +250,9 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       <label className="agent-toggle"><input type="checkbox" checked={settings.proactiveEnabled} onChange={event => void updateSettings({ proactiveEnabled: event.target.checked })}/><span>{zh ? '允许克制的主动陪伴（每日最多两次）' : 'Allow quiet proactive check-ins (max twice daily)'}</span></label>
       <label className="agent-toggle"><input type="checkbox" checked={settings.autoRead} onChange={event => void updateSettings({ autoRead: event.target.checked })}/><span>{zh ? '自动朗读珍奇回复' : 'Read replies aloud'}</span></label>
       <label>{zh ? '音色' : 'Voice'}<span className="agent-voice-controls"><select value={settings.voice} onChange={event => void updateSettings({ voice: event.target.value })}><option value="Cherry">Cherry</option><option value="Serena">Serena</option><option value="Ethan">Ethan</option><option value="Chelsie">Chelsie</option></select><button type="button" onClick={() => void readText(zh ? '你好，我是珍奇。今晚想听点什么？' : 'Hi, I am Zhenqi. What would you like to hear?', 'voice-preview')}>{speakingMessageId === 'voice-preview' ? (zh ? '停止' : 'Stop') : (zh ? '试听' : 'Preview')}</button></span></label>
-      <div className="agent-data-actions"><button onClick={() => void openMemories()}>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</button>{access?.admin && <button onClick={() => void openKnowledge()}>{zh ? '知识版本' : 'Knowledge'}</button>}<button onClick={() => void exportArchive()}>{zh ? '导出加密档案' : 'Export encrypted archive'}</button><label>{zh ? '恢复档案' : 'Restore archive'}<input type="file" accept="application/json" onChange={event => { const file = event.target.files?.[0]; if (file) void restoreArchive(file); event.currentTarget.value = ''; }}/></label></div>
+      <div className="agent-data-actions"><button onClick={() => void openMemories()}>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</button>{access?.admin && <><button onClick={() => void openKnowledge()}>{zh ? '知识版本' : 'Knowledge'}</button><button onClick={() => { setAdminOpen(true); setSettingsOpen(false); setMemoriesOpen(false); setKnowledgeOpen(false); }}>{zh ? '站长控制台' : 'Operator console'}</button></>}<button onClick={() => void exportArchive()}>{zh ? '导出加密档案' : 'Export encrypted archive'}</button><label>{zh ? '恢复档案' : 'Restore archive'}<input type="file" accept="application/json" onChange={event => { const file = event.target.files?.[0]; if (file) void restoreArchive(file); event.currentTarget.value = ''; }}/></label></div>
     </section>}
+    {!introOpen && adminOpen && access?.admin && <AgentAdminPanel lang={lang} onClose={() => setAdminOpen(false)}/>}
     {!introOpen && memoriesOpen && <section className="agent-memory-panel">
       <header><div><small>MEMORY VAULT</small><h2>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</h2></div><button onClick={() => setMemoriesOpen(false)}><Icon name="close" size={16}/></button></header>
       <p>{zh ? '只有与你当前问题相关的少量记忆会进入上下文。原话与推断分开标记；你修改后会变成明确事实。' : 'Only a few relevant memories enter each request. Your words and inferences remain visibly separate.'}</p>

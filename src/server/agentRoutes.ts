@@ -21,6 +21,7 @@ import { AgentModelProviderRegistry } from './agentModelProviders.js';
 import { SOURCES, type AgentClientAction, type AgentStreamEvent } from '../shared/types.js';
 import { decodeAgentAudioBase64, normalizeAgentAudioMime } from './agentVoice.js';
 import { finishTrendUpdateRun, listTrendUpdateRuns, runTrendRehearsal, startTrendUpdateRun } from './agentTrends.js';
+import { agentBudgetSnapshot } from '../shared/agentAdmin.js';
 
 const apiError = (code: string, message: string, details?: unknown) => ({ error: { code, message, ...(details === undefined ? {} : { details }) } });
 const sourceSchema = z.enum(SOURCES);
@@ -275,12 +276,16 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
   app.patch('/api/admin/agent/invites/:id', async (request, reply) => {
     if (!requireAdmin(db, request, reply)) return;
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params); const { disabled } = z.object({ disabled: z.boolean() }).parse(request.body);
-    db.prepare('UPDATE agent_invites SET disabled=? WHERE id=?').run(Number(disabled), id); return { ok: true };
+    const result = db.prepare('UPDATE agent_invites SET disabled=? WHERE id=?').run(Number(disabled), id);
+    if (!result.changes) return reply.code(404).send(apiError('AGENT_INVITE_NOT_FOUND', '邀请码不存在。'));
+    return { ok: true };
   });
   app.get('/api/admin/agent/usage', async (request, reply) => {
     if (!requireAdmin(db, request, reply)) return;
-    const rows = db.prepare(`SELECT usage_date,provider,model,SUM(input_tokens) input_tokens,SUM(output_tokens) output_tokens,SUM(search_calls) search_calls,SUM(asr_seconds) asr_seconds,SUM(tts_characters) tts_characters,SUM(estimated_cost_cny) estimated_cost_cny FROM agent_usage_daily GROUP BY usage_date,provider,model ORDER BY usage_date DESC`).all();
-    return { monthlyCostCny: monthlyAgentCost(db), budgetCny: Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150), rows };
+    const { days } = z.object({ days: z.coerce.number().int().min(7).max(366).default(31) }).parse(request.query || {});
+    const since = new Date(Date.now() - (days - 1) * 24 * 60 * 60_000).toISOString().slice(0, 10);
+    const rows = db.prepare(`SELECT usage_date,provider,model,SUM(input_tokens) input_tokens,SUM(output_tokens) output_tokens,SUM(search_calls) search_calls,SUM(asr_seconds) asr_seconds,SUM(tts_characters) tts_characters,SUM(estimated_cost_cny) estimated_cost_cny FROM agent_usage_daily WHERE usage_date>=? GROUP BY usage_date,provider,model ORDER BY usage_date DESC,estimated_cost_cny DESC`).all(since);
+    return { ...agentBudgetSnapshot(monthlyAgentCost(db), Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150)), periodDays: days, rows };
   });
 
   app.get('/api/admin/agent/providers', async (request, reply) => {

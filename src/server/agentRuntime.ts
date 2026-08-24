@@ -14,6 +14,7 @@ import {
   retrieveAgentMemories, saveAgentMessage, setAgentMemoryEmbedding, updateAgentRun
 } from './agentStore.js';
 import { extractExplicitMemoryCandidates } from './agentMemory.js';
+import { normalizeAgentBudget } from '../shared/agentAdmin.js';
 
 const agentTools = {
   control_player: tool({
@@ -232,7 +233,7 @@ export class AgentRuntime {
   async *run(input: AgentRunInput): AsyncGenerator<AgentStreamEvent> {
     this.cancel(input.user.id); const controller = new AbortController(); this.active.set(input.user.id, controller);
     input.signal?.addEventListener('abort', () => controller.abort(), { once: true });
-    const settings = ensureAgentSettings(this.db, input.user.id); const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150);
+    const settings = ensureAgentSettings(this.db, input.user.id); const budget = normalizeAgentBudget(Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150));
     const cost = monthlyAgentCost(this.db); const selectedProvider = cost < budget ? this.modelProviders.selected() : null; const providerAvailable = Boolean(selectedProvider);
     const requestedTier = chooseAgentModelTier(input.message, input.webSearch, cost, budget);
     const tier: AgentModelTier = providerAvailable ? requestedTier : 'local';
