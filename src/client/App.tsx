@@ -12,7 +12,7 @@ import { useArtworkAccent } from './artworkPalette';
 import { TonePicker, ToneTransitionLayer, type ToneTransitionState } from './TonePicker';
 import { AgentPanel } from './AgentPanel';
 import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
-import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
+import { deriveVisualPalette, mobileSectionForStage, shouldPersistMobileScroll, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
 import { DEFAULT_VISUAL_PREFERENCES, TONE_THEMES, readVisualPreferences, resolveToneTheme, writeVisualPreferences, type ToneThemeId, type VisualPreferences } from './visualTheme';
 import { SOURCES, type AgentClientAction, type AgentClientContext, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
@@ -292,7 +292,13 @@ export default function App() {
     }
     const container = document.querySelector<HTMLElement>(`[data-mobile-section="${mobileSection}"][data-mobile-active="true"]`);
     if (!container) return;
-    const key = `pikachu:mobile-scroll:${user.id}:${mobileSection}`; let restoring = true; let saveTimer = 0;
+    const key = `pikachu:mobile-scroll:${user.id}:${mobileSection}`;
+    if (!shouldPersistMobileScroll(mobileSection)) {
+      container.scrollTop = 0;
+      window.localStorage.removeItem(key);
+      return;
+    }
+    let restoring = true; let saveTimer = 0;
     const save = () => window.localStorage.setItem(key, JSON.stringify({ y: container.scrollTop, updatedAt: Date.now() }));
     const onScroll = () => { if (restoring) return; window.clearTimeout(saveTimer); saveTimer = window.setTimeout(save, 120); };
     requestAnimationFrame(() => requestAnimationFrame(() => {

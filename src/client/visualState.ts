@@ -71,6 +71,10 @@ export function shouldShowMiniPlayer(section: MobileSection, hasCurrentTrack: bo
   return hasCurrentTrack && section !== 'player';
 }
 
+export function shouldPersistMobileScroll(section: MobileSection): boolean {
+  return section === 'daily' || section === 'search' || section === 'library';
+}
+
 export function shouldUseDesktopWebgl(capability: WebglCapability): boolean {
   return capability.width > 1080 && capability.finePointer && !capability.reducedMotion;
 }
