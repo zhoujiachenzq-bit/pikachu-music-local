@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AgentSpeechSynthesisRegistry, AzureSpeechProvider, BailianSpeechProvider, KokoroSpeechProvider, MiniMaxSpeechProvider, loadAgentProviderConfig, loadAzureSpeechConfig, loadKokoroSpeechConfig, loadMiniMaxSpeechConfig } from './agentProviders.js';
-import { normalizeAgentVoiceId } from '../shared/agentVoices.js';
+import { KOKORO_FEMALE_VOICE_IDS, KOKORO_MALE_VOICE_IDS, normalizeAgentVoiceId } from '../shared/agentVoices.js';
 
 describe('agent speech provider', () => {
   it('accepts only audio responses from the temporary TTS URL', async () => {
@@ -58,6 +58,9 @@ describe('agent speech provider', () => {
       MINIMAX_VOICE_SOOTHING_HOST: 'soothing-account-id', MINIMAX_VOICE_GENTLEMAN: 'gentleman-account-id'
     });
     const options = Object.fromEntries(registry.options().map(option => [option.id, option.available]));
+    const kokoroOptions = registry.options().filter(option => option.provider === 'kokoro');
+    expect(kokoroOptions).toHaveLength(100); expect(KOKORO_FEMALE_VOICE_IDS).toHaveLength(55); expect(KOKORO_MALE_VOICE_IDS).toHaveLength(45);
     expect(options['kokoro-zf-001']).toBe(true); expect(registry.isLocal('kokoro-zf-001')).toBe(true); expect(options['azure-xiaoxiao']).toBe(true); expect(options['azure-xiaoke']).toBe(true); expect(options['minimax-soothing-host']).toBe(true); expect(options['minimax-gentleman']).toBe(true); expect(options['minimax-gentle-youth']).toBe(false); expect(options['minimax-office-man']).toBe(false); expect(options['bailian-cherry']).toBe(false);
+    expect(options['kokoro-zm-100']).toBe(true); expect(registry.isLocal('kokoro-zm-100')).toBe(true);
   });
 });

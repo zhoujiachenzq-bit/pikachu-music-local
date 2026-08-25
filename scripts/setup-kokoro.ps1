@@ -21,6 +21,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $env:HF_HOME = $modelCache
 $env:HF_HUB_DISABLE_TELEMETRY = '1'
+& $venvPython -c "from huggingface_hub import snapshot_download; snapshot_download('hexgrad/Kokoro-82M-v1.1-zh', allow_patterns=['voices/*.pt'])"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $venvPython $serverScript --warmup-only
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host 'Kokoro local voice is installed and warmed up.'

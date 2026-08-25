@@ -1,6 +1,6 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { embed } from 'ai';
-import { AGENT_VOICE_PROFILES, agentVoiceProfile, normalizeAgentVoiceId, type AgentVoiceOption, type AgentVoiceProfileId } from '../shared/agentVoices.js';
+import { AGENT_VOICE_PROFILES, agentVoiceProfile, kokoroVoiceIdForProfile, normalizeAgentVoiceId, type AgentVoiceOption, type AgentVoiceProfileId } from '../shared/agentVoices.js';
 
 export interface AgentProviderConfig {
   apiKey: string | null;
@@ -270,7 +270,8 @@ export class AgentSpeechSynthesisRegistry {
     return AGENT_VOICE_PROFILES.map(profile => ({ ...profile, available: this.voiceTarget(profile.id) !== null }));
   }
   private voiceTarget(id: AgentVoiceProfileId): { provider: SpeechSynthesisProvider; voice: string; providerId: RoutedSpeechSynthesisResult['provider']; model: string } | null {
-    if (id === 'kokoro-zf-001') return this.kokoro.configured() ? { provider: this.kokoro, voice: this.kokoro.config.voice, providerId: 'kokoro-local', model: this.kokoro.config.model } : null;
+    const kokoroVoice = kokoroVoiceIdForProfile(id);
+    if (kokoroVoice) return this.kokoro.configured() ? { provider: this.kokoro, voice: id === 'kokoro-zf-001' ? this.kokoro.config.voice : kokoroVoice, providerId: 'kokoro-local', model: this.kokoro.config.model } : null;
     if (id === 'azure-xiaoxiao') return this.azure.configured() ? { provider: this.azure, voice: this.azure.config.voice, providerId: 'azure-tts', model: this.azure.model } : null;
     if (id === 'azure-xiaoke') return this.azure.configured() ? { provider: this.azure, voice: this.azure.config.xiaokeVoice, providerId: 'azure-tts', model: this.azure.model } : null;
     if (id === 'minimax-soothing-host') return this.minimax.configured() && this.minimax.config.soothingHostVoice ? { provider: this.minimax, voice: this.minimax.config.soothingHostVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
@@ -288,7 +289,7 @@ export class AgentSpeechSynthesisRegistry {
     return { ...result, profileId, provider: target.providerId, model: target.model };
   }
   available(id: unknown) { const normalized = normalizeAgentVoiceId(id); return this.voiceTarget(normalized) !== null; }
-  isLocal(id: unknown) { return normalizeAgentVoiceId(id) === 'kokoro-zf-001' && this.kokoro.configured(); }
+  isLocal(id: unknown) { return Boolean(kokoroVoiceIdForProfile(normalizeAgentVoiceId(id))) && this.kokoro.configured(); }
   profile(id: unknown) { return agentVoiceProfile(id); }
 }
 
