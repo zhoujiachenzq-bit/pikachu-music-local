@@ -254,7 +254,7 @@ export class AgentRuntime {
       const immediate = directIntent(input.message);
       if (safety.blocked) {
         assistantText = safety.response || '这项请求不能由珍奇处理。';
-        yield { type: 'reason_card', title: safety.title || '安全边界', body: '已在本地完成判断，没有调用模型、联网服务或站内工具。' };
+        yield { type: 'reason_card', kind: 'safety', title: safety.title || '安全边界', body: '已在本地完成判断，没有调用模型、联网服务或站内工具。' };
         yield { type: 'text_delta', delta: assistantText };
       } else if (immediate) {
         const record = createToolAction(this.db, runId, input.user.id, 'control_player', 'direct', immediate);

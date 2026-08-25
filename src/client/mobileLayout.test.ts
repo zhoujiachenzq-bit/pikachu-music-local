@@ -14,4 +14,10 @@ describe('mobile player layout', () => {
     );
     expect(styles).toMatch(/\.lyrics-scroll\s*\{[^}]*overflow-y:\s*auto;/s);
   });
+
+  it('keeps the Zhenqi composer inside the panel above the mobile navigation', () => {
+    const styles = readFileSync('src/client/styles.css', 'utf8');
+    expect(styles).toMatch(/\.agent-panel-mobile\s*\{[^}]*min-height:\s*0;[^}]*display:\s*flex;[^}]*flex-direction:\s*column;/s);
+    expect(styles).toMatch(/\.agent-messages\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+  });
 });

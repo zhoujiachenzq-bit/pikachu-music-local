@@ -9,6 +9,14 @@ describe('lyrics helpers', () => {
     expect(findActiveLyric(lines, 12)).toBe(1);
   });
 
+  it('keeps timed production credits visible but outside seeking and lyric following', () => {
+    const lines = parseLrc('[00:00.00]作词: 林夕\n[00:01.00]录音棚: Big J Studio\n[00:02.00]ISRC CN-D14-14-00063\n[00:04.00]看着飞舞的尘埃掉下来');
+    expect(lines.slice(0, 3).every(line => line.kind === 'credit')).toBe(true);
+    expect(lines[3]).toMatchObject({ kind: 'lyric', time: 4 });
+    expect(findActiveLyric(lines, 3.9)).toBe(-1);
+    expect(findActiveLyric(lines, 4)).toBe(3);
+  });
+
   it('keeps untimed lyrics visible without inventing an active line', () => {
     const lines = parseLrc('第一句\n第二句');
     expect(lines).toHaveLength(2);

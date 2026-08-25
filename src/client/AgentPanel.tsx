@@ -6,7 +6,7 @@ import { Icon } from './ui';
 import { AgentAdminPanel } from './AgentAdminPanel';
 import type { AgentAccess, AgentClientAction, AgentClientActionResult, AgentClientContext, AgentConversation, AgentMemory, AgentMessage, AgentSettings, AgentStreamEvent, Track } from '../shared/types';
 
-interface ReasonCard { id: string; title: string; body: string; tracks: Track[]; }
+interface ReasonCard { id: string; title: string; body: string; tracks: Track[]; kind: 'recommendation' | 'safety' | 'diagnostic'; }
 interface CitationCard { title: string; url?: string; kind: 'web' | 'knowledge'; detail?: string; }
 interface PendingAction { actionId: string; tool: string; summary: string; input: unknown; expiresAt: string; status?: string; }
 interface ActionReceipt { actionId: string; message: string; undoAction?: AgentClientAction; status: 'ready' | 'undoing' | 'undone' | 'failed'; }
@@ -126,7 +126,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const handleEvent = async (event: AgentStreamEvent, draftId: string, activeGeneration: number) => {
     if (activeGeneration !== generation.current) return;
     if (event.type === 'text_delta') { streamText.current += event.delta; setMessages(value => value.map(message => message.id === draftId ? { ...message, content: message.content + event.delta } : message)); }
-    else if (event.type === 'reason_card') setReasonCards(value => [...value, { id: crypto.randomUUID(), title: event.title, body: event.body, tracks: event.tracks || [] }]);
+    else if (event.type === 'reason_card') setReasonCards(value => [...value, { id: crypto.randomUUID(), title: event.title, body: event.body, tracks: event.tracks || [], kind: event.kind || (event.tracks?.length ? 'recommendation' : 'diagnostic') }]);
     else if (event.type === 'citation') setMessages(value => value.map(message => {
       if (message.id !== draftId) return message; const citations = messageCitations(message); const incoming: CitationCard = { title: event.title, url: event.url, kind: event.kind || 'web', detail: event.detail };
       if (citations.some(item => item.kind === incoming.kind && item.title === incoming.title && item.url === incoming.url)) return message;
@@ -277,7 +277,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     </section>}
     {!introOpen && adminOpen && access?.admin && <AgentAdminPanel lang={lang} onClose={() => setAdminOpen(false)}/>}
     {!introOpen && memoriesOpen && <section className="agent-memory-panel">
-      <header><div><small>MEMORY VAULT</small><h2>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</h2></div><button onClick={() => setMemoriesOpen(false)}><Icon name="close" size={16}/></button></header>
+      <header><div><small>MEMORY VAULT</small><h2>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</h2></div><button aria-label={zh ? '关闭记忆管理' : 'Close memory manager'} onClick={() => setMemoriesOpen(false)}><Icon name="close" size={16}/></button></header>
       <p>{zh ? '只有与你当前问题相关的少量记忆会进入上下文。原话与推断分开标记；你修改后会变成明确事实。' : 'Only a few relevant memories enter each request. Your words and inferences remain visibly separate.'}</p>
       <div className="agent-memory-stats"><span><b>{memoryStats.explicit}</b>{zh ? '明确记忆' : 'Explicit'}</span><span><b>{memoryStats.inferred}</b>{zh ? '可能推断' : 'Inferred'}</span><span><b>{memoryStats.temporary}</b>{zh ? '自动失效' : 'Expiring'}</span></div>
       <nav className="agent-memory-filters" aria-label={zh ? '记忆类别' : 'Memory categories'}>{memoryFilters.map(filter => <button key={filter} className={memoryFilter === filter ? 'active' : ''} onClick={() => setMemoryFilter(filter)}>{memoryLabel(filter, zh)}<small>{filter === 'all' ? memories.length : memories.filter(memory => memory.category === filter).length}</small></button>)}</nav>
@@ -289,7 +289,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       <button className="danger-link" disabled={!memories.length} onClick={async () => { if (!window.confirm('清空珍奇的全部长期记忆？此操作无法撤销。')) return; await api('/api/agent/memories', json('DELETE')); setMemories([]); }}>{zh ? '清空全部长期记忆' : 'Clear all memories'}</button>
     </section>}
     {!introOpen && knowledgeOpen && <section className="agent-knowledge-panel">
-      <header><div><small>KNOWLEDGE LEDGER</small><h2>{zh ? '珍奇的知识版本' : 'Knowledge versions'}</h2></div><button onClick={() => setKnowledgeOpen(false)}><Icon name="close" size={16}/></button></header>
+      <header><div><small>KNOWLEDGE LEDGER</small><h2>{zh ? '珍奇的知识版本' : 'Knowledge versions'}</h2></div><button aria-label={zh ? '关闭知识版本' : 'Close knowledge versions'} onClick={() => setKnowledgeOpen(false)}><Icon name="close" size={16}/></button></header>
       <p>{zh ? '版本切换只影响珍奇的公共音乐知识，不会修改播放列表、收藏或私人记忆。' : 'Version changes affect only public music knowledge.'}</p>
       <form onSubmit={event => { event.preventDefault(); void loadKnowledge(knowledgeQuery); }}><input value={knowledgeQuery} onChange={event => setKnowledgeQuery(event.target.value)} placeholder={zh ? '检索歌曲、歌手、情绪或场景' : 'Search title, artist, mood or scene'}/><button disabled={knowledgeBusy}>{zh ? '检索' : 'Search'}</button></form>
       <div className="agent-knowledge-scroll">
@@ -315,7 +315,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
           <span aria-hidden="true"/><div><small>{receipt.status === 'undone' ? (zh ? '已恢复原状态' : 'State restored') : receipt.status === 'failed' ? (zh ? '撤销未完成' : 'Undo failed') : (zh ? '操作已完成' : 'Action complete')}</small><strong>{receipt.message}</strong></div>
           {receipt.undoAction && receipt.status !== 'undone' && <button disabled={receipt.status === 'undoing'} onClick={() => void undoReceipt(receipt)}><Icon name="return" size={13}/>{receipt.status === 'undoing' ? (zh ? '恢复中' : 'Restoring') : receipt.status === 'failed' ? (zh ? '重试' : 'Retry') : (zh ? '撤销' : 'Undo')}</button>}
         </section>)}
-        {reasonCards.map(card => <section className="agent-reason-card" key={card.id}><small>SCENE QUEUE</small><h3>{card.title}</h3><p>{card.body}</p><div>{card.tracks.map((track, index) => <button key={track.id} onClick={() => void onAction({ type: 'play_track', track, queue: card.tracks, reason: card.body })}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{track.title}</strong><small>{track.artist}</small></span><Icon name="play" size={14}/></button>)}</div></section>)}
+        {reasonCards.map(card => <section className={`agent-reason-card ${card.kind}`} key={card.id}><small>{card.kind === 'safety' ? 'LOCAL SAFETY' : card.kind === 'diagnostic' ? 'LOCAL NOTE' : 'SCENE QUEUE'}</small><h3>{card.title}</h3><p>{card.body}</p><div>{card.tracks.map((track, index) => <button key={track.id} onClick={() => void onAction({ type: 'play_track', track, queue: card.tracks, reason: card.body })}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{track.title}</strong><small>{track.artist}</small></span><Icon name="play" size={14}/></button>)}</div></section>)}
         {pendingActions.map(item => <section className="agent-confirm-card" key={item.actionId}><small>CONFIRMATION</small><h3>{item.summary}</h3><p>{zh ? '这是会修改数据的操作，珍奇不会替你决定。' : 'This changes data and requires your decision.'}</p>{item.status ? <strong>{item.status}</strong> : <div><button className="btn ghost" onClick={() => void resolvePending(item, false)}>{zh ? '取消' : 'Cancel'}</button><button className="btn primary" onClick={() => void resolvePending(item, true)}>{zh ? '确认' : 'Confirm'}</button></div>}</section>)}
       </div>
       <form className="agent-composer" onSubmit={event => void send(event)}>
