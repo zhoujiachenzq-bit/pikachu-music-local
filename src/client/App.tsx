@@ -611,6 +611,14 @@ export default function App() {
         commitToneTheme(action.theme as ToneThemeId, { x: window.innerWidth / 2, y: window.innerHeight / 2 }); return success('主题已切换');
       }
       if (action.type === 'clear_client_cache') { playbackCache.clear(); resolveRequests.current.clear(); warmedAudio.current.forEach(entry => disposeAudio(entry.element)); warmedAudio.current.clear(); return { ok: true, message: '当前设备的播放缓存已清理' }; }
+      if (action.type === 'refresh_library') {
+        await refreshLibrary();
+        if (selectedPlaylist) {
+          const detail = await api<{ playlist: PlaylistDetail }>(`/api/playlists/${encodeURIComponent(selectedPlaylist.id)}`);
+          setSelectedPlaylist(detail.playlist);
+        }
+        return { ok: true, message: '收藏与歌单已更新' };
+      }
       if (action.type === 'navigate') {
         if (action.section === 'agent') { if (mobileLayout) switchMobileSection('agent'); else setAgentOpen(true); }
         else switchMobileSection(action.section);
@@ -618,7 +626,7 @@ export default function App() {
       }
       return { ok: false, message: '这项操作还没有开放。' };
     } catch (error) { return { ok: false, message: error instanceof Error ? error.message : '操作没有完成。' }; }
-  }, [commitToneTheme, current, currentTime, mobileLayout, mobileSection, playFromQueue, playRelative, previewTone, queue, recoverPlayback, switchMobileSection, user?.playMode, visualPreferences.theme, volumeDraft]);
+  }, [commitToneTheme, current, currentTime, mobileLayout, mobileSection, playFromQueue, playRelative, previewTone, queue, recoverPlayback, refreshLibrary, selectedPlaylist, switchMobileSection, user?.playMode, visualPreferences.theme, volumeDraft]);
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {

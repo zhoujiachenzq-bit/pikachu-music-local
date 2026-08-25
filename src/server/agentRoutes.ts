@@ -185,6 +185,53 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
       updateToolAction(db, user.id, id, 'executed', { playlistId: playlist.id }, ['approved']);
       return { ok: true, message: `已创建歌单“${playlist.name}”`, playlist };
     }
+    if (action.toolName === 'manage_music_library') {
+      const parsed = z.object({
+        operation: z.enum(['add_favorite', 'remove_favorite', 'add_to_playlist', 'remove_from_playlist']),
+        trackId: z.string().min(1), playlistId: z.string().min(1).optional()
+      }).passthrough().parse(input);
+      const track = db.prepare('SELECT id,title,artist FROM tracks WHERE id=?').get(parsed.trackId) as { id: string; title: string; artist: string } | undefined;
+      if (!track) return reply.code(404).send(apiError('AGENT_TRACK_NOT_FOUND', '这首歌曲已经不存在，未修改资料库。'));
+      const stamp = new Date().toISOString();
+      if (parsed.operation === 'add_favorite' || parsed.operation === 'remove_favorite') {
+        if (parsed.operation === 'add_favorite') {
+          const exists = db.prepare('SELECT 1 FROM favorites WHERE user_id=? AND track_id=?').get(user.id, track.id);
+          const count = Number((db.prepare('SELECT COUNT(*) count FROM favorites WHERE user_id=?').get(user.id) as { count: number }).count);
+          if (!exists && count >= 5000) return reply.code(409).send(apiError('FAVORITE_LIMIT_REACHED', '收藏已达到 5000 首上限。'));
+          db.prepare('INSERT OR IGNORE INTO favorites(user_id,track_id,created_at) VALUES(?,?,?)').run(user.id, track.id, stamp);
+        } else db.prepare('DELETE FROM favorites WHERE user_id=? AND track_id=?').run(user.id, track.id);
+        return {
+          ok: true,
+          message: parsed.operation === 'add_favorite' ? `已收藏《${track.title}》` : `已取消收藏《${track.title}》`,
+          clientAction: { type: 'refresh_library' } satisfies AgentClientAction
+        };
+      }
+      if (!parsed.playlistId) return reply.code(400).send(apiError('AGENT_TARGET_REQUIRED', '请指定要修改的歌单。'));
+      const playlist = db.prepare('SELECT id,name FROM playlists WHERE id=? AND user_id=?').get(parsed.playlistId, user.id) as { id: string; name: string } | undefined;
+      if (!playlist) return reply.code(404).send(apiError('PLAYLIST_NOT_FOUND', '歌单不存在或不属于当前用户。'));
+      if (parsed.operation === 'add_to_playlist') {
+        const existing = db.prepare('SELECT 1 FROM playlist_items WHERE playlist_id=? AND track_id=? AND excluded=0').get(playlist.id, track.id);
+        const count = Number((db.prepare('SELECT COUNT(*) count FROM playlist_items WHERE playlist_id=? AND excluded=0').get(playlist.id) as { count: number }).count);
+        if (!existing && count >= 2000) return reply.code(409).send(apiError('PLAYLIST_TRACK_LIMIT_REACHED', '该歌单已达到 2000 首上限。'));
+      }
+      transaction(db, () => {
+        if (parsed.operation === 'add_to_playlist') {
+          const max = db.prepare('SELECT COALESCE(MAX(position),-1) max_pos FROM playlist_items WHERE playlist_id=?').get(playlist.id) as { max_pos: number };
+          db.prepare(`INSERT INTO playlist_items(playlist_id,track_id,position,origin,excluded,created_at) VALUES(?,?,?,'local',0,?)
+            ON CONFLICT(playlist_id,track_id) DO UPDATE SET origin='local',excluded=0`).run(playlist.id, track.id, Number(max.max_pos) + 1, stamp);
+        } else {
+          const item = db.prepare('SELECT origin FROM playlist_items WHERE playlist_id=? AND track_id=?').get(playlist.id, track.id) as { origin: string } | undefined;
+          if (item?.origin === 'source') db.prepare('UPDATE playlist_items SET excluded=1 WHERE playlist_id=? AND track_id=?').run(playlist.id, track.id);
+          else db.prepare('DELETE FROM playlist_items WHERE playlist_id=? AND track_id=?').run(playlist.id, track.id);
+        }
+        db.prepare('UPDATE playlists SET updated_at=? WHERE id=? AND user_id=?').run(stamp, playlist.id, user.id);
+      });
+      return {
+        ok: true,
+        message: parsed.operation === 'add_to_playlist' ? `已把《${track.title}》加入“${playlist.name}”` : `已把《${track.title}》移出“${playlist.name}”`,
+        clientAction: { type: 'refresh_library' } satisfies AgentClientAction
+      };
+    }
     if (action.toolName === 'maintain_music_house') {
       const parsed = z.object({ operation: z.enum(['clear_client_cache', 'regenerate_daily', 'sync_playlist']), targetId: z.string().max(200).optional() }).passthrough().parse(input);
       if (parsed.operation === 'clear_client_cache') return { ok: true, message: '请在当前设备清理播放缓存。', clientAction: { type: 'clear_client_cache' } satisfies AgentClientAction };

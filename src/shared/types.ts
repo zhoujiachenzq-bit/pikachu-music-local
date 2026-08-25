@@ -170,6 +170,7 @@ export type AgentClientAction =
   | { type: 'set_play_mode'; mode: User['playMode'] }
   | { type: 'set_theme'; theme: string }
   | { type: 'clear_client_cache' }
+  | { type: 'refresh_library' }
   | { type: 'navigate'; section: 'daily' | 'search' | 'player' | 'library' | 'agent' };
 
 export interface AgentClientActionResult {

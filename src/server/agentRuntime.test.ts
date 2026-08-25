@@ -3,7 +3,7 @@ import { loadAgentKeyring } from './agentCrypto.js';
 import { buildAgentContext, chooseAgentModelTier, directIntent, AgentRuntime, type AgentRunInput } from './agentRuntime.js';
 import { AgentModelProviderRegistry } from './agentModelProviders.js';
 import { publishKnowledgeVersion } from './agentKnowledge.js';
-import { createDatabase } from './db.js';
+import { createDatabase, upsertTrack } from './db.js';
 import { createAgentMemory, ensureMainConversation, listAgentMessages } from './agentStore.js';
 
 function addUser(db: ReturnType<typeof createDatabase>, id: string, username: string) {
@@ -25,6 +25,29 @@ describe('agent deterministic routing', () => {
     expect(chooseAgentModelTier('你好', false, 10, 150)).toBe('flash');
     expect(chooseAgentModelTier('请联网看看', true, 10, 150)).toBe('plus');
     expect(chooseAgentModelTier('请深入分析', true, 120, 150)).toBe('flash');
+  });
+
+  it('turns a library edit into a real-track confirmation instead of letting the model write data', async () => {
+    const db = createDatabase(':memory:'); addUser(db, 'a', 'Ash'); const keyring = loadAgentKeyring({} as NodeJS.ProcessEnv); const conversation = ensureMainConversation(db, 'a');
+    const track = upsertTrack(db, { id: 'qq:unused', source: 'qq', sourceTrackId: 'library-1', title: '晴天', artist: '周杰伦', album: '叶惠美', duration: 269000, coverUrl: null, sourceUrl: null });
+    const fakeProvider = {
+      id: 'deepseek', label: 'Fixture', configured: () => true, modelName: () => 'fixture-model', estimateCostCny: () => 0,
+      capabilities: () => ({ text: true, streaming: true, tools: true, structuredOutput: true, reasoning: false, imageInput: false, audioInput: false }),
+      stream: () => ({ fullStream: (async function* () {
+        yield { type: 'tool-call', toolName: 'manage_music_library', input: { operation: 'add_favorite', reason: '用户明确要求收藏当前歌曲' } };
+        yield { type: 'finish', totalUsage: { inputTokens: 8, outputTokens: 4 } };
+      })() })
+    };
+    const runtime = new AgentRuntime(db, keyring, new AgentModelProviderRegistry({ AGENT_MODEL_PROVIDER: 'deepseek' }, [fakeProvider as never]));
+    const input: AgentRunInput = { user: { id: 'a', username: 'Ash' }, conversationId: conversation.id, conversationKind: 'main', message: '收藏这首歌', generation: 1, webSearch: false, context: { currentTrack: track, queue: [track], playing: true, currentTime: 12, volume: .8, playMode: 'list' } };
+    const events = []; for await (const event of runtime.run(input)) events.push(event);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'reason_card', title: '收藏 · 晴天', tracks: [expect.objectContaining({ id: track.id })] }),
+      expect.objectContaining({ type: 'action_required', tool: 'manage_music_library', summary: '收藏《晴天》' })
+    ]));
+    expect(db.prepare('SELECT COUNT(*) count FROM favorites WHERE user_id=?').get('a')).toMatchObject({ count: 0 });
+    const action = db.prepare("SELECT input_json,status FROM agent_tool_actions WHERE user_id=? AND tool_name='manage_music_library'").get('a') as { input_json: string; status: string };
+    expect(JSON.parse(action.input_json)).toMatchObject({ operation: 'add_favorite', trackId: track.id, trackTitle: '晴天' }); expect(action.status).toBe('proposed'); db.close();
   });
 
   it('does not retrieve or infer memories while memory is disabled', async () => {

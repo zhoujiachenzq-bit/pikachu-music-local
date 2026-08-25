@@ -1,10 +1,11 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { createDatabase, type Db } from './db.js';
+import { createDatabase, createLocalPlaylist, upsertTrack, type Db } from './db.js';
 import { createApp } from './app.js';
 import { bindAgentStreamCancellation } from './agentRoutes.js';
 import { buildTrendPublishPayload, signKnowledgePublishPayload, TREND_REHEARSAL_FIXTURE } from './agentTrends.js';
+import { createAgentRun, createToolAction, ensureMainConversation } from './agentStore.js';
 
 describe('agent API', () => {
   let db: Db | undefined; let app: FastifyInstance | undefined;
@@ -40,6 +41,31 @@ describe('agent API', () => {
     const response = await app.inject({ method: 'POST', url: '/api/agent/messages', headers: { cookie }, payload: { conversationId: conversation.id, message: '暂停', generation: 1, webSearch: false, context: { currentTrack: null, queue: [], playing: false, currentTime: 0, volume: .8, playMode: 'list' } } });
     expect(response.statusCode).toBe(200); expect(response.headers['content-type']).toContain('text/event-stream'); expect(response.body).toContain('"type":"client_action"'); expect(response.body).toContain('"type":"pause"');
     expect(response.body).toContain('"type":"done"');
+  });
+
+  it('confirms library edits against the current user and refreshes the client library', async () => {
+    db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+    const registered = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'LibraryAgent', password: 'Pikachu-2026' } }); const cookie = registered.headers['set-cookie']!.split(';')[0];
+    const user = db.prepare('SELECT id FROM users WHERE username=?').get('LibraryAgent') as { id: string }; db.prepare("INSERT INTO agent_entitlements(user_id,source,granted_at) VALUES(?,'invite',?)").run(user.id, new Date().toISOString());
+    const conversation = ensureMainConversation(db, user.id); const track = upsertTrack(db, { id: 'qq:unused', source: 'qq', sourceTrackId: 'library-api-1', title: '晴天', artist: '周杰伦', album: '叶惠美', duration: 269000, coverUrl: null, sourceUrl: null });
+    const playlist = createLocalPlaylist(db, user.id, '夜路'); const runId = createAgentRun(db, user.id, conversation.id, 1, 'local', false);
+    const favoriteAction = createToolAction(db, runId, user.id, 'manage_music_library', 'confirm', { operation: 'add_favorite', trackId: track.id, trackTitle: track.title });
+    const favorite = await app.inject({ method: 'POST', url: `/api/agent/actions/${favoriteAction.id}/confirm`, headers: { cookie } });
+    expect(favorite.statusCode).toBe(200); expect(favorite.json()).toMatchObject({ message: '已收藏《晴天》', clientAction: { type: 'refresh_library' } });
+    expect(db.prepare('SELECT 1 ok FROM favorites WHERE user_id=? AND track_id=?').get(user.id, track.id)).toMatchObject({ ok: 1 });
+    expect((await app.inject({ method: 'POST', url: `/api/agent/actions/${favoriteAction.id}/result`, headers: { cookie }, payload: { ok: true } })).statusCode).toBe(200);
+
+    const playlistAction = createToolAction(db, runId, user.id, 'manage_music_library', 'confirm', { operation: 'add_to_playlist', trackId: track.id, playlistId: playlist.id });
+    const added = await app.inject({ method: 'POST', url: `/api/agent/actions/${playlistAction.id}/confirm`, headers: { cookie } });
+    expect(added.statusCode).toBe(200); expect(added.json()).toMatchObject({ message: '已把《晴天》加入“夜路”', clientAction: { type: 'refresh_library' } });
+    expect(db.prepare('SELECT excluded FROM playlist_items WHERE playlist_id=? AND track_id=?').get(playlist.id, track.id)).toMatchObject({ excluded: 0 });
+
+    const otherRegistration = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'OtherLibrary', password: 'Pikachu-2026' } });
+    const otherUser = db.prepare('SELECT id FROM users WHERE username=?').get('OtherLibrary') as { id: string }; const foreignPlaylist = createLocalPlaylist(db, otherUser.id, '别人的歌单');
+    expect(otherRegistration.statusCode).toBe(201);
+    const foreignAction = createToolAction(db, runId, user.id, 'manage_music_library', 'confirm', { operation: 'add_to_playlist', trackId: track.id, playlistId: foreignPlaylist.id });
+    const rejected = await app.inject({ method: 'POST', url: `/api/agent/actions/${foreignAction.id}/confirm`, headers: { cookie } });
+    expect(rejected.statusCode).toBe(404); expect(db.prepare('SELECT 1 FROM playlist_items WHERE playlist_id=?').get(foreignPlaylist.id)).toBeUndefined();
   });
 
   it('shows the admin a secret-free model provider status', async () => {
