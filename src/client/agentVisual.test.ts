@@ -9,4 +9,14 @@ describe('Zhenqi empty conversation visuals', () => {
     expect(panel).not.toContain('agent-cursor');
     expect(styles).not.toContain('agent-cursor');
   });
+
+  it('keeps settings as a focused workspace instead of stacking it over chat', () => {
+    const panel = readFileSync('src/client/AgentPanel.tsx', 'utf8');
+    const styles = readFileSync('src/client/styles.css', 'utf8');
+
+    expect(panel).toContain('agent-settings-scroll');
+    expect(panel).toContain('!settingsOpen && !adminOpen && !memoriesOpen && !knowledgeOpen');
+    expect(styles).toContain('.agent-settings { position: absolute;');
+    expect(styles).toContain('.agent-switch-list');
+  });
 });
