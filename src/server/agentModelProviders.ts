@@ -17,6 +17,10 @@ export interface AgentModelCapabilities {
   audioInput: boolean;
 }
 
+export function agentRuntimeCompatible(capabilities: AgentModelCapabilities) {
+  return capabilities.text && capabilities.streaming && capabilities.tools;
+}
+
 export interface AgentModelStreamInput<TOOLS extends ToolSet> {
   tier: RemoteAgentModelTier;
   system: string;
@@ -203,6 +207,7 @@ export interface AgentProviderStatus {
   label: string;
   configured: boolean;
   selected: boolean;
+  runtimeCompatible: boolean;
   models: { flash: string; plus: string };
   capabilities: AgentModelCapabilities;
 }
@@ -226,8 +231,9 @@ export class AgentModelProviderRegistry {
   }
 
   selected(): AgentChatModelProvider | null {
-    if (this.requested !== 'auto') return this.providers.find(provider => provider.id === this.requested && provider.configured()) || null;
-    return this.providers.find(provider => provider.configured()) || null;
+    const usable = (provider: AgentChatModelProvider) => provider.configured() && agentRuntimeCompatible(provider.capabilities('plus'));
+    if (this.requested !== 'auto') return this.providers.find(provider => provider.id === this.requested && usable(provider)) || null;
+    return this.providers.find(usable) || null;
   }
 
   statuses(): AgentProviderStatus[] {
@@ -237,6 +243,7 @@ export class AgentModelProviderRegistry {
       label: provider.label,
       configured: provider.configured(),
       selected: selected?.id === provider.id,
+      runtimeCompatible: agentRuntimeCompatible(provider.capabilities('plus')),
       models: { flash: provider.modelName('flash'), plus: provider.modelName('plus') },
       capabilities: provider.capabilities('plus')
     }));

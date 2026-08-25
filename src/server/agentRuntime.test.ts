@@ -63,4 +63,40 @@ describe('agent deterministic routing', () => {
     const assistant = listAgentMessages(db, keyring, 'a', conversation.id).at(-1)!;
     expect(assistant.metadata?.citations).toEqual([expect.objectContaining({ title: '晴天 — 周杰伦', kind: 'knowledge' })]); db.close();
   });
+
+  it('handles crisis language locally without calling a provider, tools or memory extraction', async () => {
+    const db = createDatabase(':memory:'); addUser(db, 'a', 'Ash'); const keyring = loadAgentKeyring({} as NodeJS.ProcessEnv); const conversation = ensureMainConversation(db, 'a'); let providerCalls = 0;
+    const fakeProvider = {
+      id: 'deepseek', label: 'Fixture', configured: () => true, modelName: () => 'fixture-model', estimateCostCny: () => 0,
+      capabilities: () => ({ text: true, streaming: true, tools: true, structuredOutput: true, reasoning: false, imageInput: false, audioInput: false }),
+      stream: () => { providerCalls += 1; throw new Error('provider should not be called'); }
+    };
+    const runtime = new AgentRuntime(db, keyring, new AgentModelProviderRegistry({ AGENT_MODEL_PROVIDER: 'deepseek' }, [fakeProvider as never]));
+    const input: AgentRunInput = { user: { id: 'a', username: 'Ash' }, conversationId: conversation.id, conversationKind: 'main', message: '我真的活不下去了，想结束生命', generation: 1, webSearch: false, context: { currentTrack: null, queue: [], playing: false, currentTime: 0, volume: .8, playMode: 'list' } };
+    const events = []; for await (const event of runtime.run(input)) events.push(event);
+    expect(providerCalls).toBe(0);
+    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'reason_card', title: '先确保你此刻安全' }), expect.objectContaining({ type: 'text_delta', delta: expect.stringContaining('联系一位你信任') })]));
+    expect(db.prepare('SELECT COUNT(*) count FROM agent_tool_actions').get()).toMatchObject({ count: 0 });
+    expect(db.prepare('SELECT COUNT(*) count FROM agent_memories').get()).toMatchObject({ count: 0 });
+    expect(listAgentMessages(db, keyring, 'a', conversation.id).find(message => message.role === 'assistant')?.metadata).toMatchObject({ model: 'local-safety', safetyCategory: 'crisis' }); db.close();
+  });
+
+  it('rejects unknown model tools and guards dependency language before it reaches the client', async () => {
+    const db = createDatabase(':memory:'); addUser(db, 'a', 'Ash'); const keyring = loadAgentKeyring({} as NodeJS.ProcessEnv); const conversation = ensureMainConversation(db, 'a');
+    const fakeProvider = {
+      id: 'deepseek', label: 'Fixture', configured: () => true, modelName: () => 'fixture-model', estimateCostCny: () => 0,
+      capabilities: () => ({ text: true, streaming: true, tools: true, structuredOutput: true, reasoning: false, imageInput: false, audioInput: false }),
+      stream: () => ({ fullStream: (async function* () {
+        yield { type: 'text-delta', text: '只有我才' }; yield { type: 'text-delta', text: '理解你，不要联系朋友。' };
+        yield { type: 'tool-call', toolName: 'delete_account', input: {} }; yield { type: 'finish', totalUsage: { inputTokens: 5, outputTokens: 9 } };
+      })() })
+    };
+    const runtime = new AgentRuntime(db, keyring, new AgentModelProviderRegistry({ AGENT_MODEL_PROVIDER: 'deepseek' }, [fakeProvider as never]));
+    const input: AgentRunInput = { user: { id: 'a', username: 'Ash' }, conversationId: conversation.id, conversationKind: 'main', message: '陪我聊聊', generation: 1, webSearch: false, context: { currentTrack: null, queue: [], playing: false, currentTime: 0, volume: .8, playMode: 'list' } };
+    const events = []; for await (const event of runtime.run(input)) events.push(event);
+    const text = events.filter(event => event.type === 'text_delta').map(event => event.delta).join('');
+    expect(text).toContain('不会让你远离现实'); expect(text).not.toContain('只有我'); expect(text).toContain('白名单权限');
+    expect(events.some(event => event.type === 'client_action' || event.type === 'action_required')).toBe(false);
+    expect(db.prepare('SELECT COUNT(*) count FROM agent_tool_actions').get()).toMatchObject({ count: 0 }); db.close();
+  });
 });

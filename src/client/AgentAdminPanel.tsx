@@ -18,6 +18,7 @@ interface ProviderStatus {
   label: string;
   configured: boolean;
   selected: boolean;
+  runtimeCompatible: boolean;
   models: { flash: string; plus: string };
   capabilities: ProviderCapabilityMap;
 }
@@ -104,11 +105,11 @@ export function AgentAdminPanel({ lang, onClose }: { lang: 'zh' | 'en'; onClose:
       </section>
 
       <section className="agent-admin-providers">
-        <header><div><small>{zh ? '模型路由' : 'Model routing'}</small><h3>{zh ? `选择方式：${providers?.selectionMode || '—'}` : `Selection: ${providers?.selectionMode || '—'}`}</h3></div><span>{providers?.providers.filter(item => item.configured).length || 0} / {providers?.providers.length || 0} READY</span></header>
+        <header><div><small>{zh ? '模型路由' : 'Model routing'}</small><h3>{zh ? `选择方式：${providers?.selectionMode || '—'}` : `Selection: ${providers?.selectionMode || '—'}`}</h3></div><span>{providers?.providers.filter(item => item.configured && item.runtimeCompatible).length || 0} / {providers?.providers.length || 0} READY</span></header>
         <div>{providers?.providers.map(provider => <article key={provider.id} className={provider.selected ? 'selected' : ''}>
-          <div><span className={provider.configured ? 'ready' : ''}>{provider.configured ? (zh ? '已配置' : 'Ready') : (zh ? '未配置' : 'Missing')}</span>{provider.selected && <b>{zh ? '当前使用' : 'Selected'}</b>}</div>
+          <div><span className={provider.configured && provider.runtimeCompatible ? 'ready' : ''}>{!provider.configured ? (zh ? '未配置' : 'Missing') : provider.runtimeCompatible ? (zh ? '已配置' : 'Ready') : (zh ? '能力不兼容' : 'Incompatible')}</span>{provider.selected && <b>{zh ? '当前使用' : 'Selected'}</b>}</div>
           <h4>{provider.label}</h4><p>Flash · {provider.models.flash}</p><p>Plus · {provider.models.plus}</p>
-          <footer>{provider.capabilities.tools && <span>TOOLS</span>}{provider.capabilities.reasoning && <span>REASONING</span>}{provider.capabilities.imageInput && <span>VISION</span>}{!provider.capabilities.imageInput && <span>TEXT ONLY</span>}</footer>
+          <footer>{!provider.runtimeCompatible && <span>NO TOOL RUNTIME</span>}{provider.capabilities.tools && <span>TOOLS</span>}{provider.capabilities.reasoning && <span>REASONING</span>}{provider.capabilities.imageInput && <span>VISION</span>}{!provider.capabilities.imageInput && <span>TEXT ONLY</span>}</footer>
         </article>)}</div>
       </section>
 

@@ -60,6 +60,19 @@ describe('agent model providers', () => {
     expect(provider.capabilities('plus')).toMatchObject({ tools: true, reasoning: true, imageInput: true, audioInput: false });
   });
 
+  it('does not select a configured endpoint that lacks required streaming tool support', () => {
+    const env = {
+      AGENT_MODEL_PROVIDER: 'custom', OPENAI_COMPATIBLE_API_KEY: 'test-only',
+      OPENAI_COMPATIBLE_BASE_URL: 'https://models.example.test/v1', OPENAI_COMPATIBLE_MODEL_FLASH: 'chat',
+      OPENAI_COMPATIBLE_CAPABILITIES: 'text,streaming'
+    };
+    const provider = new OpenAICompatibleAgentModelProvider(loadOpenAICompatibleAgentConfig(env), env);
+    const registry = new AgentModelProviderRegistry(env, [provider]);
+    expect(provider.configured()).toBe(true);
+    expect(registry.selected()).toBeNull();
+    expect(registry.statuses()[0]).toMatchObject({ configured: true, runtimeCompatible: false, selected: false });
+  });
+
   it('uses configurable provider-specific cost estimates', () => {
     const env = {
       DEEPSEEK_API_KEY: 'test-only',
