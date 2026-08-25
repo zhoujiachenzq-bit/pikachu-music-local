@@ -45,9 +45,10 @@ describe('agent speech provider', () => {
 
   it('reports availability per voice instead of treating a provider key as every voice', () => {
     const registry = new AgentSpeechSynthesisRegistry({
-      AZURE_SPEECH_KEY: 'azure-key', AZURE_SPEECH_REGION: 'eastasia', MINIMAX_API_KEY: 'mini-key', MINIMAX_VOICE_SOOTHING_HOST: 'soothing-account-id'
+      AZURE_SPEECH_KEY: 'azure-key', AZURE_SPEECH_REGION: 'eastasia', MINIMAX_API_KEY: 'mini-key',
+      MINIMAX_VOICE_SOOTHING_HOST: 'soothing-account-id', MINIMAX_VOICE_GENTLEMAN: 'gentleman-account-id'
     });
     const options = Object.fromEntries(registry.options().map(option => [option.id, option.available]));
-    expect(options['azure-xiaoxiao']).toBe(true); expect(options['minimax-soothing-host']).toBe(true); expect(options['minimax-office-man']).toBe(false); expect(options['bailian-cherry']).toBe(false);
+    expect(options['azure-xiaoxiao']).toBe(true); expect(options['azure-xiaoke']).toBe(true); expect(options['minimax-soothing-host']).toBe(true); expect(options['minimax-gentleman']).toBe(true); expect(options['minimax-gentle-youth']).toBe(false); expect(options['minimax-office-man']).toBe(false); expect(options['bailian-cherry']).toBe(false);
   });
 });

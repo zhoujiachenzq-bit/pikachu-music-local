@@ -105,6 +105,7 @@ export interface AzureSpeechConfig {
   endpoint: string | null;
   outputFormat: string;
   voice: string;
+  xiaokeVoice: string;
 }
 
 export function loadAzureSpeechConfig(env: NodeJS.ProcessEnv = process.env): AzureSpeechConfig {
@@ -116,7 +117,8 @@ export function loadAzureSpeechConfig(env: NodeJS.ProcessEnv = process.env): Azu
     region,
     endpoint: base ? (base.endsWith('/cognitiveservices/v1') ? base : `${base}/cognitiveservices/v1`) : null,
     outputFormat: env.AZURE_SPEECH_OUTPUT_FORMAT?.trim() || 'audio-24khz-96kbitrate-mono-mp3',
-    voice: env.AZURE_SPEECH_VOICE_XIAOXIAO?.trim() || 'zh-CN-Xiaoxiao:DragonHDFlashLatestNeural'
+    voice: env.AZURE_SPEECH_VOICE_XIAOXIAO?.trim() || 'zh-CN-Xiaoxiao:DragonHDFlashLatestNeural',
+    xiaokeVoice: env.AZURE_SPEECH_VOICE_XIAOKE?.trim() || 'zh-CN-Xiaoke:DragonHDFlashLatestNeural'
   };
 }
 
@@ -157,6 +159,11 @@ export interface MiniMaxSpeechConfig {
   model: string;
   soothingHostVoice: string | null;
   officeManVoice: string | null;
+  warmBestieVoice: string | null;
+  gentlemanVoice: string | null;
+  gentleYouthVoice: string | null;
+  crispPodcasterVoice: string | null;
+  radioReporterVoice: string | null;
 }
 
 export function loadMiniMaxSpeechConfig(env: NodeJS.ProcessEnv = process.env): MiniMaxSpeechConfig {
@@ -164,7 +171,12 @@ export function loadMiniMaxSpeechConfig(env: NodeJS.ProcessEnv = process.env): M
   return {
     apiKey: env.MINIMAX_API_KEY?.trim() || null, endpoint: `${base}/t2a_v2`, model: env.MINIMAX_TTS_MODEL?.trim() || 'speech-2.8-hd',
     soothingHostVoice: env.MINIMAX_VOICE_SOOTHING_HOST?.trim() || null,
-    officeManVoice: env.MINIMAX_VOICE_OFFICE_MAN?.trim() || null
+    officeManVoice: env.MINIMAX_VOICE_OFFICE_MAN?.trim() || null,
+    warmBestieVoice: env.MINIMAX_VOICE_WARM_BESTIE?.trim() || null,
+    gentlemanVoice: env.MINIMAX_VOICE_GENTLEMAN?.trim() || null,
+    gentleYouthVoice: env.MINIMAX_VOICE_GENTLE_YOUTH?.trim() || null,
+    crispPodcasterVoice: env.MINIMAX_VOICE_CRISP_PODCASTER?.trim() || null,
+    radioReporterVoice: env.MINIMAX_VOICE_RADIO_REPORTER?.trim() || null
   };
 }
 
@@ -213,7 +225,13 @@ export class AgentSpeechSynthesisRegistry {
   }
   private voiceTarget(id: AgentVoiceProfileId): { provider: SpeechSynthesisProvider; voice: string; providerId: RoutedSpeechSynthesisResult['provider']; model: string } | null {
     if (id === 'azure-xiaoxiao') return this.azure.configured() ? { provider: this.azure, voice: this.azure.config.voice, providerId: 'azure-tts', model: this.azure.model } : null;
+    if (id === 'azure-xiaoke') return this.azure.configured() ? { provider: this.azure, voice: this.azure.config.xiaokeVoice, providerId: 'azure-tts', model: this.azure.model } : null;
     if (id === 'minimax-soothing-host') return this.minimax.configured() && this.minimax.config.soothingHostVoice ? { provider: this.minimax, voice: this.minimax.config.soothingHostVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
+    if (id === 'minimax-warm-bestie') return this.minimax.configured() && this.minimax.config.warmBestieVoice ? { provider: this.minimax, voice: this.minimax.config.warmBestieVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
+    if (id === 'minimax-gentleman') return this.minimax.configured() && this.minimax.config.gentlemanVoice ? { provider: this.minimax, voice: this.minimax.config.gentlemanVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
+    if (id === 'minimax-gentle-youth') return this.minimax.configured() && this.minimax.config.gentleYouthVoice ? { provider: this.minimax, voice: this.minimax.config.gentleYouthVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
+    if (id === 'minimax-crisp-podcaster') return this.minimax.configured() && this.minimax.config.crispPodcasterVoice ? { provider: this.minimax, voice: this.minimax.config.crispPodcasterVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
+    if (id === 'minimax-radio-reporter') return this.minimax.configured() && this.minimax.config.radioReporterVoice ? { provider: this.minimax, voice: this.minimax.config.radioReporterVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
     if (id === 'minimax-office-man') return this.minimax.configured() && this.minimax.config.officeManVoice ? { provider: this.minimax, voice: this.minimax.config.officeManVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
     const voice = BAILIAN_VOICES[id]; return voice && this.bailian.configured() ? { provider: this.bailian, voice, providerId: 'bailian-tts', model: this.bailian.config.ttsModel } : null;
   }
