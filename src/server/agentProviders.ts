@@ -201,21 +201,67 @@ export class MiniMaxSpeechProvider implements SpeechSynthesisProvider {
   }
 }
 
+export interface KokoroSpeechConfig {
+  enabled: boolean;
+  endpoint: string;
+  voice: string;
+  model: string;
+}
+
+function isLoopbackHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) && url.username === '' && url.password === '';
+  } catch { return false; }
+}
+
+export function loadKokoroSpeechConfig(env: NodeJS.ProcessEnv = process.env): KokoroSpeechConfig {
+  const endpoint = (env.KOKORO_TTS_URL?.trim() || 'http://127.0.0.1:8791').replace(/\/$/, '');
+  return {
+    enabled: env.KOKORO_TTS_ENABLED === 'true' && isLoopbackHttpUrl(endpoint),
+    endpoint,
+    voice: env.KOKORO_TTS_VOICE?.trim() || 'zf_001',
+    model: 'hexgrad/Kokoro-82M-v1.1-zh'
+  };
+}
+
+export class KokoroSpeechProvider implements SpeechSynthesisProvider {
+  constructor(readonly config = loadKokoroSpeechConfig(), private readonly fetcher: typeof fetch = fetch) {}
+  configured() { return this.config.enabled; }
+  async synthesize(input: { text: string; voice: string; persona?: 'warm' | 'bright' | 'poetic'; signal?: AbortSignal }) {
+    if (!this.configured()) throw new Error('KOKORO_SPEECH_NOT_CONFIGURED');
+    const timeout = timeoutSignal(90_000, input.signal);
+    const speed = input.persona === 'bright' ? 1.06 : input.persona === 'poetic' ? .92 : 1;
+    try {
+      const response = await this.fetcher(`${this.config.endpoint}/synthesize`, {
+        method: 'POST', signal: timeout.signal, headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: input.text, voice: input.voice, speed })
+      });
+      const contentType = assertAudioResponse(response, 'KOKORO_SPEECH');
+      const audio = Buffer.from(await response.arrayBuffer());
+      if (!audio.length || audio.length > 12 * 1024 * 1024) throw new Error('TTS_AUDIO_INVALID');
+      return { audio, contentType };
+    } finally { timeout.clear(); }
+  }
+}
+
 const BAILIAN_VOICES: Partial<Record<AgentVoiceProfileId, string>> = {
   'bailian-cherry': 'Cherry', 'bailian-serena': 'Serena', 'bailian-ethan': 'Ethan', 'bailian-chelsie': 'Chelsie'
 };
 
 export interface RoutedSpeechSynthesisResult extends SpeechSynthesisResult {
   profileId: AgentVoiceProfileId;
-  provider: 'azure-tts' | 'minimax-tts' | 'bailian-tts';
+  provider: 'kokoro-local' | 'azure-tts' | 'minimax-tts' | 'bailian-tts';
   model: string;
 }
 
 export class AgentSpeechSynthesisRegistry {
+  readonly kokoro: KokoroSpeechProvider;
   readonly azure: AzureSpeechProvider;
   readonly minimax: MiniMaxSpeechProvider;
   readonly bailian: BailianSpeechProvider;
   constructor(readonly env: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch) {
+    this.kokoro = new KokoroSpeechProvider(loadKokoroSpeechConfig(env), fetcher);
     this.azure = new AzureSpeechProvider(loadAzureSpeechConfig(env), fetcher);
     this.minimax = new MiniMaxSpeechProvider(loadMiniMaxSpeechConfig(env), fetcher);
     this.bailian = new BailianSpeechProvider(loadAgentProviderConfig(env), fetcher);
@@ -224,6 +270,7 @@ export class AgentSpeechSynthesisRegistry {
     return AGENT_VOICE_PROFILES.map(profile => ({ ...profile, available: this.voiceTarget(profile.id) !== null }));
   }
   private voiceTarget(id: AgentVoiceProfileId): { provider: SpeechSynthesisProvider; voice: string; providerId: RoutedSpeechSynthesisResult['provider']; model: string } | null {
+    if (id === 'kokoro-zf-001') return this.kokoro.configured() ? { provider: this.kokoro, voice: this.kokoro.config.voice, providerId: 'kokoro-local', model: this.kokoro.config.model } : null;
     if (id === 'azure-xiaoxiao') return this.azure.configured() ? { provider: this.azure, voice: this.azure.config.voice, providerId: 'azure-tts', model: this.azure.model } : null;
     if (id === 'azure-xiaoke') return this.azure.configured() ? { provider: this.azure, voice: this.azure.config.xiaokeVoice, providerId: 'azure-tts', model: this.azure.model } : null;
     if (id === 'minimax-soothing-host') return this.minimax.configured() && this.minimax.config.soothingHostVoice ? { provider: this.minimax, voice: this.minimax.config.soothingHostVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
@@ -241,6 +288,7 @@ export class AgentSpeechSynthesisRegistry {
     return { ...result, profileId, provider: target.providerId, model: target.model };
   }
   available(id: unknown) { const normalized = normalizeAgentVoiceId(id); return this.voiceTarget(normalized) !== null; }
+  isLocal(id: unknown) { return normalizeAgentVoiceId(id) === 'kokoro-zf-001' && this.kokoro.configured(); }
   profile(id: unknown) { return agentVoiceProfile(id); }
 }
 

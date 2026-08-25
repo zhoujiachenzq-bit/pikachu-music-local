@@ -270,9 +270,9 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
 
   app.post('/api/agent/voice/synthesize', async (request, reply) => {
     const user = requireAgent(db, keyring, request, reply); if (!user) return;
-    const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150); if (monthlyAgentCost(db) >= budget) return reply.code(503).send(apiError('AGENT_BUDGET_EXHAUSTED', '本月珍奇语音额度已暂停。'));
-    const body = z.object({ text: z.string().trim().min(1).max(1500), voice: z.string().min(1).max(80).default('azure-xiaoxiao'), persona: z.enum(['warm', 'bright', 'poetic']).default('warm') }).parse(request.body);
+    const body = z.object({ text: z.string().trim().min(1).max(1500), voice: z.string().min(1).max(80).default('kokoro-zf-001'), persona: z.enum(['warm', 'bright', 'poetic']).default('warm') }).parse(request.body);
     const voice = normalizeAgentVoiceId(body.voice);
+    const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150); if (monthlyAgentCost(db) >= budget && !speechSynthesis.isLocal(voice)) return reply.code(503).send(apiError('AGENT_BUDGET_EXHAUSTED', '本月在线语音额度已暂停，本地 Kokoro 仍可使用。'));
     if (!speechSynthesis.available(voice)) return reply.code(503).send(apiError('AGENT_TTS_VOICE_UNAVAILABLE', '这个音色尚未配置，文字聊天和浏览器朗读仍可使用。', { voice }));
     const instructions = body.persona === 'bright' ? '轻快、有活力、带着真诚笑意，但不要夸张。' : body.persona === 'poetic' ? '语速舒缓、克制、有轻微画面感，不要矫饰。' : '自然、温暖、机灵，像熟悉的朋友一样表达。';
     const controller = new AbortController(); request.raw.once('aborted', () => controller.abort());

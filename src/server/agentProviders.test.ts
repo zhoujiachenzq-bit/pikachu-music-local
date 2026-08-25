@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AgentSpeechSynthesisRegistry, AzureSpeechProvider, BailianSpeechProvider, MiniMaxSpeechProvider, loadAgentProviderConfig, loadAzureSpeechConfig, loadMiniMaxSpeechConfig } from './agentProviders.js';
+import { AgentSpeechSynthesisRegistry, AzureSpeechProvider, BailianSpeechProvider, KokoroSpeechProvider, MiniMaxSpeechProvider, loadAgentProviderConfig, loadAzureSpeechConfig, loadKokoroSpeechConfig, loadMiniMaxSpeechConfig } from './agentProviders.js';
 import { normalizeAgentVoiceId } from '../shared/agentVoices.js';
 
 describe('agent speech provider', () => {
@@ -19,10 +19,19 @@ describe('agent speech provider', () => {
     expect(result).toMatchObject({ contentType: 'audio/wav' }); expect([...result.audio]).toEqual([82, 73, 70, 70]);
   });
 
-  it('keeps legacy settings compatible while making Xiaoxiao the safe default', () => {
-    expect(normalizeAgentVoiceId('Cherry')).toBe('azure-xiaoxiao');
+  it('keeps legacy settings compatible while making local Kokoro the safe default', () => {
+    expect(normalizeAgentVoiceId('Cherry')).toBe('kokoro-zf-001');
     expect(normalizeAgentVoiceId('Serena')).toBe('bailian-serena');
-    expect(normalizeAgentVoiceId('not-a-real-voice')).toBe('azure-xiaoxiao');
+    expect(normalizeAgentVoiceId('not-a-real-voice')).toBe('kokoro-zf-001');
+  });
+
+  it('accepts only loopback Kokoro services and returns validated local WAV audio', async () => {
+    expect(loadKokoroSpeechConfig({ KOKORO_TTS_ENABLED: 'true', KOKORO_TTS_URL: 'https://voice.example.test' }).enabled).toBe(false);
+    const fetcher = vi.fn().mockResolvedValue(new Response(new Uint8Array([82, 73, 70, 70]), { status: 200, headers: { 'content-type': 'audio/wav' } }));
+    const provider = new KokoroSpeechProvider(loadKokoroSpeechConfig({ KOKORO_TTS_ENABLED: 'true', KOKORO_TTS_URL: 'http://127.0.0.1:8791', KOKORO_TTS_VOICE: 'zf_001' }), fetcher as typeof fetch);
+    const result = await provider.synthesize({ text: '晚上好', voice: provider.config.voice, persona: 'poetic' });
+    const [url, request] = fetcher.mock.calls[0] as [string, RequestInit]; const payload = JSON.parse(String(request.body));
+    expect(url).toBe('http://127.0.0.1:8791/synthesize'); expect(payload).toMatchObject({ voice: 'zf_001', speed: .92 }); expect(result.contentType).toBe('audio/wav');
   });
 
   it('builds escaped Azure SSML for the Xiaoxiao profile', async () => {
@@ -45,10 +54,10 @@ describe('agent speech provider', () => {
 
   it('reports availability per voice instead of treating a provider key as every voice', () => {
     const registry = new AgentSpeechSynthesisRegistry({
-      AZURE_SPEECH_KEY: 'azure-key', AZURE_SPEECH_REGION: 'eastasia', MINIMAX_API_KEY: 'mini-key',
+      KOKORO_TTS_ENABLED: 'true', KOKORO_TTS_URL: 'http://127.0.0.1:8791', AZURE_SPEECH_KEY: 'azure-key', AZURE_SPEECH_REGION: 'eastasia', MINIMAX_API_KEY: 'mini-key',
       MINIMAX_VOICE_SOOTHING_HOST: 'soothing-account-id', MINIMAX_VOICE_GENTLEMAN: 'gentleman-account-id'
     });
     const options = Object.fromEntries(registry.options().map(option => [option.id, option.available]));
-    expect(options['azure-xiaoxiao']).toBe(true); expect(options['azure-xiaoke']).toBe(true); expect(options['minimax-soothing-host']).toBe(true); expect(options['minimax-gentleman']).toBe(true); expect(options['minimax-gentle-youth']).toBe(false); expect(options['minimax-office-man']).toBe(false); expect(options['bailian-cherry']).toBe(false);
+    expect(options['kokoro-zf-001']).toBe(true); expect(registry.isLocal('kokoro-zf-001')).toBe(true); expect(options['azure-xiaoxiao']).toBe(true); expect(options['azure-xiaoke']).toBe(true); expect(options['minimax-soothing-host']).toBe(true); expect(options['minimax-gentleman']).toBe(true); expect(options['minimax-gentle-youth']).toBe(false); expect(options['minimax-office-man']).toBe(false); expect(options['bailian-cherry']).toBe(false);
   });
 });

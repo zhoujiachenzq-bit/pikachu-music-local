@@ -1,4 +1,5 @@
 export const AGENT_VOICE_PROFILE_IDS = [
+  'kokoro-zf-001',
   'azure-xiaoxiao',
   'azure-xiaoke',
   'minimax-soothing-host',
@@ -15,7 +16,7 @@ export const AGENT_VOICE_PROFILE_IDS = [
 ] as const;
 
 export type AgentVoiceProfileId = typeof AGENT_VOICE_PROFILE_IDS[number];
-export type AgentVoiceProviderId = 'azure' | 'minimax' | 'bailian';
+export type AgentVoiceProviderId = 'kokoro' | 'azure' | 'minimax' | 'bailian';
 export type AgentVoiceGroup = 'selected' | 'legacy';
 
 export interface AgentVoiceProfile {
@@ -35,7 +36,13 @@ export interface AgentVoiceOption extends AgentVoiceProfile {
 
 export const AGENT_VOICE_PROFILES: readonly AgentVoiceProfile[] = [
   {
-    id: 'azure-xiaoxiao', provider: 'azure', group: 'selected', recommended: true,
+    id: 'kokoro-zf-001', provider: 'kokoro', group: 'selected', recommended: true,
+    labelZh: 'Kokoro · 本地中文女声', labelEn: 'Kokoro · Local Chinese female',
+    descriptionZh: '免费在本机生成，清晰自然；无需账户，语音内容不会发送给音色供应商。',
+    descriptionEn: 'Generated locally for free with no voice-provider account or text upload.'
+  },
+  {
+    id: 'azure-xiaoxiao', provider: 'azure', group: 'selected',
     labelZh: '晓晓 · 标准中文女声', labelEn: 'Xiaoxiao · Standard Chinese',
     descriptionZh: '自然、清晰、温暖，适合日常聊天与音乐推荐。',
     descriptionEn: 'Natural, clear and warm for everyday conversation and recommendations.'
@@ -106,13 +113,13 @@ export const AGENT_VOICE_PROFILES: readonly AgentVoiceProfile[] = [
 ] as const;
 
 const LEGACY_VOICE_IDS: Record<string, AgentVoiceProfileId> = {
-  Cherry: 'azure-xiaoxiao', Serena: 'bailian-serena', Ethan: 'bailian-ethan', Chelsie: 'bailian-chelsie'
+  Cherry: 'kokoro-zf-001', Serena: 'bailian-serena', Ethan: 'bailian-ethan', Chelsie: 'bailian-chelsie'
 };
 
 export function normalizeAgentVoiceId(value: unknown): AgentVoiceProfileId {
   const raw = String(value || '').trim();
   if ((AGENT_VOICE_PROFILE_IDS as readonly string[]).includes(raw)) return raw as AgentVoiceProfileId;
-  return LEGACY_VOICE_IDS[raw] || 'azure-xiaoxiao';
+  return LEGACY_VOICE_IDS[raw] || 'kokoro-zf-001';
 }
 
 export function agentVoiceProfile(id: unknown): AgentVoiceProfile {

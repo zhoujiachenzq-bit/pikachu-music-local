@@ -32,4 +32,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
-export const json = (method: string, body?: unknown): RequestInit => ({ method, body: body === undefined ? undefined : JSON.stringify(body) });
+export const json = (method: string, body?: unknown): RequestInit => ({
+  method,
+  headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+  body: body === undefined ? undefined : JSON.stringify(body)
+});

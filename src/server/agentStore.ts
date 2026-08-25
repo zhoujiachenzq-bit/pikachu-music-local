@@ -37,7 +37,7 @@ export function getAgentAccess(db: Db, user: { id: string; username: string }, k
 
 export function ensureAgentSettings(db: Db, userId: string): AgentSettings {
   const stamp = now();
-  db.prepare(`INSERT OR IGNORE INTO agent_settings(user_id,voice,created_at,updated_at) VALUES(?,?,?,?)`).run(userId, 'azure-xiaoxiao', stamp, stamp);
+  db.prepare(`INSERT OR IGNORE INTO agent_settings(user_id,voice,created_at,updated_at) VALUES(?,?,?,?)`).run(userId, 'kokoro-zf-001', stamp, stamp);
   const row = db.prepare('SELECT * FROM agent_settings WHERE user_id=?').get(userId) as Record<string, unknown>;
   return {
     assistantName: String(row.assistant_name), persona: row.persona as AgentPersona,
