@@ -18,6 +18,10 @@ function parseKey(value: string): Buffer {
   return decoded;
 }
 
+function developmentKey(): Buffer {
+  return createHash('sha256').update('pikachu-music-zhenqi-local-development-only').digest();
+}
+
 export function loadAgentKeyring(env: NodeJS.ProcessEnv = process.env): Keyring {
   const primary = env.AGENT_DATA_KEY_VERSION?.trim() || 'v1';
   const keys = new Map<string, Buffer>();
@@ -26,9 +30,12 @@ export function loadAgentKeyring(env: NodeJS.ProcessEnv = process.env): Keyring 
     for (const [version, value] of Object.entries(parsed)) keys.set(version, parseKey(value));
   }
   if (env.AGENT_DATA_KEY) keys.set(primary, parseKey(env.AGENT_DATA_KEY));
+  // Local beta records may predate a real key. Retain the known development
+  // key only outside production so those records remain readable during setup.
+  if (env.NODE_ENV !== 'production' && primary !== 'dev-v1') keys.set('dev-v1', developmentKey());
   if (keys.has(primary)) return { primary, keys, developmentFallback: false };
   if (env.NODE_ENV === 'production') return { primary, keys, developmentFallback: false };
-  keys.set('dev-v1', createHash('sha256').update('pikachu-music-zhenqi-local-development-only').digest());
+  keys.set('dev-v1', developmentKey());
   return { primary: 'dev-v1', keys, developmentFallback: true };
 }
 

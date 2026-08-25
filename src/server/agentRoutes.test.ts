@@ -1,12 +1,28 @@
+import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { createDatabase, type Db } from './db.js';
 import { createApp } from './app.js';
+import { bindAgentStreamCancellation } from './agentRoutes.js';
 import { buildTrendPublishPayload, signKnowledgePublishPayload, TREND_REHEARSAL_FIXTURE } from './agentTrends.js';
 
 describe('agent API', () => {
   let db: Db | undefined; let app: FastifyInstance | undefined;
   afterEach(async () => { if (app) await app.close(); if (db) db.close(); app = undefined; db = undefined; });
+
+  it('does not cancel SSE when the request body finishes normally', () => {
+    const request = new EventEmitter(); const response = new EventEmitter() as EventEmitter & { writableEnded: boolean }; response.writableEnded = false;
+    const controller = new AbortController(); bindAgentStreamCancellation(request as never, response as never, controller);
+    request.emit('close'); expect(controller.signal.aborted).toBe(false);
+    request.emit('aborted'); expect(controller.signal.aborted).toBe(true);
+  });
+
+  it('cancels SSE only when the response closes before completion', () => {
+    const completedRequest = new EventEmitter(); const completedResponse = new EventEmitter() as EventEmitter & { writableEnded: boolean }; completedResponse.writableEnded = true;
+    const completedController = new AbortController(); bindAgentStreamCancellation(completedRequest as never, completedResponse as never, completedController); completedResponse.emit('close'); expect(completedController.signal.aborted).toBe(false);
+    const droppedRequest = new EventEmitter(); const droppedResponse = new EventEmitter() as EventEmitter & { writableEnded: boolean }; droppedResponse.writableEnded = false;
+    const droppedController = new AbortController(); bindAgentStreamCancellation(droppedRequest as never, droppedResponse as never, droppedController); droppedResponse.emit('close'); expect(droppedController.signal.aborted).toBe(true);
+  });
 
   it('requires an invite for accounts created after the agent migration', async () => {
     db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();

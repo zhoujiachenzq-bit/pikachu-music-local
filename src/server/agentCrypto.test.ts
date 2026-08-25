@@ -22,4 +22,13 @@ describe('agent record encryption', () => {
     expect(decryptAgentText(rotating, 'user-a', 'memory', 'memory-1', encrypted.ciphertext, encrypted.keyVersion)).toBe('偏爱夜晚听歌');
     expect(encryptAgentText(rotating, 'user-a', 'memory', 'memory-2', '新记忆').keyVersion).toBe('v2');
   });
+
+  it('keeps legacy local beta records readable after a real development key is configured', () => {
+    const legacy = loadAgentKeyring({} as NodeJS.ProcessEnv);
+    const encrypted = encryptAgentText(legacy, 'user-a', 'message', 'message-legacy', '旧的本地对话');
+    const configured = loadAgentKeyring({ AGENT_DATA_KEY_VERSION: 'v1', AGENT_DATA_KEY: key } as NodeJS.ProcessEnv);
+    expect(configured.primary).toBe('v1');
+    expect(configured.developmentFallback).toBe(false);
+    expect(decryptAgentText(configured, 'user-a', 'message', 'message-legacy', encrypted.ciphertext, encrypted.keyVersion)).toBe('旧的本地对话');
+  });
 });

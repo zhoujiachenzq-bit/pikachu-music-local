@@ -64,6 +64,16 @@ function writeSse(reply: FastifyReply, event: AgentStreamEvent) {
   reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 }
 
+export function bindAgentStreamCancellation(
+  requestRaw: Pick<FastifyRequest['raw'], 'once'>,
+  responseRaw: Pick<FastifyReply['raw'], 'once' | 'writableEnded'>,
+  controller: AbortController
+) {
+  const abort = () => { if (!controller.signal.aborted) controller.abort(); };
+  requestRaw.once('aborted', abort);
+  responseRaw.once('close', () => { if (!responseRaw.writableEnded) abort(); });
+}
+
 export function registerAgentRoutes(app: FastifyInstance, db: Db) {
   const keyring = loadAgentKeyring(); const modelProviders = new AgentModelProviderRegistry(); const runtime = new AgentRuntime(db, keyring, modelProviders);
   const speechProvider = new BailianSpeechProvider(); const knowledgeEmbeddingProvider = new BailianEmbeddingProvider();
@@ -131,7 +141,7 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     if (conversation.expiresAt && Date.parse(conversation.expiresAt) <= Date.now()) return reply.code(410).send(apiError('AGENT_CONVERSATION_EXPIRED', '临时对话已过期并删除。'));
     reply.hijack();
     reply.raw.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
-    const controller = new AbortController(); request.raw.once('close', () => controller.abort());
+    const controller = new AbortController(); bindAgentStreamCancellation(request.raw, reply.raw, controller);
     try {
       for await (const event of runtime.run({
         user, conversationId: conversation.id, conversationKind: conversation.kind, message: body.message, generation: body.generation,
