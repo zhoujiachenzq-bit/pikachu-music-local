@@ -1,5 +1,6 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { embed } from 'ai';
+import { AGENT_VOICE_PROFILES, agentVoiceProfile, normalizeAgentVoiceId, type AgentVoiceOption, type AgentVoiceProfileId } from '../shared/agentVoices.js';
 
 export interface AgentProviderConfig {
   apiKey: string | null;
@@ -25,7 +26,10 @@ export function loadAgentProviderConfig(env: NodeJS.ProcessEnv = process.env): A
 }
 
 export interface EmbeddingProvider { configured(): boolean; embed(text: string): Promise<number[]>; }
-export interface SpeechProvider { configured(): boolean; transcribe(input: { base64: string; mimeType: string; signal?: AbortSignal }): Promise<string>; synthesize(input: { text: string; voice: string; instructions?: string; signal?: AbortSignal }): Promise<{ audio: Buffer; contentType: string }>; }
+export interface SpeechSynthesisResult { audio: Buffer; contentType: string; }
+export interface SpeechTranscriptionProvider { configured(): boolean; transcribe(input: { base64: string; mimeType: string; signal?: AbortSignal }): Promise<string>; }
+export interface SpeechSynthesisProvider { configured(): boolean; synthesize(input: { text: string; voice: string; persona?: 'warm' | 'bright' | 'poetic'; instructions?: string; signal?: AbortSignal }): Promise<SpeechSynthesisResult>; }
+export interface SpeechProvider extends SpeechTranscriptionProvider, SpeechSynthesisProvider {}
 export interface WebSearchResult { answer: string; citations: Array<{ title: string; url: string }>; inputTokens: number; outputTokens: number; }
 export interface WebSearchProvider {
   readonly id?: string;
@@ -93,6 +97,133 @@ export class BailianSpeechProvider implements SpeechProvider {
       const audio = Buffer.from(await audioResponse.arrayBuffer()); if (!audio.length || audio.length > 12 * 1024 * 1024) throw new Error('TTS_AUDIO_INVALID'); return { audio, contentType };
     } finally { timeout.clear(); }
   }
+}
+
+export interface AzureSpeechConfig {
+  apiKey: string | null;
+  region: string | null;
+  endpoint: string | null;
+  outputFormat: string;
+  voice: string;
+}
+
+export function loadAzureSpeechConfig(env: NodeJS.ProcessEnv = process.env): AzureSpeechConfig {
+  const region = env.AZURE_SPEECH_REGION?.trim() || null;
+  const configuredEndpoint = env.AZURE_SPEECH_ENDPOINT?.trim().replace(/\/$/, '') || null;
+  const base = configuredEndpoint || (region ? `https://${region}.tts.speech.microsoft.com` : null);
+  return {
+    apiKey: env.AZURE_SPEECH_KEY?.trim() || null,
+    region,
+    endpoint: base ? (base.endsWith('/cognitiveservices/v1') ? base : `${base}/cognitiveservices/v1`) : null,
+    outputFormat: env.AZURE_SPEECH_OUTPUT_FORMAT?.trim() || 'audio-24khz-96kbitrate-mono-mp3',
+    voice: env.AZURE_SPEECH_VOICE_XIAOXIAO?.trim() || 'zh-CN-Xiaoxiao:DragonHDFlashLatestNeural'
+  };
+}
+
+export function escapeSpeechXml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+function assertAudioResponse(response: Response, provider: string) {
+  if (!response.ok) throw new Error(`${provider}_${response.status}`);
+  const contentType = (response.headers.get('content-type') || '').split(';', 1)[0].trim().toLocaleLowerCase();
+  if (!contentType.startsWith('audio/')) throw new Error('TTS_AUDIO_TYPE_INVALID');
+  return contentType;
+}
+
+export class AzureSpeechProvider implements SpeechSynthesisProvider {
+  readonly model = 'azure-neural-tts';
+  constructor(readonly config = loadAzureSpeechConfig(), private readonly fetcher: typeof fetch = fetch) {}
+  configured() { return Boolean(this.config.apiKey && this.config.endpoint); }
+  async synthesize(input: { text: string; voice: string; persona?: 'warm' | 'bright' | 'poetic'; signal?: AbortSignal }) {
+    if (!this.configured()) throw new Error('AZURE_SPEECH_NOT_CONFIGURED');
+    const timeout = timeoutSignal(50_000, input.signal); const rate = input.persona === 'bright' ? '+5%' : input.persona === 'poetic' ? '-8%' : '0%';
+    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN"><voice name="${escapeSpeechXml(input.voice)}"><prosody rate="${rate}">${escapeSpeechXml(input.text)}</prosody></voice></speak>`;
+    try {
+      const response = await this.fetcher(this.config.endpoint!, {
+        method: 'POST', signal: timeout.signal,
+        headers: { 'Ocp-Apim-Subscription-Key': this.config.apiKey!, 'Content-Type': 'application/ssml+xml', 'X-Microsoft-OutputFormat': this.config.outputFormat, 'User-Agent': 'zqmusic-zhenqi' },
+        body: ssml
+      });
+      const contentType = assertAudioResponse(response, 'AZURE_SPEECH'); const audio = Buffer.from(await response.arrayBuffer());
+      if (!audio.length || audio.length > 12 * 1024 * 1024) throw new Error('TTS_AUDIO_INVALID'); return { audio, contentType };
+    } finally { timeout.clear(); }
+  }
+}
+
+export interface MiniMaxSpeechConfig {
+  apiKey: string | null;
+  endpoint: string;
+  model: string;
+  soothingHostVoice: string | null;
+  officeManVoice: string | null;
+}
+
+export function loadMiniMaxSpeechConfig(env: NodeJS.ProcessEnv = process.env): MiniMaxSpeechConfig {
+  const base = (env.MINIMAX_BASE_URL || 'https://api.minimaxi.com/v1').replace(/\/$/, '');
+  return {
+    apiKey: env.MINIMAX_API_KEY?.trim() || null, endpoint: `${base}/t2a_v2`, model: env.MINIMAX_TTS_MODEL?.trim() || 'speech-2.8-hd',
+    soothingHostVoice: env.MINIMAX_VOICE_SOOTHING_HOST?.trim() || null,
+    officeManVoice: env.MINIMAX_VOICE_OFFICE_MAN?.trim() || null
+  };
+}
+
+export class MiniMaxSpeechProvider implements SpeechSynthesisProvider {
+  constructor(readonly config = loadMiniMaxSpeechConfig(), private readonly fetcher: typeof fetch = fetch) {}
+  configured() { return Boolean(this.config.apiKey); }
+  async synthesize(input: { text: string; voice: string; persona?: 'warm' | 'bright' | 'poetic'; signal?: AbortSignal }) {
+    if (!this.configured()) throw new Error('MINIMAX_SPEECH_NOT_CONFIGURED'); const timeout = timeoutSignal(50_000, input.signal);
+    const speed = input.persona === 'bright' ? 1.05 : input.persona === 'poetic' ? .92 : 1;
+    const emotion = input.persona === 'bright' ? 'happy' : 'calm';
+    try {
+      const response = await this.fetcher(this.config.endpoint, {
+        method: 'POST', signal: timeout.signal, headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: this.config.model, text: input.text, stream: false, voice_setting: { voice_id: input.voice, speed, vol: 1, pitch: 0, emotion }, audio_setting: { sample_rate: 32000, bitrate: 128000, format: 'mp3', channel: 1 }, subtitle_enable: false, output_format: 'hex', language_boost: 'Chinese' })
+      });
+      const payload = await response.json().catch(() => null) as { data?: { audio?: string }; base_resp?: { status_code?: number; status_msg?: string } } | null;
+      if (!response.ok) throw new Error(`MINIMAX_SPEECH_${response.status}`);
+      if (Number(payload?.base_resp?.status_code || 0) !== 0) throw new Error('MINIMAX_SPEECH_REJECTED');
+      const hex = payload?.data?.audio || ''; if (!hex || hex.length % 2 || !/^[0-9a-f]+$/i.test(hex)) throw new Error('TTS_AUDIO_INVALID');
+      const audio = Buffer.from(hex, 'hex'); if (!audio.length || audio.length > 12 * 1024 * 1024) throw new Error('TTS_AUDIO_INVALID'); return { audio, contentType: 'audio/mpeg' };
+    } finally { timeout.clear(); }
+  }
+}
+
+const BAILIAN_VOICES: Partial<Record<AgentVoiceProfileId, string>> = {
+  'bailian-cherry': 'Cherry', 'bailian-serena': 'Serena', 'bailian-ethan': 'Ethan', 'bailian-chelsie': 'Chelsie'
+};
+
+export interface RoutedSpeechSynthesisResult extends SpeechSynthesisResult {
+  profileId: AgentVoiceProfileId;
+  provider: 'azure-tts' | 'minimax-tts' | 'bailian-tts';
+  model: string;
+}
+
+export class AgentSpeechSynthesisRegistry {
+  readonly azure: AzureSpeechProvider;
+  readonly minimax: MiniMaxSpeechProvider;
+  readonly bailian: BailianSpeechProvider;
+  constructor(readonly env: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch) {
+    this.azure = new AzureSpeechProvider(loadAzureSpeechConfig(env), fetcher);
+    this.minimax = new MiniMaxSpeechProvider(loadMiniMaxSpeechConfig(env), fetcher);
+    this.bailian = new BailianSpeechProvider(loadAgentProviderConfig(env), fetcher);
+  }
+  options(): AgentVoiceOption[] {
+    return AGENT_VOICE_PROFILES.map(profile => ({ ...profile, available: this.voiceTarget(profile.id) !== null }));
+  }
+  private voiceTarget(id: AgentVoiceProfileId): { provider: SpeechSynthesisProvider; voice: string; providerId: RoutedSpeechSynthesisResult['provider']; model: string } | null {
+    if (id === 'azure-xiaoxiao') return this.azure.configured() ? { provider: this.azure, voice: this.azure.config.voice, providerId: 'azure-tts', model: this.azure.model } : null;
+    if (id === 'minimax-soothing-host') return this.minimax.configured() && this.minimax.config.soothingHostVoice ? { provider: this.minimax, voice: this.minimax.config.soothingHostVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
+    if (id === 'minimax-office-man') return this.minimax.configured() && this.minimax.config.officeManVoice ? { provider: this.minimax, voice: this.minimax.config.officeManVoice, providerId: 'minimax-tts', model: this.minimax.config.model } : null;
+    const voice = BAILIAN_VOICES[id]; return voice && this.bailian.configured() ? { provider: this.bailian, voice, providerId: 'bailian-tts', model: this.bailian.config.ttsModel } : null;
+  }
+  async synthesize(input: { text: string; voice: unknown; persona: 'warm' | 'bright' | 'poetic'; instructions?: string; signal?: AbortSignal }): Promise<RoutedSpeechSynthesisResult> {
+    const profileId = normalizeAgentVoiceId(input.voice); const target = this.voiceTarget(profileId); if (!target) throw new Error('AGENT_TTS_VOICE_UNAVAILABLE');
+    const result = await target.provider.synthesize({ text: input.text, voice: target.voice, persona: input.persona, instructions: input.instructions, signal: input.signal });
+    return { ...result, profileId, provider: target.providerId, model: target.model };
+  }
+  available(id: unknown) { const normalized = normalizeAgentVoiceId(id); return this.voiceTarget(normalized) !== null; }
+  profile(id: unknown) { return agentVoiceProfile(id); }
 }
 
 export function estimateBailianCost(model: string, inputTokens: number, outputTokens: number, env: NodeJS.ProcessEnv = process.env): number {

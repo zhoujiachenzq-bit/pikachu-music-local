@@ -16,9 +16,10 @@ import {
 } from './agentStore.js';
 import { activateKnowledgeVersion, listKnowledgeChunksMissingEmbeddings, listKnowledgeVersions, publishKnowledgeVersion, retrieveKnowledge, setKnowledgeChunkEmbedding, verifyKnowledgeSignature } from './agentKnowledge.js';
 import { ensureClassicKnowledgeSeed } from './classicKnowledgeSeed.js';
-import { BailianEmbeddingProvider, BailianSpeechProvider } from './agentProviders.js';
+import { AgentSpeechSynthesisRegistry, BailianEmbeddingProvider, BailianSpeechProvider } from './agentProviders.js';
 import { AgentModelProviderRegistry } from './agentModelProviders.js';
 import { SOURCES, type AgentClientAction, type AgentStreamEvent } from '../shared/types.js';
+import { AGENT_VOICE_PROFILE_IDS, normalizeAgentVoiceId } from '../shared/agentVoices.js';
 import { decodeAgentAudioBase64, normalizeAgentAudioMime } from './agentVoice.js';
 import { finishTrendUpdateRun, listTrendUpdateRuns, runTrendRehearsal, startTrendUpdateRun } from './agentTrends.js';
 import { agentBudgetSnapshot } from '../shared/agentAdmin.js';
@@ -76,19 +77,19 @@ export function bindAgentStreamCancellation(
 
 export function registerAgentRoutes(app: FastifyInstance, db: Db) {
   const keyring = loadAgentKeyring(); const modelProviders = new AgentModelProviderRegistry(); const runtime = new AgentRuntime(db, keyring, modelProviders);
-  const speechProvider = new BailianSpeechProvider(); const knowledgeEmbeddingProvider = new BailianEmbeddingProvider();
+  const asrProvider = new BailianSpeechProvider(); const speechSynthesis = new AgentSpeechSynthesisRegistry(); const knowledgeEmbeddingProvider = new BailianEmbeddingProvider();
   ensureClassicKnowledgeSeed(db);
 
   app.get('/api/agent/access', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
-    return { access: getAgentAccess(db, user, keyring), settings: ensureAgentSettings(db, user.id) };
+    return { access: getAgentAccess(db, user, keyring), settings: ensureAgentSettings(db, user.id), voices: speechSynthesis.options() };
   });
 
   app.patch('/api/agent/settings', async (request, reply) => {
     const user = requireAgent(db, keyring, request, reply); if (!user) return;
     const body = z.object({
       assistantName: z.string().trim().min(1).max(24).optional(), persona: z.enum(['warm', 'bright', 'poetic']).optional(),
-      proactiveEnabled: z.boolean().optional(), memoryEnabled: z.boolean().optional(), autoRead: z.boolean().optional(), voice: z.string().min(1).max(80).optional()
+      proactiveEnabled: z.boolean().optional(), memoryEnabled: z.boolean().optional(), autoRead: z.boolean().optional(), voice: z.enum(AGENT_VOICE_PROFILE_IDS).optional()
     }).parse(request.body);
     return { settings: updateAgentSettings(db, user.id, body) };
   });
@@ -257,24 +258,25 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
   app.post('/api/agent/voice/transcribe', { bodyLimit: 14 * 1024 * 1024 }, async (request, reply) => {
     const user = requireAgent(db, keyring, request, reply); if (!user) return;
     const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150); if (monthlyAgentCost(db) >= budget) return reply.code(503).send(apiError('AGENT_BUDGET_EXHAUSTED', '本月珍奇语音额度已暂停，文字和音乐功能仍可使用。'));
-    if (!speechProvider.configured()) return reply.code(503).send(apiError('AGENT_SPEECH_NOT_CONFIGURED', '语音识别尚未配置。'));
+    if (!asrProvider.configured()) return reply.code(503).send(apiError('AGENT_SPEECH_NOT_CONFIGURED', '语音识别尚未配置。'));
     const body = z.object({ audioBase64: z.string().min(4).max(14_000_000), mimeType: z.string().trim().min(1).max(100), durationSeconds: z.number().positive().max(60) }).parse(request.body);
     const mimeType = normalizeAgentAudioMime(body.mimeType); if (!mimeType) return reply.code(415).send(apiError('AGENT_AUDIO_TYPE_UNSUPPORTED', '当前录音格式不受支持。'));
     let bytes: Buffer; try { bytes = decodeAgentAudioBase64(body.audioBase64); }
     catch (error) { const tooLarge = error instanceof Error && error.message === 'AGENT_AUDIO_TOO_LARGE'; return reply.code(tooLarge ? 413 : 400).send(apiError(tooLarge ? 'AGENT_AUDIO_TOO_LARGE' : 'AGENT_AUDIO_INVALID', tooLarge ? '单段录音不能超过 10MB。' : '录音数据无效。')); }
     const controller = new AbortController(); request.raw.once('aborted', () => controller.abort()); reply.header('cache-control', 'private, no-store');
-    try { const text = await speechProvider.transcribe({ base64: bytes.toString('base64'), mimeType, signal: controller.signal }); recordAgentUsage(db, { userId: user.id, provider: 'bailian-asr', model: speechProvider.config.asrModel, asrSeconds: body.durationSeconds }); return { text }; }
+    try { const text = await asrProvider.transcribe({ base64: bytes.toString('base64'), mimeType, signal: controller.signal }); recordAgentUsage(db, { userId: user.id, provider: 'bailian-asr', model: asrProvider.config.asrModel, asrSeconds: body.durationSeconds }); return { text }; }
     catch { return reply.code(502).send(apiError('AGENT_ASR_FAILED', '这段录音没有识别成功，原始录音已丢弃。')); }
   });
 
   app.post('/api/agent/voice/synthesize', async (request, reply) => {
     const user = requireAgent(db, keyring, request, reply); if (!user) return;
     const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150); if (monthlyAgentCost(db) >= budget) return reply.code(503).send(apiError('AGENT_BUDGET_EXHAUSTED', '本月珍奇语音额度已暂停。'));
-    if (!speechProvider.configured()) return reply.code(503).send(apiError('AGENT_SPEECH_NOT_CONFIGURED', '语音合成尚未配置。'));
-    const body = z.object({ text: z.string().trim().min(1).max(1500), voice: z.enum(['Cherry', 'Serena', 'Ethan', 'Chelsie']).default('Cherry'), persona: z.enum(['warm', 'bright', 'poetic']).default('warm') }).parse(request.body);
+    const body = z.object({ text: z.string().trim().min(1).max(1500), voice: z.string().min(1).max(80).default('azure-xiaoxiao'), persona: z.enum(['warm', 'bright', 'poetic']).default('warm') }).parse(request.body);
+    const voice = normalizeAgentVoiceId(body.voice);
+    if (!speechSynthesis.available(voice)) return reply.code(503).send(apiError('AGENT_TTS_VOICE_UNAVAILABLE', '这个音色尚未配置，文字聊天和浏览器朗读仍可使用。', { voice }));
     const instructions = body.persona === 'bright' ? '轻快、有活力、带着真诚笑意，但不要夸张。' : body.persona === 'poetic' ? '语速舒缓、克制、有轻微画面感，不要矫饰。' : '自然、温暖、机灵，像熟悉的朋友一样表达。';
     const controller = new AbortController(); request.raw.once('aborted', () => controller.abort());
-    try { const result = await speechProvider.synthesize({ text: body.text, voice: body.voice, instructions, signal: controller.signal }); recordAgentUsage(db, { userId: user.id, provider: 'bailian-tts', model: speechProvider.config.ttsModel, ttsCharacters: body.text.length }); reply.header('content-type', result.contentType); reply.header('cache-control', 'private, no-store'); return reply.send(result.audio); }
+    try { const result = await speechSynthesis.synthesize({ text: body.text, voice, persona: body.persona, instructions, signal: controller.signal }); recordAgentUsage(db, { userId: user.id, provider: result.provider, model: result.model, ttsCharacters: body.text.length }); reply.header('content-type', result.contentType); reply.header('cache-control', 'private, no-store'); return reply.send(result.audio); }
     catch { return reply.code(502).send(apiError('AGENT_TTS_FAILED', '语音回复暂时生成失败，可以继续阅读文字。')); }
   });
 

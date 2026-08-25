@@ -4,7 +4,7 @@ import { streamAgentMessage } from './agentStream';
 import { decryptAgentArchive, encryptAgentArchive, type EncryptedAgentArchive } from './agentArchiveCrypto';
 import { Icon } from './ui';
 import { AgentAdminPanel } from './AgentAdminPanel';
-import type { AgentAccess, AgentClientAction, AgentClientActionResult, AgentClientContext, AgentConversation, AgentMemory, AgentMessage, AgentSettings, AgentStreamEvent, Track } from '../shared/types';
+import type { AgentAccess, AgentClientAction, AgentClientActionResult, AgentClientContext, AgentConversation, AgentMemory, AgentMessage, AgentSettings, AgentStreamEvent, AgentVoiceOption, Track } from '../shared/types';
 
 interface ReasonCard { id: string; title: string; body: string; tracks: Track[]; kind: 'recommendation' | 'safety' | 'diagnostic'; }
 interface CitationCard { title: string; url?: string; kind: 'web' | 'knowledge'; detail?: string; }
@@ -44,9 +44,17 @@ const messageCitations = (message: AgentMessage): CitationCard[] => Array.isArra
     return [{ title: item.title, url: typeof item.url === 'string' ? item.url : undefined, kind: item.kind === 'web' ? 'web' : 'knowledge', detail: typeof item.detail === 'string' ? item.detail : undefined }];
   }) : [];
 
+const voicePreviewScenes = [
+  { id: 'greeting', zh: '晚上好呀。今天想听点什么？如果你还没想好，我可以陪你慢慢挑。', en: 'Good evening. What would you like to hear? We can take our time choosing.' },
+  { id: 'comfort', zh: '没关系，今天已经很辛苦了。先让音乐替你接住剩下的情绪。', en: 'It is okay. Today has been a lot. Let the music hold the rest for a while.' },
+  { id: 'recommendation', zh: '我找到一首很适合现在的歌，节奏明亮，但不会太吵。要现在播放吗？', en: 'I found something that fits this moment: bright, but never too loud. Shall I play it?' }
+] as const;
+type VoicePreviewSceneId = typeof voicePreviewScenes[number]['id'];
+
 export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt, onClose, onAction, onSpeechState, onProactivePreferenceChange }: AgentPanelProps) {
   const zh = lang === 'zh';
   const [access, setAccess] = useState<AgentAccess | null>(null); const [settings, setSettings] = useState<AgentSettings | null>(null);
+  const [voices, setVoices] = useState<AgentVoiceOption[]>([]); const [voicePreviewScene, setVoicePreviewScene] = useState<VoicePreviewSceneId>('greeting');
   const [conversation, setConversation] = useState<AgentConversation | null>(null); const [mainConversation, setMainConversation] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]); const [input, setInput] = useState(''); const [streaming, setStreaming] = useState(false);
   const [webSearch, setWebSearch] = useState(false); const [reasonCards, setReasonCards] = useState<ReasonCard[]>([]); const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
@@ -66,7 +74,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const load = useCallback(async () => {
     setError('');
     try {
-      const root = await api<{ access: AgentAccess; settings: AgentSettings }>('/api/agent/access'); setAccess(root.access); setSettings(root.settings);
+      const root = await api<{ access: AgentAccess; settings: AgentSettings; voices?: AgentVoiceOption[] }>('/api/agent/access'); setAccess(root.access); setSettings(root.settings); setVoices(root.voices || []);
       if (!root.access.enabled || !root.access.entitled || !root.access.configured) return;
       const data = await api<{ conversation: AgentConversation; messages: AgentMessage[] }>('/api/agent/conversations/main');
       setMainConversation(data.conversation); setConversation(current => current?.kind === 'temporary' ? current : data.conversation);
@@ -81,6 +89,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     if (speechAudio.current) { speechAudio.current.pause(); if (speechAudio.current.src.startsWith('blob:')) URL.revokeObjectURL(speechAudio.current.src); speechAudio.current = null; }
     window.speechSynthesis?.cancel(); setSpeakingMessageId(null); onSpeechState?.(false);
   }, [onSpeechState]);
+  const selectedVoice = voices.find(voice => voice.id === settings?.voice);
   useEffect(() => () => { streamController.current?.abort(); if (recordingTimer.current !== null) window.clearTimeout(recordingTimer.current); receiptTimers.current.forEach(timer => window.clearTimeout(timer)); receiptTimers.current.clear(); recorder.current?.stop(); recorderStream.current?.getTracks().forEach(track => track.stop()); stopSpeech(); }, [stopSpeech]);
 
   const reportAction = async (actionId: string, result: AgentClientActionResult) => {
@@ -112,12 +121,13 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     const clean = text.trim(); if (!clean) return; if (speakingMessageId === messageId) { stopSpeech(); return; }
     stopSpeech(); setSpeakingMessageId(messageId); onSpeechState?.(true);
     const fallback = () => {
+      if (messageId === 'voice-preview') { setError(zh ? '这个音色尚未配置或暂时无法试听。' : 'This voice is not configured or cannot be previewed right now.'); stopSpeech(); return; }
       if (!('speechSynthesis' in window)) { setError('当前浏览器不能朗读这段文字。'); stopSpeech(); return; }
       const utterance = new SpeechSynthesisUtterance(clean); utterance.lang = zh ? 'zh-CN' : 'en-US'; utterance.rate = settings?.persona === 'bright' ? 1.06 : settings?.persona === 'poetic' ? .93 : 1;
       utterance.onend = stopSpeech; utterance.onerror = stopSpeech; window.speechSynthesis.speak(utterance);
     };
     try {
-      const response = await fetch('/api/agent/voice/synthesize', json('POST', { text: clean.slice(0, 1500), voice: settings?.voice || 'Cherry', persona: settings?.persona || 'warm' }));
+      const response = await fetch('/api/agent/voice/synthesize', json('POST', { text: clean.slice(0, 1500), voice: settings?.voice || 'azure-xiaoxiao', persona: settings?.persona || 'warm' }));
       if (!response.ok) { fallback(); return; }
       const url = URL.createObjectURL(await response.blob()); const audioElement = new Audio(url); speechAudio.current = audioElement; audioElement.onended = stopSpeech; audioElement.onerror = fallback; await audioElement.play();
     } catch { fallback(); }
@@ -272,7 +282,8 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       <label className="agent-toggle"><input type="checkbox" checked={settings.memoryEnabled} onChange={event => void updateSettings({ memoryEnabled: event.target.checked })}/><span>{zh ? '允许使用与记录长期记忆' : 'Use and save long-term memory'}</span></label>
       <label className="agent-toggle"><input type="checkbox" checked={settings.proactiveEnabled} onChange={event => void updateSettings({ proactiveEnabled: event.target.checked })}/><span>{zh ? '允许克制的主动陪伴（每日最多两次）' : 'Allow quiet proactive check-ins (max twice daily)'}</span></label>
       <label className="agent-toggle"><input type="checkbox" checked={settings.autoRead} onChange={event => void updateSettings({ autoRead: event.target.checked })}/><span>{zh ? '自动朗读珍奇回复' : 'Read replies aloud'}</span></label>
-      <label>{zh ? '音色' : 'Voice'}<span className="agent-voice-controls"><select value={settings.voice} onChange={event => void updateSettings({ voice: event.target.value })}><option value="Cherry">Cherry</option><option value="Serena">Serena</option><option value="Ethan">Ethan</option><option value="Chelsie">Chelsie</option></select><button type="button" onClick={() => void readText(zh ? '你好，我是珍奇。今晚想听点什么？' : 'Hi, I am Zhenqi. What would you like to hear?', 'voice-preview')}>{speakingMessageId === 'voice-preview' ? (zh ? '停止' : 'Stop') : (zh ? '试听' : 'Preview')}</button></span></label>
+      <label className="agent-voice-setting"><span>{zh ? '音色' : 'Voice'}</span><span className="agent-voice-controls"><select value={settings.voice} onChange={event => void updateSettings({ voice: event.target.value })}>{(['selected', 'legacy'] as const).map(group => <optgroup key={group} label={group === 'selected' ? (zh ? '珍奇精选' : 'Zhenqi selection') : (zh ? '原有兼容音色' : 'Legacy voices')}>{voices.filter(voice => voice.group === group).map(voice => <option key={voice.id} value={voice.id}>{zh ? voice.labelZh : voice.labelEn}{voice.available ? '' : (zh ? ' · 待配置' : ' · setup needed')}</option>)}</optgroup>)}</select><span className={selectedVoice?.available ? 'ready' : 'pending'}>{selectedVoice?.available ? (zh ? '可试听' : 'Ready') : (zh ? '待配置' : 'Setup needed')}</span></span>{selectedVoice && <small>{zh ? selectedVoice.descriptionZh : selectedVoice.descriptionEn}</small>}</label>
+      <label className="agent-voice-preview"><span>{zh ? '试听内容' : 'Sample'}</span><span><select value={voicePreviewScene} onChange={event => setVoicePreviewScene(event.target.value as VoicePreviewSceneId)}>{voicePreviewScenes.map(scene => <option key={scene.id} value={scene.id}>{scene.id === 'greeting' ? (zh ? '日常问候' : 'Greeting') : scene.id === 'comfort' ? (zh ? '温柔陪伴' : 'Comfort') : (zh ? '音乐推荐' : 'Recommendation')}</option>)}</select><button type="button" disabled={!selectedVoice?.available && speakingMessageId !== 'voice-preview'} onClick={() => { const scene = voicePreviewScenes.find(item => item.id === voicePreviewScene) || voicePreviewScenes[0]; void readText(zh ? scene.zh : scene.en, 'voice-preview'); }}>{speakingMessageId === 'voice-preview' ? (zh ? '停止' : 'Stop') : (zh ? '试听' : 'Preview')}</button></span></label>
       <div className="agent-data-actions"><button onClick={() => void openMemories()}>{zh ? '珍奇知道的我' : 'What Zhenqi knows'}</button>{access?.admin && <><button onClick={() => void openKnowledge()}>{zh ? '知识版本' : 'Knowledge'}</button><button onClick={() => { setAdminOpen(true); setSettingsOpen(false); setMemoriesOpen(false); setKnowledgeOpen(false); }}>{zh ? '站长控制台' : 'Operator console'}</button></>}<button onClick={() => void exportArchive()}>{zh ? '导出加密档案' : 'Export encrypted archive'}</button><label>{zh ? '恢复档案' : 'Restore archive'}<input type="file" accept="application/json" onChange={event => { const file = event.target.files?.[0]; if (file) void restoreArchive(file); event.currentTarget.value = ''; }}/></label></div>
     </section>}
     {!introOpen && adminOpen && access?.admin && <AgentAdminPanel lang={lang} onClose={() => setAdminOpen(false)}/>}

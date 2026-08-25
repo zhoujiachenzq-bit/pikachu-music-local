@@ -3,6 +3,7 @@ import type { Db } from './db.js';
 import type { AgentAccess, AgentConversation, AgentMemory, AgentMessage, AgentPersona, AgentSettings, AgentToolRisk } from '../shared/types.js';
 import { decryptAgentText, encryptAgentText, type AgentKeyring } from './agentCrypto.js';
 import { agentMemoryKey, memoryRelevanceScore, normalizeMemoryText, type AgentMemoryCandidate } from './agentMemory.js';
+import { normalizeAgentVoiceId } from '../shared/agentVoices.js';
 
 const now = () => new Date().toISOString();
 const bool = (value: unknown) => Boolean(Number(value));
@@ -36,17 +37,17 @@ export function getAgentAccess(db: Db, user: { id: string; username: string }, k
 
 export function ensureAgentSettings(db: Db, userId: string): AgentSettings {
   const stamp = now();
-  db.prepare(`INSERT OR IGNORE INTO agent_settings(user_id,created_at,updated_at) VALUES(?,?,?)`).run(userId, stamp, stamp);
+  db.prepare(`INSERT OR IGNORE INTO agent_settings(user_id,voice,created_at,updated_at) VALUES(?,?,?,?)`).run(userId, 'azure-xiaoxiao', stamp, stamp);
   const row = db.prepare('SELECT * FROM agent_settings WHERE user_id=?').get(userId) as Record<string, unknown>;
   return {
     assistantName: String(row.assistant_name), persona: row.persona as AgentPersona,
-    proactiveEnabled: bool(row.proactive_enabled), memoryEnabled: bool(row.memory_enabled), autoRead: bool(row.auto_read), voice: String(row.voice)
+    proactiveEnabled: bool(row.proactive_enabled), memoryEnabled: bool(row.memory_enabled), autoRead: bool(row.auto_read), voice: normalizeAgentVoiceId(row.voice)
   };
 }
 
 export function updateAgentSettings(db: Db, userId: string, settings: Partial<AgentSettings>): AgentSettings {
   ensureAgentSettings(db, userId);
-  const current = ensureAgentSettings(db, userId); const next = { ...current, ...settings };
+  const current = ensureAgentSettings(db, userId); const next = { ...current, ...settings, voice: normalizeAgentVoiceId(settings.voice ?? current.voice) };
   db.prepare(`UPDATE agent_settings SET assistant_name=?,persona=?,proactive_enabled=?,memory_enabled=?,auto_read=?,voice=?,updated_at=? WHERE user_id=?`)
     .run(next.assistantName, next.persona, Number(next.proactiveEnabled), Number(next.memoryEnabled), Number(next.autoRead), next.voice, now(), userId);
   return next;

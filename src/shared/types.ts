@@ -103,6 +103,7 @@ export interface DailyRecommendation {
 export type AgentPersona = 'warm' | 'bright' | 'poetic';
 export type AgentConversationKind = 'main' | 'temporary';
 export type AgentToolRisk = 'direct' | 'confirm' | 'forbidden';
+export type { AgentVoiceOption, AgentVoiceProfileId, AgentVoiceProviderId } from './agentVoices.js';
 
 export interface AgentAccess {
   enabled: boolean;
