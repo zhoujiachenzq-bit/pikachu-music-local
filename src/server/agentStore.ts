@@ -277,6 +277,17 @@ export function updateToolAction(db: Db, userId: string, actionId: string, nextS
   return { id: String(row.id), toolName: String(row.tool_name), risk: String(row.risk) as AgentToolRisk, status: nextStatus, input: JSON.parse(String(row.input_json)), result };
 }
 
+export function recordToolActionUndo(db: Db, userId: string, actionId: string, result: { ok: true; message?: string }) {
+  const row = db.prepare('SELECT status,result_json,expires_at FROM agent_tool_actions WHERE id=? AND user_id=?').get(actionId, userId) as Record<string, unknown> | undefined;
+  if (!row || row.status !== 'executed' || Date.parse(String(row.expires_at)) <= Date.now()) return null;
+  let previous: Record<string, unknown> = {};
+  try { previous = row.result_json ? JSON.parse(String(row.result_json)) as Record<string, unknown> : {}; } catch { previous = {}; }
+  if (previous.undo && typeof previous.undo === 'object' && (previous.undo as Record<string, unknown>).ok === true) return null;
+  const undo = { ok: true, message: result.message?.slice(0, 300), at: now() };
+  db.prepare('UPDATE agent_tool_actions SET result_json=?,updated_at=? WHERE id=? AND user_id=? AND status=\'executed\'').run(JSON.stringify({ ...previous, undo }), undo.at, actionId, userId);
+  return undo;
+}
+
 export function hashInviteCode(code: string): string {
   return createHash('sha256').update(code.trim()).digest('hex');
 }

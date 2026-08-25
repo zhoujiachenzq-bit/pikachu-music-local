@@ -4,11 +4,12 @@ import { streamAgentMessage } from './agentStream';
 import { decryptAgentArchive, encryptAgentArchive, type EncryptedAgentArchive } from './agentArchiveCrypto';
 import { Icon } from './ui';
 import { AgentAdminPanel } from './AgentAdminPanel';
-import type { AgentAccess, AgentClientAction, AgentClientContext, AgentConversation, AgentMemory, AgentMessage, AgentSettings, AgentStreamEvent, Track } from '../shared/types';
+import type { AgentAccess, AgentClientAction, AgentClientActionResult, AgentClientContext, AgentConversation, AgentMemory, AgentMessage, AgentSettings, AgentStreamEvent, Track } from '../shared/types';
 
 interface ReasonCard { id: string; title: string; body: string; tracks: Track[]; }
 interface CitationCard { title: string; url?: string; kind: 'web' | 'knowledge'; detail?: string; }
 interface PendingAction { actionId: string; tool: string; summary: string; input: unknown; expiresAt: string; status?: string; }
+interface ActionReceipt { actionId: string; message: string; undoAction?: AgentClientAction; status: 'ready' | 'undoing' | 'undone' | 'failed'; }
 interface KnowledgeVersionCard { id: string; kind: string; status: string; source: string; collectedAt: string; itemCount: number; checksum: string; createdAt: string; activatedAt: string | null; embeddedCount: number; embeddingRemaining: number; }
 interface KnowledgeSample { id: string; title: string; artist: string; content: string; sourceUrl: string | null; metadata: Record<string, unknown>; }
 interface TrendUpdateRun { id: string; source: string; mode: string; status: string; startedAt: string; completedAt: string | null; itemCount: number; versionId: string | null; message: string; }
@@ -21,7 +22,7 @@ interface AgentPanelProps {
   context: AgentClientContext;
   initialPrompt?: string;
   onClose: () => void;
-  onAction: (action: AgentClientAction) => Promise<{ ok: boolean; message?: string }>;
+  onAction: (action: AgentClientAction) => Promise<AgentClientActionResult>;
   onSpeechState?: (speaking: boolean) => void;
   onProactivePreferenceChange?: (enabled: boolean) => void;
 }
@@ -49,6 +50,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [conversation, setConversation] = useState<AgentConversation | null>(null); const [mainConversation, setMainConversation] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]); const [input, setInput] = useState(''); const [streaming, setStreaming] = useState(false);
   const [webSearch, setWebSearch] = useState(false); const [reasonCards, setReasonCards] = useState<ReasonCard[]>([]); const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [actionReceipts, setActionReceipts] = useState<ActionReceipt[]>([]);
   const [recording, setRecording] = useState(false); const [transcribing, setTranscribing] = useState(false); const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState(''); const [error, setError] = useState(''); const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false); const [memories, setMemories] = useState<AgentMemory[]>([]);
@@ -59,7 +61,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [adminOpen, setAdminOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(() => window.localStorage.getItem(introKey(userId)) !== 'seen');
   const generation = useRef(0); const streamController = useRef<AbortController | null>(null); const scroller = useRef<HTMLDivElement>(null);
-  const streamText = useRef(''); const recorder = useRef<MediaRecorder | null>(null); const recorderStream = useRef<MediaStream | null>(null); const recorderChunks = useRef<Blob[]>([]); const recordingStartedAt = useRef(0); const recordingTimer = useRef<number | null>(null); const speechAudio = useRef<HTMLAudioElement | null>(null);
+  const streamText = useRef(''); const recorder = useRef<MediaRecorder | null>(null); const recorderStream = useRef<MediaStream | null>(null); const recorderChunks = useRef<Blob[]>([]); const recordingStartedAt = useRef(0); const recordingTimer = useRef<number | null>(null); const speechAudio = useRef<HTMLAudioElement | null>(null); const receiptTimers = useRef(new Map<string, number>());
 
   const load = useCallback(async () => {
     setError('');
@@ -79,10 +81,31 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     if (speechAudio.current) { speechAudio.current.pause(); if (speechAudio.current.src.startsWith('blob:')) URL.revokeObjectURL(speechAudio.current.src); speechAudio.current = null; }
     window.speechSynthesis?.cancel(); setSpeakingMessageId(null); onSpeechState?.(false);
   }, [onSpeechState]);
-  useEffect(() => () => { streamController.current?.abort(); if (recordingTimer.current !== null) window.clearTimeout(recordingTimer.current); recorder.current?.stop(); recorderStream.current?.getTracks().forEach(track => track.stop()); stopSpeech(); }, [stopSpeech]);
+  useEffect(() => () => { streamController.current?.abort(); if (recordingTimer.current !== null) window.clearTimeout(recordingTimer.current); receiptTimers.current.forEach(timer => window.clearTimeout(timer)); receiptTimers.current.clear(); recorder.current?.stop(); recorderStream.current?.getTracks().forEach(track => track.stop()); stopSpeech(); }, [stopSpeech]);
 
-  const reportAction = async (actionId: string, result: { ok: boolean; message?: string }) => {
-    await api(`/api/agent/actions/${actionId}/result`, json('POST', result)).catch(() => undefined);
+  const reportAction = async (actionId: string, result: AgentClientActionResult) => {
+    await api(`/api/agent/actions/${actionId}/result`, json('POST', { ok: result.ok, message: result.message, details: { undoAvailable: Boolean(result.undoAction) } })).catch(() => undefined);
+  };
+
+  const removeReceiptLater = (actionId: string, delay = 20_000) => {
+    const previous = receiptTimers.current.get(actionId); if (previous !== undefined) window.clearTimeout(previous);
+    receiptTimers.current.set(actionId, window.setTimeout(() => { receiptTimers.current.delete(actionId); setActionReceipts(value => value.filter(item => item.actionId !== actionId)); }, delay));
+  };
+
+  const addActionReceipt = (actionId: string, result: AgentClientActionResult) => {
+    if (!result.ok) return;
+    const receipt: ActionReceipt = { actionId, message: result.message || '操作已完成', undoAction: result.undoAction, status: 'ready' };
+    setActionReceipts(value => [...value.filter(item => item.actionId !== actionId), receipt].slice(-3)); removeReceiptLater(actionId);
+  };
+
+  const undoReceipt = async (receipt: ActionReceipt) => {
+    if (!receipt.undoAction || receipt.status === 'undoing' || receipt.status === 'undone') return;
+    const timer = receiptTimers.current.get(receipt.actionId); if (timer !== undefined) window.clearTimeout(timer);
+    setActionReceipts(value => value.map(item => item.actionId === receipt.actionId ? { ...item, status: 'undoing' } : item));
+    const result = await onAction(receipt.undoAction);
+    if (result.ok) await api(`/api/agent/actions/${receipt.actionId}/undo-result`, json('POST', { ok: true, message: result.message })).catch(() => undefined);
+    setActionReceipts(value => value.map(item => item.actionId === receipt.actionId ? { ...item, status: result.ok ? 'undone' : 'failed', message: result.ok ? `已撤销 · ${result.message || '已恢复原状态'}` : (result.message || '撤销没有完成') } : item));
+    removeReceiptLater(receipt.actionId, result.ok ? 3200 : 12_000);
   };
 
   const readText = async (text: string, messageId: string) => {
@@ -112,7 +135,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     else if (event.type === 'action_required') setPendingActions(value => [...value, { ...event }]);
     else if (event.type === 'client_action') {
       const result = await onAction(event.action); await reportAction(event.actionId, result);
-      if (!result.ok) setError(result.message || '播放器没有完成这次操作。');
+      if (!result.ok) setError(result.message || '播放器没有完成这次操作。'); else addActionReceipt(event.actionId, result);
     } else if (event.type === 'done') { setMessages(value => value.map(message => message.id === draftId ? { ...message, id: event.messageId } : message)); if (settings?.autoRead && streamText.current.trim()) void readText(streamText.current, event.messageId); }
     else if (event.type === 'error') setError(event.message);
   };
@@ -150,11 +173,11 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const startTemporary = async () => {
     streamController.current?.abort();
     const data = await api<{ conversation: AgentConversation; messages: AgentMessage[] }>('/api/agent/conversations/temporary', json('POST'));
-    setConversation(data.conversation); setMessages([]); setReasonCards([]); setPendingActions([]); setSettingsOpen(false); setMemoriesOpen(false); setKnowledgeOpen(false);
+    setConversation(data.conversation); setMessages([]); setReasonCards([]); setPendingActions([]); setActionReceipts([]); setSettingsOpen(false); setMemoriesOpen(false); setKnowledgeOpen(false);
   };
   const leaveTemporary = async () => {
     if (conversation?.kind === 'temporary') await api(`/api/agent/conversations/${conversation.id}`, json('DELETE'));
-    if (mainConversation) { setConversation(mainConversation); const data = await api<{ messages: AgentMessage[] }>(`/api/agent/conversations/${mainConversation.id}/messages`); setMessages(data.messages); }
+    if (mainConversation) { setConversation(mainConversation); setActionReceipts([]); const data = await api<{ messages: AgentMessage[] }>(`/api/agent/conversations/${mainConversation.id}/messages`); setMessages(data.messages); }
   };
   const redeem = async () => {
     try { await api('/api/agent/invites/redeem', json('POST', { code: inviteCode })); setInviteCode(''); await load(); }
@@ -288,6 +311,10 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       <div className="agent-messages" ref={scroller} aria-live="polite">
         {!messages.length && <div className="agent-empty"><h2>{zh ? `晚上好，我是${settings?.assistantName || '珍奇'}。` : `Hi, I’m ${settings?.assistantName || 'Zhenqi'}.`}</h2><p>{zh ? '说说你此刻想听什么，或者直接让我暂停、切歌、找一首歌。' : 'Tell me what fits this moment, or ask me to control playback.'}</p><div>{['来点适合夜晚的歌', '换一首', '检查最近为什么播放失败'].map(value => <button key={value} onClick={() => void send(undefined, value)}>{value}</button>)}</div></div>}
         {messages.map(message => { const references = messageCitations(message); return <article key={message.id} className={`agent-message ${message.role}`}><small>{message.role === 'user' ? (zh ? '你' : 'YOU') : (settings?.assistantName || '珍奇')}</small><p>{message.content || (streaming ? '▋' : '')}</p>{!!references.length && <section className="agent-citations"><small>{references.some(item => item.kind === 'web') ? (zh ? '本条回答的资料' : 'Sources for this reply') : (zh ? '本条使用的策展知识' : 'Curated knowledge used')}</small><div>{references.map((citation, index) => citation.url ? <a key={`${citation.kind}-${citation.url}`} href={citation.url} target="_blank" rel="noreferrer"><b>{index + 1}</b><span>{citation.title}<small>{citation.detail}</small></span></a> : <div className="agent-citation-local" key={`${citation.kind}-${citation.title}`}><b>{index + 1}</b><span>{citation.title}<small>{citation.detail}</small></span></div>)}</div></section>}{message.role === 'assistant' && message.content && <button className={`agent-read ${speakingMessageId === message.id ? 'active' : ''}`} onClick={() => void readText(message.content, message.id)}><Icon name="speaker" size={13}/>{speakingMessageId === message.id ? (zh ? '停止' : 'Stop') : (zh ? '朗读' : 'Read')}</button>}</article>; })}
+        {actionReceipts.map(receipt => <section className={`agent-action-receipt ${receipt.status}`} key={receipt.actionId} role="status">
+          <span aria-hidden="true"/><div><small>{receipt.status === 'undone' ? (zh ? '已恢复原状态' : 'State restored') : receipt.status === 'failed' ? (zh ? '撤销未完成' : 'Undo failed') : (zh ? '操作已完成' : 'Action complete')}</small><strong>{receipt.message}</strong></div>
+          {receipt.undoAction && receipt.status !== 'undone' && <button disabled={receipt.status === 'undoing'} onClick={() => void undoReceipt(receipt)}><Icon name="return" size={13}/>{receipt.status === 'undoing' ? (zh ? '恢复中' : 'Restoring') : receipt.status === 'failed' ? (zh ? '重试' : 'Retry') : (zh ? '撤销' : 'Undo')}</button>}
+        </section>)}
         {reasonCards.map(card => <section className="agent-reason-card" key={card.id}><small>SCENE QUEUE</small><h3>{card.title}</h3><p>{card.body}</p><div>{card.tracks.map((track, index) => <button key={track.id} onClick={() => void onAction({ type: 'play_track', track, queue: card.tracks, reason: card.body })}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{track.title}</strong><small>{track.artist}</small></span><Icon name="play" size={14}/></button>)}</div></section>)}
         {pendingActions.map(item => <section className="agent-confirm-card" key={item.actionId}><small>CONFIRMATION</small><h3>{item.summary}</h3><p>{zh ? '这是会修改数据的操作，珍奇不会替你决定。' : 'This changes data and requires your decision.'}</p>{item.status ? <strong>{item.status}</strong> : <div><button className="btn ghost" onClick={() => void resolvePending(item, false)}>{zh ? '取消' : 'Cancel'}</button><button className="btn primary" onClick={() => void resolvePending(item, true)}>{zh ? '确认' : 'Confirm'}</button></div>}</section>)}
       </div>

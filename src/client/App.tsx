@@ -11,10 +11,11 @@ import { ImmersiveBackdrop } from './ImmersiveBackdrop';
 import { useArtworkAccent } from './artworkPalette';
 import { TonePicker, ToneTransitionLayer, type ToneTransitionState } from './TonePicker';
 import { AgentPanel } from './AgentPanel';
+import { deriveAgentUndoAction } from './agentActionUndo';
 import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
 import { deriveVisualPalette, mobileSectionForStage, shouldPersistMobileScroll, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
 import { DEFAULT_VISUAL_PREFERENCES, TONE_THEMES, readVisualPreferences, resolveToneTheme, writeVisualPreferences, type ToneThemeId, type VisualPreferences } from './visualTheme';
-import { SOURCES, type AgentClientAction, type AgentClientContext, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
+import { SOURCES, type AgentClientAction, type AgentClientActionResult, type AgentClientContext, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
 
 type Lang = 'zh' | 'en';
@@ -573,35 +574,51 @@ export default function App() {
   }, [saveVisualPreferences, visualPreferences]);
   const setMotionEnabled = useCallback((motionEnabled: boolean) => saveVisualPreferences({ ...visualPreferences, motionEnabled }), [saveVisualPreferences, visualPreferences]);
 
-  const executeAgentAction = useCallback(async (action: AgentClientAction): Promise<{ ok: boolean; message?: string }> => {
+  const executeAgentAction = useCallback(async (action: AgentClientAction): Promise<AgentClientActionResult> => {
+    const actionContext: AgentClientContext = {
+      currentTrack: current,
+      queue: playbackQueue.current.snapshot(),
+      playing: Boolean(audio.current && !audio.current.paused && !audio.current.ended),
+      currentTime: audio.current?.currentTime ?? currentTime,
+      volume: agentSpeechVolume.current ?? volumeDraft,
+      playMode: user?.playMode || 'list',
+      mobileSection,
+      toneTheme: resolveToneTheme(visualPreferences.theme, previewTone),
+    };
+    const undoAction = deriveAgentUndoAction(action, actionContext);
+    const success = (message: string, undo = undoAction): AgentClientActionResult => ({ ok: true, message, ...(undo ? { undoAction: undo } : {}) });
     try {
       if (action.type === 'play_track') {
         const ok = await playFromQueue(action.track, action.queue?.length ? action.queue : [action.track], { type: 'unknown' });
-        return ok ? { ok: true, message: `正在播放《${action.track.title}》` } : { ok: false, message: `《${action.track.title}》暂时无法播放。` };
+        if (!ok) return { ok: false, message: `《${action.track.title}》暂时无法播放。` };
+        if (Number.isFinite(action.startAtSeconds)) commitSeek(Math.max(0, Number(action.startAtSeconds)));
+        if (action.resumePlayback === false) { audio.current?.pause(); setPlaying(false); }
+        return success(`正在播放《${action.track.title}》`);
       }
-      if (action.type === 'pause') { audio.current?.pause(); return { ok: true, message: '已暂停' }; }
-      if (action.type === 'resume') { if (!audio.current) return { ok: false, message: '播放器尚未准备好。' }; await audio.current.play(); return { ok: true, message: '已继续播放' }; }
+      if (action.type === 'pause') { audio.current?.pause(); return success('已暂停'); }
+      if (action.type === 'resume') { if (!audio.current) return { ok: false, message: '播放器尚未准备好。' }; await audio.current.play(); return success('已继续播放'); }
       if (action.type === 'next' || action.type === 'previous') {
         if (!playbackQueue.current.size && !queue.length) return { ok: false, message: '当前播放队列还是空的。' };
-        await playRelative(action.type === 'next' ? 1 : -1); return { ok: true, message: action.type === 'next' ? '已切到下一首' : '已回到上一首' };
+        const beforeTrackId = committedTrackId.current; await playRelative(action.type === 'next' ? 1 : -1);
+        return success(action.type === 'next' ? '已切到下一首' : '已回到上一首', committedTrackId.current !== beforeTrackId ? undoAction : undefined);
       }
       if (action.type === 'retry_current') { if (!audio.current || !current) return { ok: false, message: '当前没有可重试的歌曲。' }; await recoverPlayback(audio.current); return { ok: true, message: '已重新连接当前歌曲' }; }
-      if (action.type === 'seek') { if (!audio.current) return { ok: false, message: '播放器尚未准备好。' }; commitSeek(action.seconds); return { ok: true, message: `已定位到 ${formatTime(action.seconds)}` }; }
-      if (action.type === 'set_volume') { const volume = Math.max(0, Math.min(1, action.volume)); if (agentSpeechVolume.current !== null) agentSpeechVolume.current = volume; if (audio.current) audio.current.volume = agentSpeechVolume.current !== null ? volume * .2 : volume; setVolumeDraft(volume); await setPreference({ volume }); return { ok: true, message: `音量已调到 ${Math.round(volume * 100)}%` }; }
-      if (action.type === 'set_play_mode') { await setPreference({ playMode: action.mode }); return { ok: true, message: '播放模式已更新' }; }
+      if (action.type === 'seek') { if (!audio.current) return { ok: false, message: '播放器尚未准备好。' }; commitSeek(action.seconds); return success(`已定位到 ${formatTime(action.seconds)}`); }
+      if (action.type === 'set_volume') { const volume = Math.max(0, Math.min(1, action.volume)); if (agentSpeechVolume.current !== null) agentSpeechVolume.current = volume; if (audio.current) audio.current.volume = agentSpeechVolume.current !== null ? volume * .2 : volume; setVolumeDraft(volume); await setPreference({ volume }); return success(`音量已调到 ${Math.round(volume * 100)}%`); }
+      if (action.type === 'set_play_mode') { await setPreference({ playMode: action.mode }); return success('播放模式已更新'); }
       if (action.type === 'set_theme') {
         if (!Object.prototype.hasOwnProperty.call(TONE_THEMES, action.theme)) return { ok: false, message: '没有找到这个主题。' };
-        commitToneTheme(action.theme as ToneThemeId, { x: window.innerWidth / 2, y: window.innerHeight / 2 }); return { ok: true, message: '主题已切换' };
+        commitToneTheme(action.theme as ToneThemeId, { x: window.innerWidth / 2, y: window.innerHeight / 2 }); return success('主题已切换');
       }
       if (action.type === 'clear_client_cache') { playbackCache.clear(); resolveRequests.current.clear(); warmedAudio.current.forEach(entry => disposeAudio(entry.element)); warmedAudio.current.clear(); return { ok: true, message: '当前设备的播放缓存已清理' }; }
       if (action.type === 'navigate') {
         if (action.section === 'agent') { if (mobileLayout) switchMobileSection('agent'); else setAgentOpen(true); }
         else switchMobileSection(action.section);
-        return { ok: true, message: '页面已切换' };
+        return success('页面已切换');
       }
       return { ok: false, message: '这项操作还没有开放。' };
     } catch (error) { return { ok: false, message: error instanceof Error ? error.message : '操作没有完成。' }; }
-  }, [commitToneTheme, current, mobileLayout, playFromQueue, playRelative, queue, recoverPlayback, switchMobileSection]);
+  }, [commitToneTheme, current, currentTime, mobileLayout, mobileSection, playFromQueue, playRelative, previewTone, queue, recoverPlayback, switchMobileSection, user?.playMode, visualPreferences.theme, volumeDraft]);
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {

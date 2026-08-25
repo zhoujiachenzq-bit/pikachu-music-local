@@ -162,7 +162,7 @@ export interface AgentClientContext {
 }
 
 export type AgentClientAction =
-  | { type: 'play_track'; track: Track; queue?: Track[]; reason?: string }
+  | { type: 'play_track'; track: Track; queue?: Track[]; reason?: string; startAtSeconds?: number; resumePlayback?: boolean }
   | { type: 'pause' | 'resume' | 'next' | 'previous' | 'retry_current' }
   | { type: 'seek'; seconds: number }
   | { type: 'set_volume'; volume: number }
@@ -170,6 +170,12 @@ export type AgentClientAction =
   | { type: 'set_theme'; theme: string }
   | { type: 'clear_client_cache' }
   | { type: 'navigate'; section: 'daily' | 'search' | 'player' | 'library' | 'agent' };
+
+export interface AgentClientActionResult {
+  ok: boolean;
+  message?: string;
+  undoAction?: AgentClientAction;
+}
 
 export type AgentStreamEvent =
   | { type: 'text_delta'; delta: string }

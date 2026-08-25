@@ -12,7 +12,7 @@ import { loadAgentKeyring } from './agentCrypto.js';
 import {
   closeTemporaryConversation, createAgentInvite, createTemporaryConversation, deleteAgentMemory, ensureAgentSettings, ensureMainConversation,
   getAgentAccess, getConversation, isAgentAdmin, listAgentInvites, listAgentMemories, listAgentMessages, monthlyAgentCost, redeemAgentInvite,
-  createAgentMemory, dismissAgentProactivePrompt, nextAgentProactivePrompt, recordAgentUsage, saveAgentMessage, updateAgentMemory, updateAgentSettings, updateToolAction
+  createAgentMemory, dismissAgentProactivePrompt, nextAgentProactivePrompt, recordAgentUsage, recordToolActionUndo, saveAgentMessage, updateAgentMemory, updateAgentSettings, updateToolAction
 } from './agentStore.js';
 import { activateKnowledgeVersion, listKnowledgeChunksMissingEmbeddings, listKnowledgeVersions, publishKnowledgeVersion, retrieveKnowledge, setKnowledgeChunkEmbedding, verifyKnowledgeSignature } from './agentKnowledge.js';
 import { ensureClassicKnowledgeSeed } from './classicKnowledgeSeed.js';
@@ -156,6 +156,14 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     const body = z.object({ ok: z.boolean(), message: z.string().max(300).optional(), details: z.unknown().optional() }).parse(request.body);
     const action = updateToolAction(db, user.id, id, body.ok ? 'executed' : 'failed', body, ['proposed', 'approved']);
     if (!action) return reply.code(404).send(apiError('AGENT_ACTION_NOT_FOUND', '操作已过期或不属于当前用户。'));
+    return { ok: true };
+  });
+
+  app.post('/api/agent/actions/:id/undo-result', async (request, reply) => {
+    const user = requireAgent(db, keyring, request, reply); if (!user) return;
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({ ok: z.literal(true), message: z.string().max(300).optional() }).parse(request.body);
+    if (!recordToolActionUndo(db, user.id, id, body)) return reply.code(409).send(apiError('AGENT_ACTION_NOT_UNDOABLE', '这项操作已撤销、已过期或不属于当前用户。'));
     return { ok: true };
   });
 

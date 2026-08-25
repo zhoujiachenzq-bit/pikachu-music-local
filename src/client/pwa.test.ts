@@ -20,6 +20,6 @@ describe('PWA assets', () => {
     expect(worker).toContain("fetch('/', { cache: 'no-cache' })");
     expect(worker).toContain("url.pathname.startsWith('/assets/')");
     expect(worker).toContain("'/pikachu.gif'");
-    expect(worker).toContain('pikachu-music-shell-v0.4.0-beta.5-r1');
+    expect(worker).toContain('pikachu-music-shell-v0.4.0-beta.6-r1');
   });
 });

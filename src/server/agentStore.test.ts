@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDatabase, upsertTrack } from './db.js';
 import { loadAgentKeyring } from './agentCrypto.js';
-import { createAgentInvite, createAgentMemory, createAgentRun, createToolAction, ensureMainConversation, inferListeningPreferenceMemories, listAgentMemories, listAgentMessages, nextAgentProactivePrompt, redeemAgentInvite, rememberAgentMemory, retrieveAgentMemories, saveAgentMessage, setAgentMemoryEmbedding, updateAgentSettings, updateToolAction } from './agentStore.js';
+import { createAgentInvite, createAgentMemory, createAgentRun, createToolAction, ensureMainConversation, inferListeningPreferenceMemories, listAgentMemories, listAgentMessages, nextAgentProactivePrompt, recordToolActionUndo, redeemAgentInvite, rememberAgentMemory, retrieveAgentMemories, saveAgentMessage, setAgentMemoryEmbedding, updateAgentSettings, updateToolAction } from './agentStore.js';
 
 function addUser(db: ReturnType<typeof createDatabase>, id: string, username: string) {
   const stamp = new Date().toISOString(); db.prepare('INSERT INTO users(id,username,password_hash,password_salt,created_at,updated_at) VALUES(?,?,?,?,?,?)').run(id, username, 'hash', 'salt', stamp, stamp);
@@ -25,7 +25,10 @@ describe('agent data isolation and action ledger', () => {
     expect(redeemAgentInvite(db, 'a', invite.code)).toBe(true); expect(redeemAgentInvite(db, 'a', invite.code)).toBe(false);
     const conversation = ensureMainConversation(db, 'a'); const run = createAgentRun(db, 'a', conversation.id, 1, 'local', false); const action = createToolAction(db, run, 'a', 'control_player', 'direct', { action: 'pause' });
     expect(updateToolAction(db, 'a', action.id, 'executed', { ok: true }, ['proposed'])?.status).toBe('executed');
-    expect(updateToolAction(db, 'a', action.id, 'executed', { ok: true }, ['proposed'])).toBeNull(); db.close();
+    expect(updateToolAction(db, 'a', action.id, 'executed', { ok: true }, ['proposed'])).toBeNull();
+    expect(recordToolActionUndo(db, 'a', action.id, { ok: true, message: '已恢复播放' })).toMatchObject({ ok: true, message: '已恢复播放' });
+    expect(recordToolActionUndo(db, 'a', action.id, { ok: true })).toBeNull();
+    expect(recordToolActionUndo(db, 'b', action.id, { ok: true })).toBeNull(); db.close();
   });
 
   it('continues to read legacy plaintext message metadata during the encryption migration', () => {
