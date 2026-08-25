@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { MusicSource, RecommendedTrack, Track } from '../shared/types';
 import type { MobileSection } from './visualState';
 
-export type IconName = 'add' | 'agent' | 'backup' | 'close' | 'dislike' | 'download' | 'globe' | 'headphones' | 'heart' | 'import' | 'library' | 'microphone' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'return' | 'search' | 'send' | 'settings' | 'shuffle' | 'sparkles' | 'speaker' | 'sync' | 'temporary' | 'user' | 'volume' | 'warning';
+export type IconName = 'add' | 'agent' | 'backup' | 'close' | 'dislike' | 'download' | 'globe' | 'headphones' | 'heart' | 'import' | 'library' | 'microphone' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'return' | 'search' | 'send' | 'settings' | 'shuffle' | 'sparkles' | 'speaker' | 'sync' | 'user' | 'volume' | 'warning';
 
 const iconPaths: Record<IconName, ReactNode> = {
   add: <><path d="M12 5v14M5 12h14"/></>,
@@ -35,7 +35,6 @@ const iconPaths: Record<IconName, ReactNode> = {
   sparkles: <><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"/><path d="m19 14 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z"/></>,
   speaker: <><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="M17 9a4 4 0 0 1 0 6"/></>,
   sync: <><path d="M20 7h-5V2"/><path d="M20 7a8 8 0 1 0 1 7"/></>,
-  temporary: <><path d="M10.1 2.182a10 10 0 0 1 3.8 0M13.9 21.818a10 10 0 0 1-3.8 0M17.609 3.72a10 10 0 0 1 2.69 2.7M2.182 13.9a10 10 0 0 1 0-3.8M20.28 17.61a10 10 0 0 1-2.7 2.69M21.818 10.1a10 10 0 0 1 0 3.8M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="m6.163 21.117-2.906.85a1 1 0 0 1-1.236-1.169l.965-2.98"/></>,
   user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
   volume: <><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="M17 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></>,
   warning: <><path d="M12 3 2.7 20h18.6L12 3Z"/><path d="M12 9v5M12 17.2v.1"/></>,

@@ -62,7 +62,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const systemSpeechAvailable = typeof window.speechSynthesis !== 'undefined';
   const [access, setAccess] = useState<AgentAccess | null>(null); const [settings, setSettings] = useState<AgentSettings | null>(null);
   const [voices, setVoices] = useState<AgentVoiceOption[]>([]); const [voicePreviewScene, setVoicePreviewScene] = useState<VoicePreviewSceneId>('greeting');
-  const [conversation, setConversation] = useState<AgentConversation | null>(null); const [mainConversation, setMainConversation] = useState<AgentConversation | null>(null);
+  const [conversation, setConversation] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]); const [input, setInput] = useState(''); const [streaming, setStreaming] = useState(false);
   const [webSearch, setWebSearch] = useState(false); const [reasonCards, setReasonCards] = useState<ReasonCard[]>([]); const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [actionReceipts, setActionReceipts] = useState<ActionReceipt[]>([]);
@@ -84,10 +84,9 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       const root = await api<{ access: AgentAccess; settings: AgentSettings; voices?: AgentVoiceOption[] }>('/api/agent/access'); setAccess(root.access); setSettings(root.settings); setVoices(root.voices || []);
       if (!root.access.enabled || !root.access.entitled || !root.access.configured) return;
       const data = await api<{ conversation: AgentConversation; messages: AgentMessage[] }>('/api/agent/conversations/main');
-      setMainConversation(data.conversation); setConversation(current => current?.kind === 'temporary' ? current : data.conversation);
-      if (!conversation || conversation.kind === 'main') setMessages(data.messages);
+      setConversation(data.conversation); setMessages(data.messages);
     } catch (cause) { setError(cause instanceof Error ? cause.message : '珍奇暂时无法连接。'); }
-  }, [conversation?.kind]);
+  }, []);
 
   useEffect(() => { if (open) void load(); }, [open, userId]);
   useEffect(() => { if (open && initialPrompt) setInput(value => value || initialPrompt); }, [initialPrompt, open]);
@@ -189,15 +188,6 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     } catch (cause) { recorderStream.current?.getTracks().forEach(track => track.stop()); setRecording(false); setError(cause instanceof Error ? cause.message : '没有获得麦克风权限。'); }
   };
 
-  const startTemporary = async () => {
-    streamController.current?.abort();
-    const data = await api<{ conversation: AgentConversation; messages: AgentMessage[] }>('/api/agent/conversations/temporary', json('POST'));
-    setConversation(data.conversation); setMessages([]); setReasonCards([]); setPendingActions([]); setActionReceipts([]); setSettingsOpen(false); setMemoriesOpen(false); setKnowledgeOpen(false);
-  };
-  const leaveTemporary = async () => {
-    if (conversation?.kind === 'temporary') await api(`/api/agent/conversations/${conversation.id}`, json('DELETE'));
-    if (mainConversation) { setConversation(mainConversation); setActionReceipts([]); const data = await api<{ messages: AgentMessage[] }>(`/api/agent/conversations/${mainConversation.id}/messages`); setMessages(data.messages); }
-  };
   const redeem = async () => {
     try { await api('/api/agent/invites/redeem', json('POST', { code: inviteCode })); setInviteCode(''); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : '邀请码无效。'); }
@@ -277,9 +267,8 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   return <aside className={shellClass} aria-label={zh ? '珍奇音乐知己' : 'Zhenqi music companion'}>
     <header className="agent-header">
       <div className="agent-wordmark"><span className="agent-pulse"><i/><i/><i/></span><div><small>MUSIC COMPANION · BETA</small><strong>{settings?.assistantName || '珍奇'}</strong></div></div>
-      <div className="agent-header-actions"><button className="agent-action-temporary" aria-label={zh ? '切换临时对话' : 'Toggle temporary chat'} aria-pressed={conversation?.kind === 'temporary'} title={zh ? '临时对话：不形成长期记忆' : 'Temporary chat: no long-term memory'} onClick={() => void (conversation?.kind === 'temporary' ? leaveTemporary() : startTemporary())}><Icon name="temporary" size={18}/></button><button className="agent-action-settings" aria-label={zh ? '珍奇设置' : 'Zhenqi settings'} aria-pressed={settingsOpen} title={zh ? '珍奇设置' : 'Zhenqi settings'} onClick={() => { setSettingsOpen(value => !value); setMemoriesOpen(false); setKnowledgeOpen(false); setAdminOpen(false); }}><Icon name="settings" size={18}/></button>{!mobile && <button className="agent-action-return" aria-label={zh ? '返回播放器' : 'Return to player'} title={zh ? '返回播放器' : 'Return to player'} onClick={onClose}><Icon name="return" size={18}/></button>}</div>
+      <div className="agent-header-actions"><button className="agent-action-settings" aria-label={zh ? '珍奇设置' : 'Zhenqi settings'} aria-pressed={settingsOpen} title={zh ? '珍奇设置' : 'Zhenqi settings'} onClick={() => { setSettingsOpen(value => !value); setMemoriesOpen(false); setKnowledgeOpen(false); setAdminOpen(false); }}><Icon name="settings" size={18}/></button>{!mobile && <button className="agent-action-return" aria-label={zh ? '返回播放器' : 'Return to player'} title={zh ? '返回播放器' : 'Return to player'} onClick={onClose}><Icon name="return" size={18}/></button>}</div>
     </header>
-    {conversation?.kind === 'temporary' && <div className="agent-temporary-banner"><Icon name="temporary" size={15}/><span>{zh ? '临时对话：不形成长期记忆，关闭即删除。' : 'Temporary: no long-term memory; deleted when closed.'}</span><button onClick={() => void leaveTemporary()}>{zh ? '返回主对话' : 'Back'}</button></div>}
     {introOpen && <section className="agent-intro">
       <span className="agent-intro-index">01 / PRIVACY</span><h2>{zh ? '珍奇只看完成这次请求所需的信息。' : 'Zhenqi sees only what this request needs.'}</h2>
       <p>{zh ? '当前歌曲、队列和你的音乐偏好会帮助推荐；对话会加密保存 90 天。密码、令牌、完整日志和其他用户数据永远不会交给模型。你可以随时暂停或清空记忆。' : 'Current playback and music preferences can shape recommendations. Chats are encrypted and retained for 90 days; credentials and other users’ data are never shared.'}</p>
@@ -328,7 +317,6 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     {!introOpen && access?.entitled && !access.configured && <section className="agent-access"><span>SAFE OFFLINE</span><h2>{access.reason}</h2><p>{zh ? '音乐小屋其他功能不受影响。' : 'All music features remain available.'}</p></section>}
     {!introOpen && access?.entitled && access.configured && <>
       <div className="agent-messages" ref={scroller} aria-live="polite">
-        {!messages.length && <div className="agent-empty"><h2>{zh ? `晚上好，我是${settings?.assistantName || '珍奇'}。` : `Hi, I’m ${settings?.assistantName || 'Zhenqi'}.`}</h2><p>{zh ? '说说你此刻想听什么，或者直接让我暂停、切歌、找一首歌。' : 'Tell me what fits this moment, or ask me to control playback.'}</p><div>{['来点适合夜晚的歌', '换一首', '检查最近为什么播放失败'].map(value => <button key={value} onClick={() => void send(undefined, value)}>{value}</button>)}</div></div>}
         {messages.map(message => { const references = messageCitations(message); return <article key={message.id} className={`agent-message ${message.role}`}><small>{message.role === 'user' ? (zh ? '你' : 'YOU') : (settings?.assistantName || '珍奇')}</small><p>{message.content || (streaming ? '▋' : '')}</p>{!!references.length && <section className="agent-citations"><small>{references.some(item => item.kind === 'web') ? (zh ? '本条回答的资料' : 'Sources for this reply') : (zh ? '本条使用的策展知识' : 'Curated knowledge used')}</small><div>{references.map((citation, index) => citation.url ? <a key={`${citation.kind}-${citation.url}`} href={citation.url} target="_blank" rel="noreferrer"><b>{index + 1}</b><span>{citation.title}<small>{citation.detail}</small></span></a> : <div className="agent-citation-local" key={`${citation.kind}-${citation.title}`}><b>{index + 1}</b><span>{citation.title}<small>{citation.detail}</small></span></div>)}</div></section>}{message.role === 'assistant' && message.content && <button className={`agent-read ${speakingMessageId === message.id ? 'active' : ''}`} onClick={() => void readText(message.content, message.id)}><Icon name="speaker" size={13}/>{speakingMessageId === message.id ? (zh ? '停止' : 'Stop') : (zh ? '朗读' : 'Read')}</button>}</article>; })}
         {actionReceipts.map(receipt => <section className={`agent-action-receipt ${receipt.status}`} key={receipt.actionId} role="status">
           <span aria-hidden="true"/><div><small>{receipt.status === 'undone' ? (zh ? '已恢复原状态' : 'State restored') : receipt.status === 'failed' ? (zh ? '撤销未完成' : 'Undo failed') : (zh ? '操作已完成' : 'Action complete')}</small><strong>{receipt.message}</strong></div>
@@ -340,7 +328,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       <form className="agent-composer" onSubmit={event => void send(event)}>
         {error && <div className="agent-error"><Icon name="warning" size={14}/>{error}</div>}
         <textarea rows={2} value={input} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={zh ? '告诉珍奇你此刻需要什么…' : 'Tell Zhenqi what you need…'}/>
-        <div><button type="button" className={webSearch ? 'active' : ''} title={zh ? '仅下一条消息联网' : 'Web for next message only'} onClick={() => setWebSearch(value => !value)}><Icon name="globe" size={16}/><span>{webSearch ? (zh ? '本条联网' : 'Web on') : (zh ? '联网' : 'Web')}</span></button><button type="button" className={`agent-mic ${recording ? 'recording' : ''}`} disabled={transcribing} title={recording ? (zh ? '结束录音' : 'Stop recording') : (zh ? '语音输入，最长 60 秒' : 'Voice input, up to 60s')} onClick={() => void toggleRecording()}><Icon name="microphone" size={15}/></button><small>{recording ? (zh ? '正在录音…' : 'Recording…') : transcribing ? (zh ? '正在转写…' : 'Transcribing…') : streaming ? (zh ? '珍奇正在组织回应…' : 'Zhenqi is responding…') : conversation?.kind === 'temporary' ? '24H TEMP' : 'ENCRYPTED'}</small><button className="agent-send" disabled={!input.trim()} aria-label={zh ? '发送' : 'Send'}><Icon name="send" size={17}/></button></div>
+        <div><button type="button" className={webSearch ? 'active' : ''} title={zh ? '仅下一条消息联网' : 'Web for next message only'} onClick={() => setWebSearch(value => !value)}><Icon name="globe" size={16}/><span>{webSearch ? (zh ? '本条联网' : 'Web on') : (zh ? '联网' : 'Web')}</span></button><button type="button" className={`agent-mic ${recording ? 'recording' : ''}`} disabled={transcribing} title={recording ? (zh ? '结束录音' : 'Stop recording') : (zh ? '语音输入，最长 60 秒' : 'Voice input, up to 60s')} onClick={() => void toggleRecording()}><Icon name="microphone" size={15}/></button><small>{recording ? (zh ? '正在录音…' : 'Recording…') : transcribing ? (zh ? '正在转写…' : 'Transcribing…') : streaming ? (zh ? '珍奇正在组织回应…' : 'Zhenqi is responding…') : 'ENCRYPTED'}</small><button className="agent-send" disabled={!input.trim()} aria-label={zh ? '发送' : 'Send'}><Icon name="send" size={17}/></button></div>
       </form>
     </>}
     {!introOpen && error && (!access?.entitled || !access?.configured) && <div className="agent-error standalone"><Icon name="warning" size={14}/>{error}</div>}
