@@ -92,11 +92,36 @@ export function chooseAgentModelTier(message: string, webSearch: boolean, monthl
 export function directIntent(message: string): AgentClientAction | null {
   const value = message.trim();
   if (/^(暂停|先停一下|停一下|别放了)[。！!\s]*$/.test(value)) return { type: 'pause' };
-  if (/^(继续|继续播放|播放吧)[。！!\s]*$/.test(value)) return { type: 'resume' };
+  if (/^(继续|继续播放|继续放|播放吧|再放|再播放)[。！!\s]*$/.test(value)) return { type: 'resume' };
   if (/^(下一首|下一个)[。！!\s]*$/.test(value)) return { type: 'next' };
   if (/^(上一首|上一个)[。！!\s]*$/.test(value)) return { type: 'previous' };
   if (/^(重试|重新连接|再试一次)[。！!\s]*$/.test(value)) return { type: 'retry_current' };
   return null;
+}
+
+export function explicitPlayIntent(message: string): { title: string; artist?: string } | null {
+  const value = message.trim().replace(/[。！!]+$/g, '').trim();
+  const bracketed = value.match(/[《「“"]([^》」”"]+)[》」”"]/);
+  if (bracketed) {
+    const prefix = value.slice(0, bracketed.index).replace(/^(?:请|麻烦)?(?:帮我)?(?:播放|放|来|想听|我要听|听听?)\s*/u, '').replace(/的$/u, '').trim();
+    const suffix = value.slice((bracketed.index || 0) + bracketed[0].length).replace(/^(?:的)?/u, '').replace(/(?:原唱|演唱|唱的)$/u, '').trim();
+    const artist = prefix || suffix;
+    return { title: bracketed[1].trim(), ...(artist ? { artist } : {}) };
+  }
+  const command = value.match(/^(?:请|麻烦)?(?:帮我)?(?:播放|放(?:一首|首)?|来(?:一首|首)?)\s*(.+)$/u);
+  if (!command) return null;
+  let rest = command[1].trim().replace(/^歌曲?\s*/u, '');
+  if (!rest || /^(?:点|一些|几首|一首|首)?(?:歌|音乐)?$/u.test(rest) || /^(?:点|些)?(?:适合|随便|推荐)/u.test(rest)) return null;
+  const withArtist = rest.match(/^(.+?)[，,\s]+([^，,\s]{1,30})(?:的)?(?:原唱|演唱)$/u);
+  if (withArtist) return { title: withArtist[1].trim(), artist: withArtist[2].trim() };
+  rest = rest.replace(/(?:这首歌|原唱版)$/u, '').trim();
+  return rest ? { title: rest } : null;
+}
+
+export function quickRecommendationIntent(message: string, currentTrack: Track | null): { query: string; count: number; playFirst: true; discovery: 'balanced' } | null {
+  const value = message.trim().replace(/[。！!]+$/g, '').trim();
+  if (!/^(?:换一首|再来(?:一首|首)|随便(?:来|放)(?:一首|首|几首)|来点歌|放点歌)$/u.test(value)) return null;
+  return { query: currentTrack ? `${currentTrack.title} ${currentTrack.artist} 相似的原唱歌曲` : '华语流行 原唱', count: 5, playFirst: true, discovery: 'balanced' };
 }
 
 function compactTrack(track: Track) {
@@ -220,10 +245,16 @@ export class AgentRuntime {
     }
     if (call.toolName === 'play_song') {
       const title = String(call.input.title || '').trim(); const artist = String(call.input.artist || '').trim();
-      const tracks = await discoverTracks(this.db, input.user.id, `${title} ${artist}`.trim(), 8);
       const titleKey = normalize(title); const artistKey = normalize(artist);
-      const selected = tracks.find(track => normalize(track.title) === titleKey && (!artistKey || normalize(track.artist).includes(artistKey)))
+      const contextualTracks = [input.context.currentTrack, ...input.context.queue].filter((track): track is Track => Boolean(track));
+      let tracks = [...new Map(contextualTracks.map(track => [track.id, track])).values()];
+      let selected = tracks.find(track => normalize(track.title) === titleKey && (!artistKey || normalize(track.artist).includes(artistKey)))
         || tracks.find(track => normalize(track.title).includes(titleKey) && (!artistKey || normalize(track.artist).includes(artistKey)));
+      if (!selected) {
+        tracks = await discoverTracks(this.db, input.user.id, `${title} ${artist}`.trim(), 8);
+        selected = tracks.find(track => normalize(track.title) === titleKey && (!artistKey || normalize(track.artist).includes(artistKey)))
+          || tracks.find(track => normalize(track.title).includes(titleKey) && (!artistKey || normalize(track.artist).includes(artistKey)));
+      }
       if (!selected) return `我没找到可以确认的《${title}》原唱版，所以没有冒险切歌。`;
       const record = createToolAction(this.db, runId, input.user.id, call.toolName, 'direct', { trackId: selected.id });
       yield { type: 'client_action', actionId: record.id, action: { type: 'play_track', track: selected, queue: tracks, reason: '已通过平台歌曲身份与版本检查' } };
@@ -308,6 +339,8 @@ export class AgentRuntime {
       updateAgentRun(this.db, runId, input.user.id, 'context_building');
       const userMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'user', input.message, { webSearch: input.webSearch });
       const immediate = directIntent(input.message);
+      const explicitPlay = explicitPlayIntent(input.message);
+      const quickRecommendation = quickRecommendationIntent(input.message, input.context.currentTrack);
       if (safety.blocked) {
         assistantText = safety.response || '这项请求不能由珍奇处理。';
         yield { type: 'reason_card', kind: 'safety', title: safety.title || '安全边界', body: '已在本地完成判断，没有调用模型、联网服务或站内工具。' };
@@ -316,6 +349,14 @@ export class AgentRuntime {
         const record = createToolAction(this.db, runId, input.user.id, 'control_player', 'direct', immediate);
         yield { type: 'tool_started', tool: 'control_player' }; yield { type: 'client_action', actionId: record.id, action: immediate };
         assistantText = immediate.type === 'pause' ? '好，先暂停一下。' : immediate.type === 'resume' ? '好，继续播放。' : immediate.type === 'next' ? '切到下一首了。' : immediate.type === 'previous' ? '回到上一首了。' : '我让这首重新连接。';
+        yield { type: 'text_delta', delta: assistantText };
+      } else if (explicitPlay) {
+        updateAgentRun(this.db, runId, input.user.id, 'generating');
+        assistantText = yield* this.executeTool(runId, input, { toolName: 'play_song', input: explicitPlay });
+        yield { type: 'text_delta', delta: assistantText };
+      } else if (quickRecommendation) {
+        updateAgentRun(this.db, runId, input.user.id, 'generating');
+        assistantText = yield* this.executeTool(runId, input, { toolName: 'recommend_music', input: quickRecommendation });
         yield { type: 'text_delta', delta: assistantText };
       } else if (!providerAvailable) {
         updateAgentRun(this.db, runId, input.user.id, 'generating');

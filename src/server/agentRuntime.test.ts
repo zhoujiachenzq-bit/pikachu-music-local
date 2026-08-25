@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadAgentKeyring } from './agentCrypto.js';
-import { buildAgentContext, chooseAgentModelTier, directIntent, AgentRuntime, type AgentRunInput } from './agentRuntime.js';
+import { buildAgentContext, chooseAgentModelTier, directIntent, explicitPlayIntent, quickRecommendationIntent, AgentRuntime, type AgentRunInput } from './agentRuntime.js';
 import { AgentModelProviderRegistry } from './agentModelProviders.js';
 import { publishKnowledgeVersion } from './agentKnowledge.js';
 import { createDatabase, upsertTrack } from './db.js';
@@ -16,8 +16,40 @@ describe('agent deterministic routing', () => {
     expect(directIntent('暂停')).toEqual({ type: 'pause' });
     expect(directIntent('下一首！')).toEqual({ type: 'next' });
     expect(directIntent('上一首')).toEqual({ type: 'previous' });
+    expect(directIntent('再放')).toEqual({ type: 'resume' });
     expect(directIntent('换一首')).toBeNull();
     expect(directIntent('播放退后')).toBeNull();
+  });
+
+  it('routes explicit song requests and quick recommendations before the model', () => {
+    expect(explicitPlayIntent('来首我不难过')).toEqual({ title: '我不难过' });
+    expect(explicitPlayIntent('播放《烟火里的尘埃》华晨宇原唱')).toEqual({ title: '烟火里的尘埃', artist: '华晨宇' });
+    expect(explicitPlayIntent('帮我播放华晨宇的《烟火里的尘埃》')).toEqual({ title: '烟火里的尘埃', artist: '华晨宇' });
+    expect(explicitPlayIntent('随便来首')).toBeNull();
+    expect(explicitPlayIntent('想听校园回忆')).toBeNull();
+    expect(quickRecommendationIntent('随便来首', null)).toEqual({ query: '华语流行 原唱', count: 5, playFirst: true, discovery: 'balanced' });
+    const current = { id: 'qq:1', source: 'qq', sourceTrackId: '1', title: '我不难过', artist: '孙燕姿', album: '', duration: 0, coverUrl: null, sourceUrl: null } as const;
+    expect(quickRecommendationIntent('换一首', current)).toMatchObject({ query: '我不难过 孙燕姿 相似的原唱歌曲', playFirst: true });
+  });
+
+  it('executes an explicit song request without trusting the model to call a tool', async () => {
+    const db = createDatabase(':memory:'); addUser(db, 'a', 'Ash'); const keyring = loadAgentKeyring({} as NodeJS.ProcessEnv); const conversation = ensureMainConversation(db, 'a'); let providerCalls = 0;
+    const track = upsertTrack(db, { id: 'qq:unused', source: 'qq', sourceTrackId: 'sad-1', title: '我不难过', artist: '孙燕姿', album: '未完成', duration: 320000, coverUrl: null, sourceUrl: null });
+    const fakeProvider = {
+      id: 'deepseek', label: 'Fixture', configured: () => true, modelName: () => 'fixture-model', estimateCostCny: () => 0,
+      capabilities: () => ({ text: true, streaming: true, tools: true, structuredOutput: true, reasoning: false, imageInput: false, audioInput: false }),
+      stream: () => { providerCalls += 1; throw new Error('provider should not be called'); }
+    };
+    const runtime = new AgentRuntime(db, keyring, new AgentModelProviderRegistry({ AGENT_MODEL_PROVIDER: 'deepseek' }, [fakeProvider as never]));
+    const input: AgentRunInput = { user: { id: 'a', username: 'Ash' }, conversationId: conversation.id, conversationKind: 'main', message: '来首我不难过', generation: 1, webSearch: false, context: { currentTrack: null, queue: [track], playing: false, currentTime: 0, volume: .8, playMode: 'list' } };
+    const events = []; for await (const event of runtime.run(input)) events.push(event);
+    expect(providerCalls).toBe(0);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'tool_started', tool: 'play_song' }),
+      expect.objectContaining({ type: 'client_action', action: expect.objectContaining({ type: 'play_track', track: expect.objectContaining({ id: track.id }) }) })
+    ]));
+    expect(db.prepare("SELECT status FROM agent_tool_actions WHERE user_id=? AND tool_name='play_song'").get('a')).toMatchObject({ status: 'proposed' });
+    db.close();
   });
 
   it('uses the complex model only before the soft budget threshold', () => {
