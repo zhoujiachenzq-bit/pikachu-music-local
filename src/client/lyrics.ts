@@ -4,17 +4,35 @@ const creditLine = /^(?:(?:作词|作曲|词|曲|演唱|歌手|编曲|制作人|
 
 export const isLyricCreditLine = (text: string) => creditLine.test(text.trim());
 
+const timestamp = /\[(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\]/g;
+const leadingTimestamps = /^(?:\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]\s*)+/;
+
+function normalizedLyricKey(time: number, text: string) {
+  return `${Math.round(time * 1000)}\u0000${text.replace(/\s+/g, ' ').trim()}`;
+}
+
 export function parseLrc(raw: string | null): LyricLine[] {
   if (!raw) return [];
   const lines: LyricLine[] = [];
   raw.split(/\r?\n/).forEach(line => {
-    const words = line.replace(/\[[a-z]+:.*?\]/gi, '').replace(/\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]/g, '').trim();
+    const content = line.replace(/\[[a-z]+:.*?\]/gi, '').trimStart();
+    const leading = content.match(leadingTimestamps)?.[0];
+    if (!leading) return;
+    const words = content.slice(leading.length).replace(timestamp, '').trim();
     if (!words) return;
-    for (const match of line.matchAll(/\[(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\]/g)) {
+    // Enhanced LRC puts a timestamp before every word. Only timestamps in the
+    // leading block represent whole-line positions; inline tags are word timing.
+    for (const match of leading.matchAll(timestamp)) {
       lines.push({ time: Number(match[1]) * 60 + Number(match[2]), text: words, kind: isLyricCreditLine(words) ? 'credit' : 'lyric' });
     }
   });
-  const timed = lines.filter(line => line.text).sort((a, b) => a.time - b.time);
+  const seen = new Set<string>();
+  const timed = lines.filter(line => line.text).sort((a, b) => a.time - b.time).filter(line => {
+    const key = normalizedLyricKey(line.time, line.text);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   if (timed.length) return timed;
   return raw.split(/\r?\n/)
     .filter(line => !/^\[(ar|ti|al|by|offset):/i.test(line.trim()))
