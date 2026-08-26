@@ -160,7 +160,13 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 
 .agent-panel { color: var(--text); background: linear-gradient(156deg, color-mix(in srgb, var(--panel-a), transparent 1%), color-mix(in srgb, var(--surface-0), transparent 2%) 76%); }
 .agent-panel-drawer { position: fixed; z-index: 72; top: 126px; right: max(18px, calc((100vw - 1680px) / 2 + 32px)); bottom: 43px; width: clamp(290px, 22vw, 360px); display: grid; grid-template-rows: auto auto minmax(0,1fr) auto; border: 1px solid color-mix(in srgb, var(--brand), transparent 68%); border-radius: 30px 8px 30px 8px; box-shadow: -30px 30px 100px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.06); backdrop-filter: blur(30px); animation: agent-drawer-in .42s cubic-bezier(.2,.78,.2,1) both; }
-.player-panel.agent-center-open { padding: 0; }
+.player-panel.agent-center-open { padding: 14px; }
+.agent-stage-layer { position: absolute; z-index: 3; inset: 0; min-width: 0; min-height: 0; opacity: 0; pointer-events: none; transform: translateY(10px) scale(.992); transition: opacity .3s ease, transform .38s cubic-bezier(.2,.78,.2,1); }
+.agent-stage-layer.active { opacity: 1; pointer-events: auto; transform: none; }
+.agent-stage-layer.desktop .agent-panel-center { background: linear-gradient(180deg, color-mix(in srgb, var(--surface-0), transparent 44%), color-mix(in srgb, var(--surface-0), transparent 72%) 24%, color-mix(in srgb, var(--surface-0), transparent 85%) 62%, color-mix(in srgb, var(--surface-0), transparent 48%)); backdrop-filter: blur(4px); }
+.agent-stage-layer.desktop .agent-panel::before { opacity: .26; }
+.agent-stage-layer.desktop .agent-header { background: color-mix(in srgb, var(--surface-0), transparent 42%); backdrop-filter: blur(18px); }
+.agent-stage-layer.desktop .agent-composer { background: color-mix(in srgb, var(--input-bg), transparent 9%); backdrop-filter: blur(18px); }
 .agent-panel-center { width: 100%; height: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; border-radius: inherit; animation: agent-center-in .38s cubic-bezier(.2,.78,.2,1) both; }
 .agent-panel-center::after { display: none; }
 .agent-panel-center .agent-header { min-height: 66px; padding: 12px clamp(18px, 2.5vw, 28px); background: color-mix(in srgb, var(--surface-0), transparent 14%); }
@@ -310,10 +316,14 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .empty-state p { margin: 9px 0; font-size: 10px; }
 .empty-state small { max-width: 260px; color: #9f6974; font-size: 8px; line-height: 1.45; }
 
-.stage-surface { position: relative; z-index: 2; min-height: 0; height: 100%; display: flex; flex-direction: column; }
-.immersive-backdrop { position: absolute; z-index: 0; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; }
+.stage-surface { position: relative; z-index: 2; min-height: 0; height: 100%; display: flex; flex-direction: column; opacity: 1; transform: none; transition: opacity .24s ease, transform .34s cubic-bezier(.2,.78,.2,1); }
+.stage-surface.stage-surface-hidden { opacity: 0; pointer-events: none; transform: translateY(-8px) scale(.994); }
+.immersive-backdrop { position: absolute; z-index: 0; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; transition: filter .48s ease; }
 .ambient-cover { position: absolute; inset: -28%; opacity: .16; filter: blur(52px) saturate(1.25); transform: scale(1.05); background: var(--scene-cover) center / 42% auto no-repeat; transition: background-image .45s ease, opacity .45s ease; }
-.immersive-backdrop::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 35% 18%, color-mix(in srgb, var(--scene-secondary), transparent 77%), transparent 37%), radial-gradient(circle at 75% 75%, color-mix(in srgb, var(--scene-primary), transparent 88%), transparent 38%); }
+.immersive-backdrop::before { content: ''; position: absolute; inset: 0; opacity: 1; background: radial-gradient(circle at 35% 18%, color-mix(in srgb, var(--scene-secondary), transparent 77%), transparent 37%), radial-gradient(circle at 75% 75%, color-mix(in srgb, var(--scene-primary), transparent 88%), transparent 38%); transition: opacity .42s ease; }
+.immersive-backdrop.focus-agent { filter: saturate(.9) brightness(.88); }
+.immersive-backdrop.focus-agent .ambient-cover { opacity: .12; transform: scale(1.09); }
+.immersive-backdrop.focus-agent::before { opacity: .78; }
 .immersive-webgl-host, .immersive-webgl-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .immersive-webgl-host { z-index: 1; }
 .ambient-cover, .immersive-backdrop::before, .css-orbit, .css-scene-grid, .css-theme-motif { z-index: 0; }
@@ -702,6 +712,11 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
   .has-mobile-mini .workspace > section[data-mobile-active='true'] { padding-bottom: 78px; }
   .has-mobile-mini .player-panel[data-mobile-section='player'] { padding-bottom: 16px; }
   .agent-panel-mobile { position: fixed; z-index: 70; top: calc(max(8px, env(safe-area-inset-top)) + 68px); left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); bottom: calc(max(7px, env(safe-area-inset-bottom)) + 68px); min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 17px; box-shadow: 0 24px 70px rgba(0,0,0,.52); animation: agent-mobile-in .3s cubic-bezier(.2,.75,.2,1) both; }
+  .player-panel.agent-center-open { padding: 13px 11px 16px; }
+  .agent-stage-layer.mobile { position: static; }
+  .agent-stage-layer.mobile .agent-panel-mobile { background: linear-gradient(180deg, color-mix(in srgb, var(--surface-0), transparent 30%), color-mix(in srgb, var(--surface-0), transparent 53%) 42%, color-mix(in srgb, var(--surface-0), transparent 32%)); backdrop-filter: blur(7px); }
+  .agent-stage-layer.mobile .agent-panel::before { opacity: .22; }
+  .agent-stage-layer.mobile .agent-header { background: color-mix(in srgb, var(--surface-0), transparent 36%); backdrop-filter: blur(18px); }
   .has-mobile-mini .agent-panel-mobile { bottom: calc(max(7px, env(safe-area-inset-bottom)) + 131px); }
   @keyframes agent-mobile-in { from { opacity: 0; transform: translateY(18px); clip-path: inset(80% 0 0 round 17px); } to { opacity: 1; transform: none; clip-path: inset(0 round 17px); } }
   .agent-header { min-height: 62px; padding: 9px 11px 8px 14px; }
