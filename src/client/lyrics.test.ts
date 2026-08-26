@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyricCenterOffset, parseLrc } from './lyrics';
+import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyricCenterOffset, lyricClickSeekTime, parseLrc } from './lyrics';
 
 describe('lyrics helpers', () => {
   it('does not activate the first line before its timestamp', () => {
@@ -44,6 +44,13 @@ describe('lyrics helpers', () => {
     expect(lyricCenterOffset(20, 40, 400, 1600)).toBe(0);
     expect(lyricCenterOffset(760, 40, 400, 1600)).toBe(580);
     expect(lyricCenterOffset(1540, 40, 400, 1600)).toBe(1200);
+  });
+
+  it('seeks slightly before the lyric start without crossing zero', () => {
+    expect(lyricClickSeekTime(31.29)).toBeCloseTo(30.99, 5);
+    expect(lyricClickSeekTime(.2)).toBe(0);
+    expect(lyricClickSeekTime(10, 0)).toBe(10);
+    expect(lyricClickSeekTime(Number.NaN)).toBeNaN();
   });
 
   it('estimates positions for lyrics without timestamps', () => {

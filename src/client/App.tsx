@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { api, ApiError, json, SERVICE_CONNECTION_EVENT } from './api';
-import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyricCenterOffset, parseLrc } from './lyrics';
+import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyricCenterOffset, lyricClickSeekTime, parseLrc } from './lyrics';
 import { installMediaSessionControls, syncMediaSession, updateMediaMetadata } from './mediaSession';
 import { ListeningTracker, type ListeningContext } from './listeningTracker';
 import { PlaybackCache } from './playerCache';
@@ -515,7 +515,8 @@ export default function App() {
   }, []);
   const seekToLyric = (time: number, index: number, estimated = false) => {
     const element = audio.current; if (!Number.isFinite(time) || !element || !element.currentSrc) return;
-    const sequence = ++lyricSeekSequence.current; pendingLyricSeek.current = time; pendingLyricLine.current = index; centerLyricLine(index, 'auto'); setLyricSeekTarget(time); setCurrentTime(time); setLyricFollowing(true); applyPendingLyricSeek(element);
+    const seekTime = lyricClickSeekTime(time);
+    const sequence = ++lyricSeekSequence.current; pendingLyricSeek.current = seekTime; pendingLyricLine.current = index; centerLyricLine(index, 'auto'); setLyricSeekTarget(seekTime); setCurrentTime(time); setLyricFollowing(true); applyPendingLyricSeek(element);
     if (estimated) showToast(t.estimatedLyricToast);
     if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current);
     lyricSeekTimer.current = window.setTimeout(() => { const active = audio.current; if (sequence !== lyricSeekSequence.current || !active || pendingLyricSeek.current === null) return; applyPendingLyricSeek(active); window.setTimeout(() => { const latest = audio.current; if (sequence !== lyricSeekSequence.current || !latest || pendingLyricSeek.current === null || finishLyricSeek(latest)) return; pendingLyricSeek.current = null; pendingLyricLine.current = null; setLyricSeekTarget(null); setCurrentTime(latest.currentTime); showToast(t.seekUnsupported); }, 900); }, 11_000);

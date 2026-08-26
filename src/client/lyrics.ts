@@ -51,6 +51,11 @@ export function lyricCenterOffset(lineTop: number, lineHeight: number, viewportH
   return Math.min(Math.max(0, centered), Math.max(0, scrollHeight - viewportHeight));
 }
 
+export function lyricClickSeekTime(lineTime: number, prerollSeconds = .3) {
+  if (!Number.isFinite(lineTime) || !Number.isFinite(prerollSeconds) || prerollSeconds < 0) return Number.NaN;
+  return Math.max(0, lineTime - prerollSeconds);
+}
+
 export function findUntimedLyricStart(lines: LyricLine[]) {
   if (!lines.length || lines.some(line => line.kind !== 'credit' && Number.isFinite(line.time))) return 0;
   const firstCredit = lines.slice(0, 8).findIndex(line => line.kind === 'credit');
