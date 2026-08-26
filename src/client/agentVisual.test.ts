@@ -28,6 +28,7 @@ describe('Zhenqi empty conversation visuals', () => {
     expect(app).toContain("focus={agentStageOpen ? 'agent' : 'content'}");
     expect(app).toContain("mobileSection === 'agent'");
     expect(app).not.toContain("mobileLayout && renderAgentPanel(true, mobileSection === 'agent')");
-    expect(backdrop).toContain("live.current.focus === 'agent'");
+    expect(backdrop).not.toContain("camera.position.z +=");
+    expect(backdrop).not.toContain('targetScale');
   });
 });

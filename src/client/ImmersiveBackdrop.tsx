@@ -32,7 +32,7 @@ export function ImmersiveBackdrop({
   theme,
 }: ImmersiveBackdropProps) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const live = useRef({ focus, playing, progress, stage });
+  const live = useRef({ playing, progress, stage });
   const [webglReady, setWebglReady] = useState(false);
   const [device, setDevice] = useState(capability);
   const quality = selectSceneQuality({ ...device, motionEnabled, fullMobile: true });
@@ -41,8 +41,8 @@ export function ImmersiveBackdrop({
   const cssMotionActive = shouldAnimateCssScene({ motionEnabled, reducedMotion: device.reducedMotion });
 
   useEffect(() => {
-    live.current = { focus, playing, progress, stage };
-  }, [focus, playing, progress, stage]);
+    live.current = { playing, progress, stage };
+  }, [playing, progress, stage]);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -238,14 +238,8 @@ export function ImmersiveBackdrop({
           particles.rotation.z = Math.sin(stamp * .00012) * .055;
           group.rotation.z = live.current.progress * Math.PI * .12 + (live.current.stage === 'daily' ? .08 : 0);
         }
-        const agentFocus = live.current.focus === 'agent';
-        const targetScale = agentFocus ? .91 : 1;
-        camera.position.x += (pointerX * (agentFocus ? .12 : .18) - camera.position.x) * .04;
-        camera.position.y += (-pointerY * (agentFocus ? .08 : .13) + (agentFocus ? .04 : .12) - camera.position.y) * .04;
-        camera.position.z += ((agentFocus ? 5.72 : 5.2) - camera.position.z) * .035;
-        group.scale.x += (targetScale - group.scale.x) * .035;
-        group.scale.y += (targetScale - group.scale.y) * .035;
-        group.scale.z += (targetScale - group.scale.z) * .035;
+        camera.position.x += (pointerX * .18 - camera.position.x) * .04;
+        camera.position.y += (-pointerY * .13 + .12 - camera.position.y) * .04;
         camera.lookAt(0, 0, 0);
         renderer.render(scene, camera);
       };
