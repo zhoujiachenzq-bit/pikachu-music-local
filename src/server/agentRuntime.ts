@@ -16,6 +16,10 @@ import {
 import { extractExplicitMemoryCandidates } from './agentMemory.js';
 import { normalizeAgentBudget } from '../shared/agentAdmin.js';
 import { AgentOutputGuard, inspectAgentInput } from './agentSafety.js';
+import {
+  runMusicIntentShadowGraph, saveMusicIntentAudit, shouldRunMusicIntentShadow,
+  type MusicIntentEvidence, type MusicIntentKind, type ShadowModelResult
+} from './agentReflectionGraph.js';
 
 const agentTools = {
   control_player: tool({
@@ -61,6 +65,26 @@ const agentTools = {
   draft_playlist: tool({
     description: '生成一个待用户预览和确认的歌单草案，不直接写入歌单。',
     inputSchema: z.object({ name: z.string().min(1).max(60), description: z.string().max(300), queries: z.array(z.string().min(1).max(160)).min(1).max(20) })
+  })
+};
+
+const reflectionInputSchema = z.object({
+  intent: z.enum(['play_song', 'play_artist', 'recommend', 'chat', 'ambiguous']),
+  subject: z.string().max(120).optional(),
+  artist: z.string().max(120).optional(),
+  confidence: z.number().min(0).max(1),
+  reasonCodes: z.array(z.string().max(40)).max(6)
+});
+
+const reflectionReasonCodes = new Set([
+  'EXPLICIT_SONG_MARKS', 'EXPLICIT_ARTIST_SYNTAX', 'PERSON_NAME_PATTERN', 'TITLE_PATTERN',
+  'MOOD_OR_SCENE_REQUEST', 'MISSING_SUBJECT', 'MULTIPLE_VALID_READINGS', 'MODEL_UNCERTAIN'
+]);
+
+const reflectionTools = {
+  classify_music_intent: tool({
+    description: '只输出当前音乐请求的语义分类，禁止执行任何操作。',
+    inputSchema: reflectionInputSchema
   })
 };
 
@@ -262,6 +286,51 @@ export class AgentRuntime {
   cancel(userId: string) { this.active.get(userId)?.abort(); this.active.delete(userId); }
   providerStatus() { return { selectionMode: this.modelProviders.selectionMode(), providers: this.modelProviders.statuses() }; }
 
+  private async auditMusicIntent(
+    runId: string,
+    input: AgentRunInput,
+    legacyIntent: MusicIntentKind,
+    selectedProvider: ReturnType<AgentModelProviderRegistry['selected']>
+  ) {
+    if (process.env.AGENT_REFLECTION_SHADOW !== 'true' || !shouldRunMusicIntentShadow(input.message)) return;
+    const result = await runMusicIntentShadowGraph(this.db, { message: input.message, legacyIntent }, async (message, subject, evidence): Promise<ShadowModelResult | null> => {
+      if (!selectedProvider) return null;
+      const model = selectedProvider.modelName('flash');
+      const response = selectedProvider.stream({
+        tier: 'flash',
+        system: `你是珍奇的影子语义审计器。你不回复用户，也不能调用播放器。你的唯一任务是调用 classify_music_intent。
+区分歌曲名、歌手名、情境推荐和普通聊天。不要因为句子包含“来首”就把人名当歌名；也不要只凭常识覆盖给出的站内证据。
+如果证据同时支持歌手和歌名，或两者都不支持且文字没有明确“某人的歌”，必须选择 ambiguous。reasonCodes 只描述可核验特征，不输出思维链。`,
+        messages: [{ role: 'user', content: JSON.stringify({ message, subject, evidence }) }],
+        tools: reflectionTools,
+        toolChoice: 'required'
+      });
+      let proposal: Omit<ShadowModelResult, 'provider' | 'model' | 'inputTokens' | 'outputTokens'> | null = null;
+      let inputTokens = 0; let outputTokens = 0;
+      for await (const part of response.fullStream) {
+        if (part.type === 'tool-call' && part.toolName === 'classify_music_intent' && !proposal) {
+          const parsed = reflectionInputSchema.safeParse(part.input);
+          if (parsed.success) proposal = {
+            ...parsed.data,
+            reasonCodes: parsed.data.reasonCodes.map(code => reflectionReasonCodes.has(code) ? code : 'MODEL_UNSTRUCTURED_REASON')
+          };
+        } else if (part.type === 'finish') {
+          inputTokens = part.totalUsage.inputTokens || 0; outputTokens = part.totalUsage.outputTokens || 0;
+        } else if (part.type === 'error') throw part.error;
+      }
+      if (!proposal) return null;
+      return { ...proposal, provider: selectedProvider.id, model, inputTokens, outputTokens };
+    });
+    saveMusicIntentAudit(this.db, { runId, userId: input.user.id, result });
+    if (selectedProvider && result.inputTokens + result.outputTokens > 0) {
+      recordAgentUsage(this.db, {
+        userId: input.user.id, provider: result.provider, model: result.model,
+        inputTokens: result.inputTokens, outputTokens: result.outputTokens,
+        estimatedCostCny: selectedProvider.estimateCostCny(result.model, result.inputTokens, result.outputTokens)
+      });
+    }
+  }
+
   private async *executeTool(runId: string, input: AgentRunInput, call: AgentToolCall): AsyncGenerator<AgentStreamEvent, string> {
     yield { type: 'tool_started', tool: call.toolName };
     if (call.toolName === 'control_player') {
@@ -379,6 +448,8 @@ export class AgentRuntime {
       const artistRecommendation = ambiguousPlay ? null : artistRecommendationIntent(input.message, this.db);
       const explicitPlay = ambiguousPlay || artistRecommendation ? null : explicitPlayIntent(input.message);
       const quickRecommendation = quickRecommendationIntent(input.message, input.context.currentTrack);
+      const legacyIntent: MusicIntentKind = ambiguousPlay ? 'ambiguous' : artistRecommendation ? 'play_artist' : explicitPlay ? 'play_song' : quickRecommendation ? 'recommend' : 'chat';
+      void this.auditMusicIntent(runId, input, legacyIntent, selectedProvider).catch(() => undefined);
       if (safety.blocked) {
         assistantText = safety.response || '这项请求不能由珍奇处理。';
         yield { type: 'reason_card', kind: 'safety', title: safety.title || '安全边界', body: '已在本地完成判断，没有调用模型、联网服务或站内工具。' };

@@ -26,6 +26,7 @@ export interface AgentModelStreamInput<TOOLS extends ToolSet> {
   system: string;
   messages: ModelMessage[];
   tools: TOOLS;
+  toolChoice?: 'auto' | 'required';
   signal?: AbortSignal;
 }
 
@@ -63,7 +64,7 @@ function streamSettings<TOOLS extends ToolSet>(input: AgentModelStreamInput<TOOL
     system: input.system,
     messages: input.messages,
     tools: input.tools,
-    toolChoice: 'auto' as const,
+    toolChoice: input.toolChoice || 'auto' as const,
     maxOutputTokens: input.tier === 'plus' ? 1800 : 1000,
     abortSignal: input.signal,
     timeout: { totalMs: 60_000, chunkMs: 15_000 }

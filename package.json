@@ -1,6 +1,6 @@
 {
   "name": "pikachu-music-local",
-  "version": "0.4.0-beta.22",
+  "version": "0.4.0-beta.23",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -22,6 +22,8 @@
     "@fastify/cookie": "^11.1.2",
     "@fastify/static": "^10.1.2",
     "@fontsource-variable/space-grotesk": "5.3.0",
+    "@langchain/core": "^1.2.9",
+    "@langchain/langgraph": "^1.4.13",
     "ai": "^7.0.77",
     "fastify": "^5.11.0",
     "react": "^19.2.8",

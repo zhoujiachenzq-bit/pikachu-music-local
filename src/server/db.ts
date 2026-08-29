@@ -263,6 +263,27 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_agent_runs_user ON agent_runs(user_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS agent_inference_audits (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subject_hash TEXT NOT NULL,
+      legacy_intent TEXT NOT NULL,
+      proposed_intent TEXT NOT NULL,
+      final_intent TEXT NOT NULL,
+      verdict TEXT NOT NULL CHECK(verdict IN ('pass','revise','ask_user','skipped','failed')),
+      confidence REAL NOT NULL DEFAULT 0,
+      reason_codes_json TEXT NOT NULL DEFAULT '[]',
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      provider TEXT NOT NULL DEFAULT 'local',
+      model TEXT NOT NULL DEFAULT 'local',
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      latency_ms INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_inference_audits_run ON agent_inference_audits(run_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_agent_inference_audits_user ON agent_inference_audits(user_id,created_at DESC);
     CREATE TABLE IF NOT EXISTS agent_tool_actions (
       id TEXT PRIMARY KEY,
       run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
