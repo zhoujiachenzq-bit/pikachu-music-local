@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadAgentKeyring } from './agentCrypto.js';
-import { buildAgentContext, chooseAgentModelTier, directIntent, explicitPlayIntent, quickRecommendationIntent, AgentRuntime, type AgentRunInput } from './agentRuntime.js';
+import { ambiguousPlayIntent, artistRecommendationIntent, buildAgentContext, chooseAgentModelTier, directIntent, explicitPlayIntent, quickRecommendationIntent, AgentRuntime, type AgentRunInput } from './agentRuntime.js';
 import { AgentModelProviderRegistry } from './agentModelProviders.js';
 import { publishKnowledgeVersion } from './agentKnowledge.js';
 import { createDatabase, upsertTrack } from './db.js';
@@ -30,6 +30,22 @@ describe('agent deterministic routing', () => {
     expect(quickRecommendationIntent('随便来首', null)).toEqual({ query: '华语流行 原唱', count: 5, playFirst: true, discovery: 'balanced' });
     const current = { id: 'qq:1', source: 'qq', sourceTrackId: '1', title: '我不难过', artist: '孙燕姿', album: '', duration: 0, coverUrl: null, sourceUrl: null } as const;
     expect(quickRecommendationIntent('换一首', current)).toMatchObject({ query: '我不难过 孙燕姿 相似的原唱歌曲', playFirst: true });
+  });
+
+  it('distinguishes a colloquial artist request from an explicit song title', () => {
+    const db = createDatabase(':memory:');
+    upsertTrack(db, { id: 'qq:unused', source: 'qq', sourceTrackId: 'singer-intent-1', title: '我不难过', artist: '孙燕姿', album: '未完成', duration: 320000, coverUrl: null, sourceUrl: null });
+    expect(artistRecommendationIntent('来首孙燕姿', db)).toEqual({ query: '孙燕姿 原唱 热门歌曲', count: 5, playFirst: true, discovery: 'familiar' });
+    expect(artistRecommendationIntent('放一首孙燕姿的歌', db)).toEqual({ query: '孙燕姿 原唱 热门歌曲', count: 5, playFirst: true, discovery: 'familiar' });
+    expect(artistRecommendationIntent('来首我不难过', db)).toBeNull();
+    expect(artistRecommendationIntent('播放《我不难过》', db)).toBeNull();
+    expect(artistRecommendationIntent('放一首还没收录的新人歌手的歌', db)).toEqual({ query: '还没收录的新人歌手 原唱 热门歌曲', count: 5, playFirst: true, discovery: 'familiar' });
+    expect(ambiguousPlayIntent('来首孙燕姿', db)).toBeNull();
+    expect(ambiguousPlayIntent('来首我不难过', db)).toBeNull();
+    expect(ambiguousPlayIntent('来首尚未确认的名字', db)).toEqual({ term: '尚未确认的名字' });
+    upsertTrack(db, { id: 'qq:unused-2', source: 'qq', sourceTrackId: 'singer-intent-2', title: '孙燕姿', artist: '测试歌手', album: '', duration: 180000, coverUrl: null, sourceUrl: null });
+    expect(ambiguousPlayIntent('来首孙燕姿', db)).toEqual({ term: '孙燕姿' });
+    db.close();
   });
 
   it('executes an explicit song request without trusting the model to call a tool', async () => {

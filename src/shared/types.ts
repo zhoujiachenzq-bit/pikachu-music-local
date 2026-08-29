@@ -182,6 +182,7 @@ export interface AgentClientActionResult {
 export type AgentStreamEvent =
   | { type: 'text_delta'; delta: string }
   | { type: 'reason_card'; title: string; body: string; tracks?: Track[]; kind?: 'recommendation' | 'safety' | 'diagnostic' }
+  | { type: 'choice_required'; choiceId: string; prompt: string; options: Array<{ id: string; label: string; description?: string; message: string }> }
   | { type: 'citation'; title: string; url?: string; kind?: 'web' | 'knowledge'; detail?: string }
   | { type: 'tool_started'; tool: string }
   | { type: 'action_required'; actionId: string; tool: string; summary: string; input: unknown; expiresAt: string }

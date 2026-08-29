@@ -9,6 +9,7 @@ import type { AgentAccess, AgentClientAction, AgentClientActionResult, AgentClie
 interface ReasonCard { id: string; title: string; body: string; tracks: Track[]; kind: 'recommendation' | 'safety' | 'diagnostic'; }
 interface CitationCard { title: string; url?: string; kind: 'web' | 'knowledge'; detail?: string; }
 interface PendingAction { actionId: string; tool: string; summary: string; input: unknown; expiresAt: string; status?: string; }
+interface IntentChoice { choiceId: string; prompt: string; options: Array<{ id: string; label: string; description?: string; message: string }>; }
 interface ActionReceipt { actionId: string; message: string; undoAction?: AgentClientAction; status: 'ready' | 'undoing' | 'undone' | 'failed'; }
 interface KnowledgeVersionCard { id: string; kind: string; status: string; source: string; collectedAt: string; itemCount: number; checksum: string; createdAt: string; activatedAt: string | null; embeddedCount: number; embeddingRemaining: number; }
 interface KnowledgeSample { id: string; title: string; artist: string; content: string; sourceUrl: string | null; metadata: Record<string, unknown>; }
@@ -64,7 +65,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [voices, setVoices] = useState<AgentVoiceOption[]>([]); const [voicePreviewScene, setVoicePreviewScene] = useState<VoicePreviewSceneId>('greeting');
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]); const [input, setInput] = useState(''); const [streaming, setStreaming] = useState(false);
-  const [webSearch, setWebSearch] = useState(false); const [reasonCards, setReasonCards] = useState<ReasonCard[]>([]); const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [webSearch, setWebSearch] = useState(false); const [reasonCards, setReasonCards] = useState<ReasonCard[]>([]); const [intentChoices, setIntentChoices] = useState<IntentChoice[]>([]); const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [actionReceipts, setActionReceipts] = useState<ActionReceipt[]>([]);
   const [recording, setRecording] = useState(false); const [transcribing, setTranscribing] = useState(false); const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState(''); const [error, setError] = useState(''); const [settingsOpen, setSettingsOpen] = useState(false);
@@ -90,7 +91,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
 
   useEffect(() => { if (open) void load(); }, [open, userId]);
   useEffect(() => { if (open && initialPrompt) setInput(value => value || initialPrompt); }, [initialPrompt, open]);
-  useEffect(() => { requestAnimationFrame(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }); }, [messages, reasonCards, streaming]);
+  useEffect(() => { requestAnimationFrame(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }); }, [messages, reasonCards, intentChoices, streaming]);
   const stopSpeech = useCallback(() => {
     if (speechAudio.current) { speechAudio.current.pause(); if (speechAudio.current.src.startsWith('blob:')) URL.revokeObjectURL(speechAudio.current.src); speechAudio.current = null; }
     window.speechSynthesis?.cancel(); setSpeakingMessageId(null); onSpeechState?.(false);
@@ -145,6 +146,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
     if (activeGeneration !== generation.current) return;
     if (event.type === 'text_delta') { streamText.current += event.delta; setMessages(value => value.map(message => message.id === draftId ? { ...message, content: message.content + event.delta } : message)); }
     else if (event.type === 'reason_card') setReasonCards(value => [...value, { id: crypto.randomUUID(), title: event.title, body: event.body, tracks: event.tracks || [], kind: event.kind || (event.tracks?.length ? 'recommendation' : 'diagnostic') }]);
+    else if (event.type === 'choice_required') setIntentChoices(value => [...value.filter(item => item.choiceId !== event.choiceId), event]);
     else if (event.type === 'citation') setMessages(value => value.map(message => {
       if (message.id !== draftId) return message; const citations = messageCitations(message); const incoming: CitationCard = { title: event.title, url: event.url, kind: event.kind || 'web', detail: event.detail };
       if (citations.some(item => item.kind === incoming.kind && item.title === incoming.title && item.url === incoming.url)) return message;
@@ -160,6 +162,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
 
   const send = async (event?: FormEvent, preset?: string) => {
     event?.preventDefault(); const text = (preset ?? input).trim(); if (!text || !conversation) return;
+    setIntentChoices([]);
     const activeGeneration = ++generation.current; streamController.current?.abort(); const controller = new AbortController(); streamController.current = controller;
     const stamp = new Date().toISOString(); const userDraft: AgentMessage = { id: `local-user-${activeGeneration}`, conversationId: conversation.id, role: 'user', content: text, createdAt: stamp };
     const assistantDraft: AgentMessage = { id: `local-assistant-${activeGeneration}`, conversationId: conversation.id, role: 'assistant', content: '', createdAt: stamp };
@@ -339,6 +342,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
           {receipt.undoAction && receipt.status !== 'undone' && <button disabled={receipt.status === 'undoing'} onClick={() => void undoReceipt(receipt)}><Icon name="return" size={13}/>{receipt.status === 'undoing' ? (zh ? '恢复中' : 'Restoring') : receipt.status === 'failed' ? (zh ? '重试' : 'Retry') : (zh ? '撤销' : 'Undo')}</button>}
         </section>)}
         {reasonCards.map(card => <section className={`agent-reason-card ${card.kind}`} key={card.id}><small>{card.kind === 'safety' ? 'LOCAL SAFETY' : card.kind === 'diagnostic' ? 'LOCAL NOTE' : 'SCENE QUEUE'}</small><h3>{card.title}</h3><p>{card.body}</p><div>{card.tracks.map((track, index) => <button key={track.id} onClick={() => void onAction({ type: 'play_track', track, queue: card.tracks, reason: card.body })}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{track.title}</strong><small>{track.artist}</small></span><Icon name="play" size={14}/></button>)}</div></section>)}
+        {intentChoices.map(choice => <section className="agent-choice-card" key={choice.choiceId} role="group" aria-label={choice.prompt}><small>CHOOSE AN INTENT</small><h3>{choice.prompt}</h3><div>{choice.options.map(option => <button key={option.id} onClick={() => void send(undefined, option.message)}><span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span><Icon name={option.id === 'artist' ? 'music' : 'search'} size={15}/></button>)}</div></section>)}
         {pendingActions.map(item => <section className="agent-confirm-card" key={item.actionId}><small>CONFIRMATION</small><h3>{item.summary}</h3><p>{zh ? '这是会修改数据的操作，珍奇不会替你决定。' : 'This changes data and requires your decision.'}</p>{item.status ? <strong>{item.status}</strong> : <div><button className="btn ghost" onClick={() => void resolvePending(item, false)}>{zh ? '取消' : 'Cancel'}</button><button className="btn primary" onClick={() => void resolvePending(item, true)}>{zh ? '确认' : 'Confirm'}</button></div>}</section>)}
       </div>
       <form className="agent-composer" onSubmit={event => void send(event)}>

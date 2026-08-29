@@ -31,4 +31,12 @@ describe('Zhenqi empty conversation visuals', () => {
     expect(backdrop).not.toContain("camera.position.z +=");
     expect(backdrop).not.toContain('targetScale');
   });
+
+  it('renders ambiguous agent intents as an explicit choice card', () => {
+    const panel = readFileSync('src/client/AgentPanel.tsx', 'utf8');
+    const styles = readFileSync('src/client/styles.css', 'utf8');
+    expect(panel).toContain("event.type === 'choice_required'");
+    expect(panel).toContain('agent-choice-card');
+    expect(styles).toContain('.agent-choice-card button');
+  });
 });
