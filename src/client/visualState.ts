@@ -2,7 +2,7 @@ import type { Track } from '../shared/types';
 import { TONE_THEMES, type ToneThemeId } from './visualTheme';
 
 export type StageMode = 'player' | 'daily';
-export type MobileSection = 'daily' | 'search' | 'player' | 'library';
+export type MobileSection = 'daily' | 'search' | 'player' | 'library' | 'agent';
 
 export interface VisualPalette {
   primary: string;
@@ -69,6 +69,10 @@ export function stageAfterRecommendationPlay(current: StageMode): StageMode {
 
 export function shouldShowMiniPlayer(section: MobileSection, hasCurrentTrack: boolean): boolean {
   return hasCurrentTrack && section !== 'player';
+}
+
+export function shouldPersistMobileScroll(section: MobileSection): boolean {
+  return section === 'daily' || section === 'search' || section === 'library';
 }
 
 export function shouldUseDesktopWebgl(capability: WebglCapability): boolean {

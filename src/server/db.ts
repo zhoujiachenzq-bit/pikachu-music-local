@@ -179,6 +179,207 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
       updated_at TEXT NOT NULL,
       PRIMARY KEY(source,operation)
     );
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS agent_entitlements (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      source TEXT NOT NULL CHECK(source IN ('grandfathered','invite','admin')),
+      granted_at TEXT NOT NULL,
+      expires_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS agent_invites (
+      id TEXT PRIMARY KEY,
+      code_hash TEXT NOT NULL UNIQUE,
+      max_uses INTEGER NOT NULL DEFAULT 1,
+      use_count INTEGER NOT NULL DEFAULT 0,
+      expires_at TEXT NOT NULL,
+      disabled INTEGER NOT NULL DEFAULT 0,
+      note TEXT NOT NULL DEFAULT '',
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS agent_settings (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      assistant_name TEXT NOT NULL DEFAULT '珍奇',
+      persona TEXT NOT NULL DEFAULT 'warm' CHECK(persona IN ('warm','bright','poetic')),
+      proactive_enabled INTEGER NOT NULL DEFAULT 1,
+      memory_enabled INTEGER NOT NULL DEFAULT 1,
+      auto_read INTEGER NOT NULL DEFAULT 0,
+      voice TEXT NOT NULL DEFAULT 'Cherry',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS agent_conversations (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK(kind IN ('main','temporary')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','closed')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      expires_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_conversations_user ON agent_conversations(user_id,kind,status,updated_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_main_conversation ON agent_conversations(user_id) WHERE kind='main' AND status='active';
+    CREATE TABLE IF NOT EXISTS agent_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL REFERENCES agent_conversations(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK(role IN ('user','assistant','system','tool')),
+      content_ciphertext TEXT NOT NULL,
+      key_version TEXT NOT NULL,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_messages_conversation ON agent_messages(conversation_id,created_at);
+    CREATE INDEX IF NOT EXISTS idx_agent_messages_retention ON agent_messages(created_at);
+    CREATE TABLE IF NOT EXISTS agent_memories (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      category TEXT NOT NULL CHECK(category IN ('preference','person','event','plan','context')),
+      content_ciphertext TEXT NOT NULL,
+      embedding_ciphertext TEXT,
+      embedding_key_version TEXT,
+      key_version TEXT NOT NULL,
+      confidence REAL NOT NULL DEFAULT 1,
+      inferred INTEGER NOT NULL DEFAULT 0,
+      source_message_id TEXT REFERENCES agent_messages(id) ON DELETE SET NULL,
+      expires_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_memories_user ON agent_memories(user_id,updated_at DESC);
+    CREATE TABLE IF NOT EXISTS agent_runs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      conversation_id TEXT NOT NULL REFERENCES agent_conversations(id) ON DELETE CASCADE,
+      generation INTEGER NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('received','context_building','retrieving','generating','tool_proposed','awaiting_confirmation','executing','responding','completed','failed','cancelled')),
+      model_tier TEXT NOT NULL CHECK(model_tier IN ('flash','plus','local')),
+      web_search INTEGER NOT NULL DEFAULT 0,
+      error_code TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_runs_user ON agent_runs(user_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS agent_inference_audits (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subject_hash TEXT NOT NULL,
+      legacy_intent TEXT NOT NULL,
+      proposed_intent TEXT NOT NULL,
+      final_intent TEXT NOT NULL,
+      verdict TEXT NOT NULL CHECK(verdict IN ('pass','revise','ask_user','skipped','failed')),
+      confidence REAL NOT NULL DEFAULT 0,
+      reason_codes_json TEXT NOT NULL DEFAULT '[]',
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      provider TEXT NOT NULL DEFAULT 'local',
+      model TEXT NOT NULL DEFAULT 'local',
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      latency_ms INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_inference_audits_run ON agent_inference_audits(run_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_agent_inference_audits_user ON agent_inference_audits(user_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS agent_tool_actions (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tool_name TEXT NOT NULL,
+      risk TEXT NOT NULL CHECK(risk IN ('direct','confirm','forbidden')),
+      status TEXT NOT NULL CHECK(status IN ('proposed','approved','executed','cancelled','failed','expired')),
+      input_json TEXT NOT NULL,
+      result_json TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_actions_user ON agent_tool_actions(user_id,status,created_at DESC);
+    CREATE TABLE IF NOT EXISTS agent_usage_daily (
+      usage_date TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      search_calls INTEGER NOT NULL DEFAULT 0,
+      asr_seconds REAL NOT NULL DEFAULT 0,
+      tts_characters INTEGER NOT NULL DEFAULT 0,
+      estimated_cost_cny REAL NOT NULL DEFAULT 0,
+      PRIMARY KEY(usage_date,user_id,provider,model)
+    );
+    CREATE TABLE IF NOT EXISTS agent_proactive_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      shown_at TEXT NOT NULL,
+      dismissed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_proactive_user ON agent_proactive_events(user_id,shown_at DESC);
+    CREATE TABLE IF NOT EXISTS knowledge_versions (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL CHECK(kind IN ('classic','douyin')),
+      status TEXT NOT NULL CHECK(status IN ('staging','active','failed','archived')),
+      source TEXT NOT NULL,
+      collected_at TEXT NOT NULL,
+      item_count INTEGER NOT NULL DEFAULT 0,
+      checksum TEXT NOT NULL,
+      message TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      activated_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_knowledge_versions_kind ON knowledge_versions(kind,status,created_at DESC);
+    CREATE TABLE IF NOT EXISTS knowledge_documents (
+      id TEXT PRIMARY KEY,
+      version_id TEXT NOT NULL REFERENCES knowledge_versions(id) ON DELETE CASCADE,
+      external_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      artist TEXT NOT NULL DEFAULT '',
+      source_url TEXT,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      UNIQUE(version_id,external_id)
+    );
+    CREATE TABLE IF NOT EXISTS knowledge_chunks (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+      version_id TEXT NOT NULL REFERENCES knowledge_versions(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      embedding_json TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_version ON knowledge_chunks(version_id);
+    CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunks_fts USING fts5(chunk_id UNINDEXED, content, tokenize='unicode61');
+    CREATE TABLE IF NOT EXISTS knowledge_publish_nonces (
+      nonce TEXT PRIMARY KEY,
+      used_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS knowledge_update_runs (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      mode TEXT NOT NULL CHECK(mode IN ('fixture','live')),
+      status TEXT NOT NULL CHECK(status IN ('running','completed','failed')),
+      scheduled_for TEXT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      item_count INTEGER NOT NULL DEFAULT 0,
+      version_id TEXT REFERENCES knowledge_versions(id) ON DELETE SET NULL,
+      message TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_knowledge_update_runs_created ON knowledge_update_runs(created_at DESC);
+    CREATE TABLE IF NOT EXISTS agent_archive_records (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      archive_record_id TEXT NOT NULL,
+      record_type TEXT NOT NULL CHECK(record_type IN ('message','memory')),
+      local_record_id TEXT NOT NULL,
+      imported_at TEXT NOT NULL,
+      PRIMARY KEY(user_id,archive_record_id,record_type)
+    );
   `);
   const trackColumns = new Set((db.prepare('PRAGMA table_info(tracks)').all() as Array<{ name: string }>).map(column => column.name));
   if (!trackColumns.has('keyword')) db.exec('ALTER TABLE tracks ADD COLUMN keyword TEXT');
@@ -190,6 +391,8 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
   if (!importColumns.has('retry_track_ids_json')) db.exec("ALTER TABLE import_jobs ADD COLUMN retry_track_ids_json TEXT NOT NULL DEFAULT '[]'");
   const listeningColumns = new Set((db.prepare('PRAGMA table_info(listening_sessions)').all() as Array<{ name: string }>).map(column => column.name));
   if (!listeningColumns.has('origin_backup_id')) db.exec('ALTER TABLE listening_sessions ADD COLUMN origin_backup_id TEXT');
+  const agentMemoryColumns = new Set((db.prepare('PRAGMA table_info(agent_memories)').all() as Array<{ name: string }>).map(column => column.name));
+  if (!agentMemoryColumns.has('embedding_key_version')) db.exec('ALTER TABLE agent_memories ADD COLUMN embedding_key_version TEXT');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_listening_backup_origin ON listening_sessions(user_id,origin_backup_id) WHERE origin_backup_id IS NOT NULL');
   const tracksWithoutCanonicalKey = db.prepare("SELECT id,title,artist FROM tracks WHERE canonical_key='' OR canonical_key IS NULL").all() as Array<{ id: string; title: string; artist: string }>;
   const updateCanonicalKey = db.prepare('UPDATE tracks SET canonical_key=? WHERE id=?');
@@ -199,7 +402,18 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
   db.prepare('DELETE FROM source_cache WHERE expires_at <= ?').run(now());
   db.prepare('DELETE FROM login_attempts WHERE reset_at <= ?').run(now());
   db.prepare('DELETE FROM rate_limits WHERE reset_at <= ?').run(now());
+  db.prepare('DELETE FROM knowledge_publish_nonces WHERE used_at <= ?').run(new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString());
   db.prepare("UPDATE recommendation_runs SET status='failed',message='服务重启，可重新生成',updated_at=? WHERE status IN ('queued','running')").run(now());
+  const agentMigration = db.prepare("SELECT 1 FROM app_migrations WHERE id='agent-v040-grandfather'").get();
+  if (!agentMigration) transaction(db, () => {
+    const stamp = now();
+    db.prepare("INSERT OR IGNORE INTO agent_entitlements(user_id,source,granted_at) SELECT id,'grandfathered',? FROM users").run(stamp);
+    db.prepare("INSERT INTO app_migrations(id,applied_at) VALUES('agent-v040-grandfather',?)").run(stamp);
+  });
+  db.prepare("DELETE FROM agent_conversations WHERE kind='temporary' AND (status='closed' OR expires_at<=?)").run(now());
+  db.prepare("DELETE FROM agent_messages WHERE created_at<=?").run(new Date(Date.now() - 90 * 24 * 60 * 60_000).toISOString());
+  db.prepare("UPDATE agent_tool_actions SET status='expired',updated_at=? WHERE status IN ('proposed','approved') AND expires_at<=?").run(now(), now());
+  db.prepare("DELETE FROM knowledge_publish_nonces WHERE used_at<=?").run(new Date(Date.now() - 24 * 60 * 60_000).toISOString());
   return db;
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { api, ApiError, json, SERVICE_CONNECTION_EVENT } from './api';
-import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyricCenterOffset, parseLrc } from './lyrics';
+import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyricCenterOffset, lyricClickSeekTime, parseLrc } from './lyrics';
 import { installMediaSessionControls, syncMediaSession, updateMediaMetadata } from './mediaSession';
 import { ListeningTracker, type ListeningContext } from './listeningTracker';
 import { PlaybackCache } from './playerCache';
@@ -10,15 +10,18 @@ import { rangeProgress } from './rangeControl';
 import { ImmersiveBackdrop } from './ImmersiveBackdrop';
 import { useArtworkAccent } from './artworkPalette';
 import { TonePicker, ToneTransitionLayer, type ToneTransitionState } from './TonePicker';
+import { AgentPanel } from './AgentPanel';
+import { deriveAgentUndoAction } from './agentActionUndo';
 import { DailyStage, Icon, MiniPlayer, MobileNavigation, TrackRow, sourceColors, sourceNames } from './ui';
-import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
+import { deriveVisualPalette, mobileSectionForStage, shouldPersistMobileScroll, shouldShowMiniPlayer, stageAfterRecommendationPlay, type MobileSection, type StageMode } from './visualState';
 import { DEFAULT_VISUAL_PREFERENCES, TONE_THEMES, readVisualPreferences, resolveToneTheme, writeVisualPreferences, type ToneThemeId, type VisualPreferences } from './visualTheme';
-import { SOURCES, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
+import { SOURCES, type AgentClientAction, type AgentClientActionResult, type AgentClientContext, type DailyRecommendation, type ImportJob, type MusicSource, type PlaylistDetail, type PlaylistSummary, type ResolvedTrack, type Track, type User } from '../shared/types';
 import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
 
 type Lang = 'zh' | 'en';
 type Tab = 'daily' | 'results' | 'favorites' | 'playlists';
 interface BeforeInstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
+interface AgentProactivePrompt { id: string; kind: 'reunion' | 'skip_pattern' | 'recommendation_shift' | 'source_help'; message: string; suggestedPrompt: string; }
 const copy = {
   zh: {
     shortcuts: '快捷键：Space 播放/暂停 · ←/→ 跳转 · ↑/↓ 音量 · N/P 切歌 · F 收藏',
@@ -137,16 +140,17 @@ export default function App() {
   const [daily, setDaily] = useState<DailyRecommendation | null>(null); const [dailyFallback, setDailyFallback] = useState<DailyRecommendation | null>(null); const [dailyHistory, setDailyHistory] = useState<DailyRecommendation[]>([]); const [dailyDate, setDailyDate] = useState(localDateKey()); const [dailyLoading, setDailyLoading] = useState(false); const [dailyRefresh, setDailyRefresh] = useState(0);
   const [current, setCurrent] = useState<Track | null>(null); const [pendingTrack, setPendingTrack] = useState<Track | null>(null); const [resolved, setResolved] = useState<ResolvedTrack | null>(null); const [playing, setPlaying] = useState(false); const [resolving, setResolving] = useState(false); const [currentTime, setCurrentTime] = useState(0); const [duration, setDuration] = useState(0); const [seekDraft, setSeekDraft] = useState<number | null>(null); const [volumeDraft, setVolumeDraft] = useState(.8); const [toast, setToast] = useState(''); const [lyricSeekTarget, setLyricSeekTarget] = useState<number | null>(null); const [lyricFollowing, setLyricFollowing] = useState(true); const [findingTimedLyricsFor, setFindingTimedLyricsFor] = useState<string | null>(null); const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [stageMode, setStageMode] = useState<StageMode>(() => startsInMobileLayout() ? 'daily' : 'player'); const [mobileSection, setMobileSection] = useState<MobileSection>('daily'); const [mobileLayout, setMobileLayout] = useState(startsInMobileLayout);
+  const [agentOpen, setAgentOpen] = useState(false); const [agentPrompt, setAgentPrompt] = useState<AgentProactivePrompt | null>(null); const [agentPromptSeed, setAgentPromptSeed] = useState('');
   const [visualPreferences, setVisualPreferences] = useState<VisualPreferences>({ ...DEFAULT_VISUAL_PREFERENCES }); const [previewTone, setPreviewTone] = useState<ToneThemeId | null>(null); const [toneTransition, setToneTransition] = useState<ToneTransitionState | null>(null);
   const [createOpen, setCreateOpen] = useState(false); const [newName, setNewName] = useState(''); const [importOpen, setImportOpen] = useState(false); const [importSource, setImportSource] = useState<MusicSource>('netease'); const [importInput, setImportInput] = useState(''); const [importJob, setImportJob] = useState<ImportJob | null>(null); const [accountOpen, setAccountOpen] = useState(false); const [addTrack, setAddTrack] = useState<Track | null>(null);
   const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const recoveringTrackId = useRef<string | null>(null); const importStream = useRef<EventSource | null>(null); const importReconnectTimer = useRef<number | null>(null); const dailyPollTimer = useRef<number | null>(null); const handledDailyRefresh = useRef(0); const queueContext = useRef<ListeningContext>({ type: 'unknown' }); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const resolveBackoffUntil = useRef(0); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
-  const toneMidpointTimer = useRef<number | null>(null); const toneFinishTimer = useRef<number | null>(null); const seekDragging = useRef(false); const volumeDragging = useRef(false); const volumeSaveTimer = useRef<number | null>(null);
+  const toneMidpointTimer = useRef<number | null>(null); const toneFinishTimer = useRef<number | null>(null); const seekDragging = useRef(false); const volumeDragging = useRef(false); const volumeSaveTimer = useRef<number | null>(null); const agentSpeechVolume = useRef<number | null>(null);
   const listeningTracker = useMemo(() => new ListeningTracker(payload => {
     void fetch('/api/listening-sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => undefined);
   }), []);
   const lyrics = useMemo(() => parseLrc(resolved?.lyric || null), [resolved?.lyric]);
   const activeLyric = useMemo(() => findActiveLyric(lyrics, currentTime), [lyrics, currentTime]);
-  const hasTimedLyrics = useMemo(() => lyrics.some(line => Number.isFinite(line.time)), [lyrics]);
+  const hasTimedLyrics = useMemo(() => lyrics.some(line => line.kind !== 'credit' && Number.isFinite(line.time)), [lyrics]);
   const untimedLyricStart = useMemo(() => findUntimedLyricStart(lyrics), [lyrics]);
   const favoriteIds = useMemo(() => new Set(favorites.map(item => item.id)), [favorites]);
   const displayedDaily = daily?.status === 'completed' ? daily : dailyFallback;
@@ -154,6 +158,11 @@ export default function App() {
   const displayedSeekTime = seekDraft ?? Math.min(currentTime, duration || 0);
 
   const showToast = useCallback((message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2600); }, []);
+  const handleAgentSpeechState = useCallback((speaking: boolean) => {
+    const element = audio.current; if (!element) return;
+    if (speaking) { if (agentSpeechVolume.current === null) agentSpeechVolume.current = element.volume; element.volume = agentSpeechVolume.current * .2; }
+    else if (agentSpeechVolume.current !== null) { element.volume = agentSpeechVolume.current; agentSpeechVolume.current = null; }
+  }, []);
   const refreshLibrary = useCallback(async () => {
     const [fav, lists] = await Promise.all([api<{ tracks: Track[] }>('/api/favorites'), api<{ playlists: PlaylistSummary[] }>('/api/playlists')]); setFavorites(fav.tracks); setPlaylists(lists.playlists);
   }, []);
@@ -194,17 +203,26 @@ export default function App() {
   }, []);
   useEffect(() => { document.title = user ? `${user.username}的音乐小屋` : '音乐小屋'; }, [user]);
   useEffect(() => { if (user && !volumeDragging.current) setVolumeDraft(user.volume); }, [user?.volume]);
+  useEffect(() => {
+    if (!user || agentOpen || mobileSection === 'agent') return;
+    const timer = window.setTimeout(() => { void api<{ prompt: AgentProactivePrompt | null }>('/api/agent/proactive').then(result => setAgentPrompt(result.prompt)).catch(() => undefined); }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [user?.id, agentOpen, mobileSection]);
   useEffect(() => () => { if (volumeSaveTimer.current !== null) window.clearTimeout(volumeSaveTimer.current); }, []);
   useEffect(() => {
     const mobile = window.matchMedia('(max-width: 760px)');
     const syncMobileStage = () => {
       setMobileLayout(mobile.matches);
-      if (!mobile.matches) return;
-      setMobileSection(section => section === 'search' || section === 'library' ? section : mobileSectionForStage(stageMode));
+      if (!mobile.matches) {
+        if (mobileSection === 'agent') { setAgentOpen(true); setMobileSection(mobileSectionForStage(stageMode)); }
+        return;
+      }
+      if (agentOpen) { setMobileSection('agent'); setAgentOpen(false); return; }
+      setMobileSection(section => section === 'search' || section === 'library' || section === 'agent' ? section : mobileSectionForStage(stageMode));
     };
     syncMobileStage(); mobile.addEventListener('change', syncMobileStage);
     return () => mobile.removeEventListener('change', syncMobileStage);
-  }, [stageMode]);
+  }, [agentOpen, mobileSection, stageMode]);
   useEffect(() => {
     const capturePrompt = (event: Event) => { event.preventDefault(); setInstallPrompt(event as BeforeInstallPromptEvent); };
     const installed = () => setInstallPrompt(null);
@@ -215,6 +233,9 @@ export default function App() {
     const timers = new Set<number>();
     const createRipple = (event: PointerEvent) => {
       if (!(event.target instanceof Element)) return;
+      // Text controls live inside large ripple-enabled panels. Letting the lookup
+      // climb past them creates a panel-sized flash whenever the caret is placed.
+      if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
       const target = event.target.closest<HTMLElement>('button, .track-row, .source-grid label, .icon-upload, .search-box, .load-row, .search-mini-list, .now-card, .lyrics, .tabs, .playlist-toolbar, .playlist-content, .play-modes, .import-progress, .add-list, .account-card, .modal-card, .panel, .daily-editorial, .daily-spotlight-card, .mobile-mini-player, .mobile-nav, .tone-panel, .tone-card');
       if (!target || target.matches(':disabled')) return;
       const rect = target.getBoundingClientRect();
@@ -275,7 +296,13 @@ export default function App() {
     }
     const container = document.querySelector<HTMLElement>(`[data-mobile-section="${mobileSection}"][data-mobile-active="true"]`);
     if (!container) return;
-    const key = `pikachu:mobile-scroll:${user.id}:${mobileSection}`; let restoring = true; let saveTimer = 0;
+    const key = `pikachu:mobile-scroll:${user.id}:${mobileSection}`;
+    if (!shouldPersistMobileScroll(mobileSection)) {
+      container.scrollTop = 0;
+      window.localStorage.removeItem(key);
+      return;
+    }
+    let restoring = true; let saveTimer = 0;
     const save = () => window.localStorage.setItem(key, JSON.stringify({ y: container.scrollTop, updatedAt: Date.now() }));
     const onScroll = () => { if (restoring) return; window.clearTimeout(saveTimer); saveTimer = window.setTimeout(save, 120); };
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -312,7 +339,7 @@ export default function App() {
       setStageMode('player');
     } else if (section === 'search') {
       setTab('results');
-    } else if (tab !== 'favorites' && tab !== 'playlists') {
+    } else if (section === 'library' && tab !== 'favorites' && tab !== 'playlists') {
       setTab('favorites');
     }
   }, [tab]);
@@ -491,7 +518,8 @@ export default function App() {
   }, []);
   const seekToLyric = (time: number, index: number, estimated = false) => {
     const element = audio.current; if (!Number.isFinite(time) || !element || !element.currentSrc) return;
-    const sequence = ++lyricSeekSequence.current; pendingLyricSeek.current = time; pendingLyricLine.current = index; centerLyricLine(index, 'auto'); setLyricSeekTarget(time); setCurrentTime(time); setLyricFollowing(true); applyPendingLyricSeek(element);
+    const seekTime = lyricClickSeekTime(time);
+    const sequence = ++lyricSeekSequence.current; pendingLyricSeek.current = seekTime; pendingLyricLine.current = index; centerLyricLine(index, 'auto'); setLyricSeekTarget(seekTime); setCurrentTime(time); setLyricFollowing(true); applyPendingLyricSeek(element);
     if (estimated) showToast(t.estimatedLyricToast);
     if (lyricSeekTimer.current !== null) window.clearTimeout(lyricSeekTimer.current);
     lyricSeekTimer.current = window.setTimeout(() => { const active = audio.current; if (sequence !== lyricSeekSequence.current || !active || pendingLyricSeek.current === null) return; applyPendingLyricSeek(active); window.setTimeout(() => { const latest = audio.current; if (sequence !== lyricSeekSequence.current || !latest || pendingLyricSeek.current === null || finishLyricSeek(latest)) return; pendingLyricSeek.current = null; pendingLyricLine.current = null; setLyricSeekTarget(null); setCurrentTime(latest.currentTime); showToast(t.seekUnsupported); }, 900); }, 11_000);
@@ -550,12 +578,68 @@ export default function App() {
   }, [saveVisualPreferences, visualPreferences]);
   const setMotionEnabled = useCallback((motionEnabled: boolean) => saveVisualPreferences({ ...visualPreferences, motionEnabled }), [saveVisualPreferences, visualPreferences]);
 
+  const executeAgentAction = useCallback(async (action: AgentClientAction): Promise<AgentClientActionResult> => {
+    const actionContext: AgentClientContext = {
+      currentTrack: current,
+      queue: playbackQueue.current.snapshot(),
+      playing: Boolean(audio.current && !audio.current.paused && !audio.current.ended),
+      currentTime: audio.current?.currentTime ?? currentTime,
+      volume: agentSpeechVolume.current ?? volumeDraft,
+      playMode: user?.playMode || 'list',
+      mobileSection,
+      toneTheme: resolveToneTheme(visualPreferences.theme, previewTone),
+    };
+    const undoAction = deriveAgentUndoAction(action, actionContext);
+    const success = (message: string, undo = undoAction): AgentClientActionResult => ({ ok: true, message, ...(undo ? { undoAction: undo } : {}) });
+    try {
+      if (action.type === 'play_track') {
+        const ok = await playFromQueue(action.track, action.queue?.length ? action.queue : [action.track], { type: 'unknown' });
+        if (!ok) return { ok: false, message: `《${action.track.title}》暂时无法播放。` };
+        if (Number.isFinite(action.startAtSeconds)) commitSeek(Math.max(0, Number(action.startAtSeconds)));
+        if (action.resumePlayback === false) { audio.current?.pause(); setPlaying(false); }
+        return success(`正在播放《${action.track.title}》`);
+      }
+      if (action.type === 'pause') { audio.current?.pause(); return success('已暂停'); }
+      if (action.type === 'resume') { if (!audio.current) return { ok: false, message: '播放器尚未准备好。' }; await audio.current.play(); return success('已继续播放'); }
+      if (action.type === 'next' || action.type === 'previous') {
+        if (!playbackQueue.current.size && !queue.length) return { ok: false, message: '当前播放队列还是空的。' };
+        const beforeTrackId = committedTrackId.current; await playRelative(action.type === 'next' ? 1 : -1);
+        return success(action.type === 'next' ? '已切到下一首' : '已回到上一首', committedTrackId.current !== beforeTrackId ? undoAction : undefined);
+      }
+      if (action.type === 'retry_current') { if (!audio.current || !current) return { ok: false, message: '当前没有可重试的歌曲。' }; await recoverPlayback(audio.current); return { ok: true, message: '已重新连接当前歌曲' }; }
+      if (action.type === 'seek') { if (!audio.current) return { ok: false, message: '播放器尚未准备好。' }; commitSeek(action.seconds); return success(`已定位到 ${formatTime(action.seconds)}`); }
+      if (action.type === 'set_volume') { const volume = Math.max(0, Math.min(1, action.volume)); if (agentSpeechVolume.current !== null) agentSpeechVolume.current = volume; if (audio.current) audio.current.volume = agentSpeechVolume.current !== null ? volume * .2 : volume; setVolumeDraft(volume); await setPreference({ volume }); return success(`音量已调到 ${Math.round(volume * 100)}%`); }
+      if (action.type === 'set_play_mode') { await setPreference({ playMode: action.mode }); return success('播放模式已更新'); }
+      if (action.type === 'set_theme') {
+        if (!Object.prototype.hasOwnProperty.call(TONE_THEMES, action.theme)) return { ok: false, message: '没有找到这个主题。' };
+        commitToneTheme(action.theme as ToneThemeId, { x: window.innerWidth / 2, y: window.innerHeight / 2 }); return success('主题已切换');
+      }
+      if (action.type === 'clear_client_cache') { playbackCache.clear(); resolveRequests.current.clear(); warmedAudio.current.forEach(entry => disposeAudio(entry.element)); warmedAudio.current.clear(); return { ok: true, message: '当前设备的播放缓存已清理' }; }
+      if (action.type === 'refresh_library') {
+        await refreshLibrary();
+        if (selectedPlaylist) {
+          const detail = await api<{ playlist: PlaylistDetail }>(`/api/playlists/${encodeURIComponent(selectedPlaylist.id)}`);
+          setSelectedPlaylist(detail.playlist);
+        }
+        return { ok: true, message: '收藏与歌单已更新' };
+      }
+      if (action.type === 'navigate') {
+        if (action.section === 'agent') { if (mobileLayout) switchMobileSection('agent'); else setAgentOpen(true); }
+        else switchMobileSection(action.section);
+        return success('页面已切换');
+      }
+      return { ok: false, message: '这项操作还没有开放。' };
+    } catch (error) { return { ok: false, message: error instanceof Error ? error.message : '操作没有完成。' }; }
+  }, [commitToneTheme, current, currentTime, mobileLayout, mobileSection, playFromQueue, playRelative, previewTone, queue, recoverPlayback, refreshLibrary, selectedPlaylist, switchMobileSection, user?.playMode, visualPreferences.theme, volumeDraft]);
+
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((event.target as HTMLElement)?.tagName)) return;
       if (event.code === 'Space') { event.preventDefault(); togglePlay(); } else if (event.key === 'ArrowRight' && audio.current) audio.current.currentTime += 5; else if (event.key === 'ArrowLeft' && audio.current) audio.current.currentTime -= 5;
-      else if (event.key === 'ArrowUp' && audio.current) { event.preventDefault(); audio.current.volume = Math.min(1, audio.current.volume + .05); setVolumeDraft(audio.current.volume); saveVolume(audio.current.volume, 180); }
-      else if (event.key === 'ArrowDown' && audio.current) { event.preventDefault(); audio.current.volume = Math.max(0, audio.current.volume - .05); setVolumeDraft(audio.current.volume); saveVolume(audio.current.volume, 180); }
+      else if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && audio.current) {
+        event.preventDefault(); const base = agentSpeechVolume.current ?? audio.current.volume; const next = Math.max(0, Math.min(1, base + (event.key === 'ArrowUp' ? .05 : -.05)));
+        if (agentSpeechVolume.current !== null) agentSpeechVolume.current = next; audio.current.volume = agentSpeechVolume.current !== null ? next * .2 : next; setVolumeDraft(next); saveVolume(next, 180);
+      }
       else if (event.key.toLowerCase() === 'n') playRelative(1); else if (event.key.toLowerCase() === 'p') playRelative(-1); else if (event.key.toLowerCase() === 'f' && current) void toggleFavorite(current);
     };
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown);
@@ -611,14 +695,28 @@ export default function App() {
   const activeTone = resolveToneTheme(visualPreferences.theme, previewTone);
   const visualPalette = deriveVisualPalette(sceneTrack, activeTone, artworkAccent);
   const stageProgress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
+  const agentStageOpen = mobileLayout ? mobileSection === 'agent' : agentOpen;
   const showMobileMini = shouldShowMiniPlayer(mobileSection, Boolean(current));
+  const renderAgentPanel = (mobile: boolean, open: boolean) => <AgentPanel
+    userId={user.id}
+    lang={lang}
+    open={open}
+    mobile={mobile}
+    initialPrompt={agentPromptSeed}
+    context={{ currentTrack: current, queue: playbackQueue.current.snapshot(), playing, currentTime, volume: volumeDraft, playMode: user.playMode, mobileSection, toneTheme: activeTone } as AgentClientContext}
+    onClose={() => mobile ? switchMobileSection('player') : setAgentOpen(false)}
+    onAction={executeAgentAction}
+    onSpeechState={handleAgentSpeechState}
+    onProactivePreferenceChange={enabled => { if (!enabled) setAgentPrompt(null); }}
+  />;
   return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''} ${previewTone ? 'tone-previewing' : ''} ${visualPreferences.motionEnabled ? 'motion-on' : 'motion-off'}`} data-tone={activeTone} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow, '--artwork-accent': artworkAccent || visualPalette.secondary, '--scene-theme-accent': TONE_THEMES[activeTone].sceneAccent, '--scene-theme-glow': TONE_THEMES[activeTone].sceneGlow } as React.CSSProperties}>
     <div className="particle-field" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--y': `${(i * 61) % 100}%`, '--d': `${5 + (i % 7)}s`, '--s': `${2 + (i % 4)}px` } as React.CSSProperties}/>)}</div>
     {!serviceOnline && <div className="service-notice app-service-notice" role="alert"><Icon name="warning"/><div><strong>音乐服务连接已中断</strong><small>当前页面可能来自缓存，播放与数据操作会在服务恢复后继续。</small></div><button type="button" onClick={() => void retryService()}>重新连接</button></div>}
     <header className="topbar panel">
       <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><span className="brand-kicker">PIKACHU MUSIC</span><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>
-      <div className="header-actions"><div className="language"><button className={lang === 'zh' ? 'active' : ''} onClick={() => void setPreference({ language: 'zh' })}>中</button><button className={lang === 'en' ? 'active' : ''} onClick={() => void setPreference({ language: 'en' })}>EN</button></div><TonePicker activeTheme={activeTone} committedTheme={visualPreferences.theme} lang={lang} motionEnabled={visualPreferences.motionEnabled} onPreview={setPreviewTone} onCommit={commitToneTheme} onMotionChange={setMotionEnabled}/><div className="shortcuts">{t.shortcuts}</div><button className="profile-button" onClick={() => setAccountOpen(true)}><span>{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b></button></div>
+      <div className="header-actions"><div className="language"><button className={lang === 'zh' ? 'active' : ''} onClick={() => void setPreference({ language: 'zh' })}>中</button><button className={lang === 'en' ? 'active' : ''} onClick={() => void setPreference({ language: 'en' })}>EN</button></div><TonePicker activeTheme={activeTone} committedTheme={visualPreferences.theme} lang={lang} motionEnabled={visualPreferences.motionEnabled} onPreview={setPreviewTone} onCommit={commitToneTheme} onMotionChange={setMotionEnabled}/><button className={`agent-launch ${agentOpen ? 'active' : ''}`} onClick={() => setAgentOpen(value => !value)}><Icon name="agent" size={16}/><span>珍奇</span><i/></button><div className="shortcuts">{t.shortcuts}</div><button className="profile-button" onClick={() => setAccountOpen(true)}><span>{user.username.slice(0, 1).toUpperCase()}</span><b>{user.username}</b></button></div>
     </header>
+    {agentPrompt && !agentOpen && mobileSection !== 'agent' && <aside className="agent-proactive-bubble"><button className="agent-proactive-close" aria-label="关闭" onClick={() => { const prompt = agentPrompt; setAgentPrompt(null); void api(`/api/agent/proactive/${prompt.id}/dismiss`, json('POST')).catch(() => undefined); }}><Icon name="close" size={13}/></button><small>珍奇 · JUST NOW</small><p>{agentPrompt.message}</p><button onClick={() => { setAgentPromptSeed(agentPrompt.suggestedPrompt); setAgentPrompt(null); if (mobileLayout) switchMobileSection('agent'); else setAgentOpen(true); }}>{lang === 'zh' ? '和珍奇聊聊' : 'Talk to Zhenqi'}<Icon name="agent" size={14}/></button></aside>}
 
     <main className="workspace">
       <section className="search-panel panel" data-mobile-section="search" data-mobile-active={mobileSection === 'search'}>
@@ -630,9 +728,9 @@ export default function App() {
         <div className="search-mini-list">{!results.length ? <div className="empty-state"><Icon name="sparkles" size={30}/><p>{query && !searching ? t.noResults : t.idle}</p>{Object.values(searchErrors).length > 0 && <small>{Object.entries(searchErrors).map(([k, v]) => `${sourceNames[k as MusicSource]}: ${v}`).join(' · ')}</small>}</div> : results.map(item => <TrackRow key={item.id} item={item} active={current?.id === item.id} pending={pendingTrack?.id === item.id} favorite={favoriteIds.has(item.id)} onPlay={() => void playFromQueue(item, results)} onWarm={() => void warmTrack(item)} onFavorite={() => void toggleFavorite(item)} onAdd={() => setAddTrack(item)}/>)}</div>
       </section>
 
-      <section className={`player-panel panel stage-mode-${stageMode}`} data-mobile-section={stageMode === 'daily' ? 'daily' : 'player'} data-mobile-active={(mobileSection === 'daily' && stageMode === 'daily') || (mobileSection === 'player' && stageMode === 'player')}>
-        <ImmersiveBackdrop theme={activeTone} motionEnabled={visualPreferences.motionEnabled} coverUrl={sceneTrack?.coverUrl} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
-        <div className="stage-surface">
+      <section className={`player-panel panel stage-mode-${stageMode} ${agentStageOpen ? 'agent-center-open' : ''}`} data-mobile-section={stageMode === 'daily' ? 'daily' : 'player'} data-mobile-active={(mobileSection === 'daily' && stageMode === 'daily') || (mobileSection === 'player' && stageMode === 'player') || mobileSection === 'agent'}>
+        <ImmersiveBackdrop theme={activeTone} motionEnabled={visualPreferences.motionEnabled} coverUrl={sceneTrack?.coverUrl} focus={agentStageOpen ? 'agent' : 'content'} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>
+        <div className={`stage-surface ${agentStageOpen ? 'stage-surface-hidden' : ''}`} aria-hidden={agentStageOpen} inert={agentStageOpen ? true : undefined}>
           {stageMode === 'daily' ? <>
             <div className="panel-heading player-heading"><h2><Icon name="sparkles" size={16}/>{t.dailyStage}</h2><small>{displayedDaily?.date || dailyDate}</small></div>
             <DailyStage activeTrackId={current?.id} date={displayedDaily?.date || dailyDate} favoriteIds={favoriteIds} lang={lang} loading={dailyLoading} message={daily?.message} pendingTrackId={pendingTrack?.id} playing={playing} tracks={dailyTracks} username={user.username}
@@ -647,13 +745,14 @@ export default function App() {
               <div className={`record-wrap ${playing ? 'spinning' : ''}`}><div className="record">{displayTrack?.coverUrl ? <img src={displayTrack.coverUrl} alt=""/> : <div className="record-center"/>}</div></div>
               <div className="track-hero"><span className="now-kicker">NOW PLAYING</span><h3>{displayTrack?.title || t.noTrack}</h3><p>{displayTrack ? `${displayTrack.artist}${resolved?.fallback ? ` · ${sourceNames[resolved.actualSource]}${resolved.backupProvider ? ' · go-music-api' : ''}` : ''}${resolved?.relayed ? ` · ${t.compatibility}` : ''}` : t.pick}</p>
                 <div className="progress-row"><time>{formatTime(displayedSeekTime)}</time><input className="player-range" aria-label="播放进度" type="range" min="0" max={duration || 0} step="0.1" value={displayedSeekTime} disabled={!duration} style={{ '--range-progress': `${rangeProgress(displayedSeekTime, 0, duration)}%` } as CSSProperties} onPointerDown={event => { seekDragging.current = true; event.currentTarget.setPointerCapture?.(event.pointerId); }} onChange={event => { const value = Number(event.target.value); setSeekDraft(value); if (!seekDragging.current) commitSeek(value); }} onPointerUp={event => commitSeek(Number(event.currentTarget.value))} onPointerCancel={() => { seekDragging.current = false; setSeekDraft(null); }} onBlur={event => { if (seekDraft !== null) commitSeek(Number(event.currentTarget.value)); }}/><time>{formatTime(duration)}</time></div>
-                <div className="transport"><button aria-label="上一首" onClick={() => void playRelative(-1)}><Icon name="previous" size={14}/></button><button className="play-main" aria-label={playing ? '暂停' : '播放'} onClick={togglePlay}>{resolving ? <span className="button-loader"/> : <Icon name={playing ? 'pause' : 'play'} size={19}/>}</button><button aria-label="下一首" onClick={() => void playRelative(1)}><Icon name="next" size={14}/></button><span className="volume"><Icon name="volume" size={15}/><input className="player-range" aria-label="音量" type="range" min="0" max="1" step="0.01" value={volumeDraft} style={{ '--range-progress': `${rangeProgress(volumeDraft, 0, 1)}%` } as CSSProperties} onPointerDown={event => { volumeDragging.current = true; event.currentTarget.setPointerCapture?.(event.pointerId); }} onChange={event => { const volume = Number(event.target.value); setVolumeDraft(volume); if (audio.current) audio.current.volume = volume; if (!volumeDragging.current) saveVolume(volume, 180); }} onPointerUp={event => { volumeDragging.current = false; saveVolume(Number(event.currentTarget.value)); }} onPointerCancel={() => { volumeDragging.current = false; if (user) { setVolumeDraft(user.volume); if (audio.current) audio.current.volume = user.volume; } }} onBlur={event => { if (volumeDragging.current) { volumeDragging.current = false; saveVolume(Number(event.currentTarget.value)); } }}/></span></div>
+                <div className="transport"><button aria-label="上一首" onClick={() => void playRelative(-1)}><Icon name="previous" size={14}/></button><button className="play-main" aria-label={playing ? '暂停' : '播放'} onClick={togglePlay}>{resolving ? <span className="button-loader"/> : <Icon name={playing ? 'pause' : 'play'} size={19}/>}</button><button aria-label="下一首" onClick={() => void playRelative(1)}><Icon name="next" size={14}/></button><span className="volume"><Icon name="volume" size={15}/><input className="player-range" aria-label="音量" type="range" min="0" max="1" step="0.01" value={volumeDraft} style={{ '--range-progress': `${rangeProgress(volumeDraft, 0, 1)}%` } as CSSProperties} onPointerDown={event => { volumeDragging.current = true; event.currentTarget.setPointerCapture?.(event.pointerId); }} onChange={event => { const volume = Number(event.target.value); setVolumeDraft(volume); if (agentSpeechVolume.current !== null) agentSpeechVolume.current = volume; if (audio.current) audio.current.volume = agentSpeechVolume.current !== null ? volume * .2 : volume; if (!volumeDragging.current) saveVolume(volume, 180); }} onPointerUp={event => { volumeDragging.current = false; saveVolume(Number(event.currentTarget.value)); }} onPointerCancel={() => { volumeDragging.current = false; if (user) { setVolumeDraft(user.volume); if (agentSpeechVolume.current !== null) agentSpeechVolume.current = user.volume; if (audio.current) audio.current.volume = agentSpeechVolume.current !== null ? user.volume * .2 : user.volume; } }} onBlur={event => { if (volumeDragging.current) { volumeDragging.current = false; saveVolume(Number(event.currentTarget.value)); } }}/></span></div>
               </div>
               <div className="hero-actions"><button aria-label="收藏" className={current && favoriteIds.has(current.id) ? 'active' : ''} onClick={() => current && void toggleFavorite(current)}><Icon name="heart" size={16}/></button><button aria-label="下载" onClick={() => current && window.open(`/api/tracks/${encodeURIComponent(current.id)}/download`, '_blank')}><Icon name="download" size={16}/></button><span>{resolving && pendingTrack ? `${t.loadingTrack} ${pendingTrack.title}` : playing ? '播放中' : '空闲'}</span></div>
             </div>
-            <div className="lyrics"><div className="lyrics-effects" aria-hidden="true"/>{lyricSeekTarget !== null && <div className="lyric-seek-status" role="status">{t.seeking} {formatTime(lyricSeekTarget)}…</div>}{!lyricFollowing && activeLyric >= 0 && <button className="lyric-follow-button" onClick={() => { setLyricFollowing(true); centerActiveLyric(); }}>{t.returnToLyric}</button>}<div className={`lyrics-scroll ${lyrics.length ? '' : 'is-empty'}`} ref={lyricBox} onPointerDown={event => { if (event.pointerType === 'mouse' && event.target === event.currentTarget && lyrics.length) setLyricFollowing(false); }} onTouchMove={() => lyrics.length && setLyricFollowing(false)} onWheel={() => lyrics.length && setLyricFollowing(false)}>{lyrics.length ? lyrics.map((line, index) => { const exact = Number.isFinite(line.time); const targetTime = exact ? line.time : estimateUntimedLyricTime(index, lyrics.length, duration, untimedLyricStart); const seekable = Number.isFinite(targetTime); return <button type="button" key={`${line.time}-${index}`} data-line={index} data-seekable={seekable} data-estimated={!exact && seekable} className={`lyric-line ${index === activeLyric ? 'active' : ''}`} aria-label={seekable ? `${exact ? '' : '约 '}${formatTime(targetTime)} ${line.text}` : line.text} title={seekable ? `${exact ? t.seekTo : t.estimatedSeekTo} ${formatTime(targetTime)}` : undefined} onClick={() => seekToLyric(targetTime, index, !exact)}><time aria-hidden="true">{seekable ? `${exact ? '' : '≈'}${formatTime(targetTime)}` : ''}</time><span>{line.text}</span></button>; }) : <div className="empty-lyrics"><Icon name="music" size={32}/>{t.emptyLyrics}</div>}</div></div>
+            <div className="lyrics"><div className="lyrics-effects" aria-hidden="true"/>{lyricSeekTarget !== null && <div className="lyric-seek-status" role="status">{t.seeking} {formatTime(lyricSeekTarget)}…</div>}{!lyricFollowing && activeLyric >= 0 && <button className="lyric-follow-button" onClick={() => { setLyricFollowing(true); centerActiveLyric(); }}>{t.returnToLyric}</button>}<div className={`lyrics-scroll ${lyrics.length ? '' : 'is-empty'}`} ref={lyricBox} onPointerDown={event => { if (event.pointerType === 'mouse' && event.target === event.currentTarget && lyrics.length) setLyricFollowing(false); }} onTouchMove={() => lyrics.length && setLyricFollowing(false)} onWheel={() => lyrics.length && setLyricFollowing(false)}>{lyrics.length ? lyrics.map((line, index) => { if (line.kind === 'credit') return <div key={`${line.time}-${index}`} data-line={index} data-seekable="false" className="lyric-line credit"><time aria-hidden="true"/><span>{line.text}</span></div>; const exact = Number.isFinite(line.time); const targetTime = exact ? line.time : estimateUntimedLyricTime(index, lyrics.length, duration, untimedLyricStart); const seekable = Number.isFinite(targetTime); return <button type="button" key={`${line.time}-${index}`} data-line={index} data-seekable={seekable} data-estimated={!exact && seekable} className={`lyric-line ${index === activeLyric ? 'active' : ''}`} aria-label={seekable ? `${exact ? '' : '约 '}${formatTime(targetTime)} ${line.text}` : line.text} title={seekable ? `${exact ? t.seekTo : t.estimatedSeekTo} ${formatTime(targetTime)}` : undefined} onClick={() => seekToLyric(targetTime, index, !exact)}><time aria-hidden="true">{seekable ? `${exact ? '' : '≈'}${formatTime(targetTime)}` : ''}</time><span>{line.text}</span></button>; }) : <div className="empty-lyrics"><Icon name="music" size={32}/>{t.emptyLyrics}</div>}</div></div>
           </>}
         </div>
+        <div className={`agent-stage-layer ${mobileLayout ? 'mobile' : 'desktop'} ${agentStageOpen ? 'active' : ''}`} aria-hidden={!agentStageOpen}>{agentStageOpen && renderAgentPanel(mobileLayout, true)}</div>
         <audio ref={audio} preload="auto" onPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.play(event.currentTarget.currentTime); setPlaying(true); syncMediaSession(event.currentTarget, true); } }} onPause={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) { listeningTracker.pause(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000); setPlaying(false); syncMediaSession(event.currentTarget, false); } }} onLoadedMetadata={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onCanPlay={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) applyPendingLyricSeek(event.currentTarget); }} onSeeked={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) finishLyricSeek(event.currentTarget); }} onTimeUpdate={event => { const element = event.currentTarget; if (element.dataset.trackId !== committedTrackId.current) return; if (pendingLyricSeek.current !== null && !finishLyricSeek(element)) return; listeningTracker.tick(element.currentTime, (element.duration || 0) * 1000, !element.paused && !element.ended); setCurrentTime(element.currentTime); syncMediaSession(element, !element.paused && !element.ended); }} onDurationChange={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, false); setDuration(event.currentTarget.duration || 0); applyPendingLyricSeek(event.currentTarget); syncMediaSession(event.currentTarget, !event.currentTarget.paused && !event.currentTarget.ended); }} onError={event => { if (event.currentTarget.dataset.trackId === committedTrackId.current) void recoverPlayback(event.currentTarget); }} onEnded={event => { if (event.currentTarget.dataset.trackId !== committedTrackId.current) return; listeningTracker.tick(event.currentTarget.currentTime, (event.currentTarget.duration || 0) * 1000, true); listeningTracker.finish('ended'); void playRelative(1); }}/>
       </section>
 

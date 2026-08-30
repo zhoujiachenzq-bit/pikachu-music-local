@@ -2,18 +2,21 @@ import type { ReactNode } from 'react';
 import type { MusicSource, RecommendedTrack, Track } from '../shared/types';
 import type { MobileSection } from './visualState';
 
-export type IconName = 'add' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'user' | 'volume' | 'warning';
+export type IconName = 'add' | 'agent' | 'backup' | 'close' | 'dislike' | 'download' | 'globe' | 'headphones' | 'heart' | 'import' | 'library' | 'microphone' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'return' | 'search' | 'send' | 'settings' | 'shuffle' | 'sparkles' | 'speaker' | 'sync' | 'user' | 'volume' | 'warning';
 
 const iconPaths: Record<IconName, ReactNode> = {
   add: <><path d="M12 5v14M5 12h14"/></>,
+  agent: <><path d="M7 7.5A5 5 0 0 1 12 3a5 5 0 0 1 5 4.5"/><rect x="4" y="7.5" width="16" height="12" rx="5"/><path d="M8 12h.01M16 12h.01M9 16c1.7 1 4.3 1 6 0"/></>,
   backup: <><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6h14v-6"/></>,
   close: <><path d="M6 6l12 12M18 6 6 18"/></>,
   dislike: <><circle cx="12" cy="12" r="8"/><path d="m7 17 10-10"/></>,
   download: <><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 19h14"/></>,
+  globe: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></>,
   headphones: <><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M4 14h4v6H6a2 2 0 0 1-2-2v-4ZM20 14h-4v6h2a2 2 0 0 0 2-2v-4Z"/></>,
   heart: <><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></>,
   import: <><path d="M12 21V9M7 14l5-5 5 5"/><path d="M5 3h14v4"/></>,
   library: <><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 6l3-1 3 14-3 1z"/></>,
+  microphone: <><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></>,
   motion: <><path d="M3 12h3l2-6 4 12 3-9 2 6h4"/></>,
   music: <><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></>,
   next: <><path d="m6 5 10 7-10 7V5ZM18 5v14"/></>,
@@ -24,9 +27,13 @@ const iconPaths: Record<IconName, ReactNode> = {
   repeat: <><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></>,
   repeatOne: <><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/><path d="M11 10h2v5"/></>,
   restore: <><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21v-4h14v4"/></>,
+  return: <><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></>,
+  send: <><path d="m3 11 18-8-8 18-2-8-8-2Z"/><path d="m11 13 4-4"/></>,
+  settings: <><path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3"/></>,
   shuffle: <><path d="M3 6h3c5 0 7 12 12 12h3"/><path d="m17 14 4 4-4 4M3 18h3c2 0 3-1 4-3M14 8c1-1 2-2 4-2h3"/><path d="m17 2 4 4-4 4"/></>,
   sparkles: <><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"/><path d="m19 14 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z"/></>,
+  speaker: <><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="M17 9a4 4 0 0 1 0 6"/></>,
   sync: <><path d="M20 7h-5V2"/><path d="M20 7a8 8 0 1 0 1 7"/></>,
   user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
   volume: <><path d="M5 10v4h4l5 4V6l-5 4H5Z"/><path d="M17 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></>,
@@ -140,6 +147,7 @@ export function MobileNavigation({ active, lang, playing, onChange }: { active: 
     { section: 'search', icon: 'search', label: zh ? '搜索' : 'Search' },
     { section: 'player', icon: 'headphones', label: zh ? '播放' : 'Player' },
     { section: 'library', icon: 'library', label: zh ? '歌单' : 'Library' },
+    { section: 'agent', icon: 'agent', label: zh ? '珍奇' : 'Zhenqi' },
   ];
   return <nav className="mobile-nav" aria-label={zh ? '主要导航' : 'Primary navigation'}>{items.map(item => <button key={item.section} className={`${active === item.section ? 'active' : ''} ${item.section === 'player' && playing ? 'is-playing' : ''}`} aria-current={active === item.section ? 'page' : undefined} onClick={() => onChange(item.section)}><span><Icon name={item.icon} size={20}/></span><small>{item.label}</small></button>)}</nav>;
 }

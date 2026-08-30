@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Track } from '../shared/types';
-import { deriveVisualPalette, mobileSectionForStage, shouldShowMiniPlayer, shouldUseDesktopWebgl, stageAfterRecommendationPlay, TRACK_COLOR_INFLUENCE } from './visualState';
+import { deriveVisualPalette, mobileSectionForStage, shouldPersistMobileScroll, shouldShowMiniPlayer, shouldUseDesktopWebgl, stageAfterRecommendationPlay, TRACK_COLOR_INFLUENCE } from './visualState';
 
 const track: Track = {
   id: 'qq:1', source: 'qq', sourceTrackId: '1', title: 'Night Drive', artist: 'Pikachu', album: 'Cottage', duration: 180_000,
@@ -19,6 +19,14 @@ describe('immersive visual state', () => {
     expect(shouldShowMiniPlayer('library', true)).toBe(true);
     expect(shouldShowMiniPlayer('player', true)).toBe(false);
     expect(shouldShowMiniPlayer('daily', false)).toBe(false);
+  });
+
+  it('does not restore an outer scroll position for the player or agent', () => {
+    expect(shouldPersistMobileScroll('daily')).toBe(true);
+    expect(shouldPersistMobileScroll('search')).toBe(true);
+    expect(shouldPersistMobileScroll('library')).toBe(true);
+    expect(shouldPersistMobileScroll('player')).toBe(false);
+    expect(shouldPersistMobileScroll('agent')).toBe(false);
   });
 
   it('uses stable track palettes', () => {
