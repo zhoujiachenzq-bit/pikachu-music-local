@@ -52,6 +52,7 @@ const voicePreviewScenes = [
 ] as const;
 type VoicePreviewSceneId = typeof voicePreviewScenes[number]['id'];
 const voiceGroups = [
+  { id: 'private', zh: '珍奇专属', en: 'Zhenqi private' },
   { id: 'kokoro-female', zh: 'Kokoro 中文女声', en: 'Kokoro Chinese female' },
   { id: 'kokoro-male', zh: 'Kokoro 中文男声', en: 'Kokoro Chinese male' },
   { id: 'selected', zh: '在线精选', en: 'Online selection' },

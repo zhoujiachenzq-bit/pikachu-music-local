@@ -30,6 +30,8 @@ export interface ShadowModelResult extends MusicIntentProposal {
 
 export interface MusicIntentShadowResult {
   subject: string;
+  proposalSubject?: string;
+  proposalArtist?: string;
   legacyIntent: MusicIntentKind;
   proposedIntent: MusicIntentKind;
   finalIntent: MusicIntentKind;
@@ -129,6 +131,15 @@ export function createMusicIntentShadowGraph(db: Db, analyze: (message: string, 
       if (!state.subject) return { finalIntent: state.legacyIntent, verdict: 'skipped' as const };
       const expected = expectedIntentFromEvidence(state.evidence);
       const reasons = [...state.reasonCodes];
+      if (state.proposal?.intent === 'recommend' && state.proposal.artist) {
+        const artistEvidence = exactEvidence(db, { candidate: state.proposal.artist, explicitArtist: true });
+        if (artistEvidence.exactArtist && !artistEvidence.exactTitle) {
+          reasons.push('RECOMMENDATION_ARTIST_VERIFIED');
+          return { finalIntent: 'recommend' as const, verdict: 'pass' as const, confidence: Math.max(.85, state.confidence), reasonCodes: [...new Set(reasons)] };
+        }
+        reasons.push('RECOMMENDATION_ARTIST_UNVERIFIED');
+        return { finalIntent: 'ambiguous' as const, verdict: 'ask_user' as const, confidence: Math.min(state.confidence, .49), reasonCodes: [...new Set(reasons)] };
+      }
       if (!state.proposal && expected !== 'ambiguous') {
         reasons.push('REFLECTION_MODEL_UNAVAILABLE');
         return { finalIntent: expected, verdict: 'skipped' as const, confidence: .8, reasonCodes: [...new Set(reasons)] };
@@ -179,6 +190,8 @@ export async function runMusicIntentShadowGraph(
   });
   return {
     subject: output.subject,
+    proposalSubject: output.proposal?.subject,
+    proposalArtist: output.proposal?.artist,
     legacyIntent: input.legacyIntent,
     proposedIntent: output.proposedIntent,
     finalIntent: output.finalIntent,

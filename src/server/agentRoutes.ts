@@ -82,7 +82,8 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
 
   app.get('/api/agent/access', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
-    return { access: getAgentAccess(db, user, keyring), settings: ensureAgentSettings(db, user.id), voices: speechSynthesis.options() };
+    const voices = speechSynthesis.options().filter(voice => voice.id !== 'gpt-sovits-zhenqi' || isAgentAdmin(user.username));
+    return { access: getAgentAccess(db, user, keyring), settings: ensureAgentSettings(db, user.id), voices };
   });
 
   app.patch('/api/agent/settings', async (request, reply) => {
@@ -91,6 +92,7 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
       assistantName: z.string().trim().min(1).max(24).optional(), persona: z.enum(['warm', 'bright', 'poetic']).optional(),
       proactiveEnabled: z.boolean().optional(), memoryEnabled: z.boolean().optional(), autoRead: z.boolean().optional(), voice: z.enum(AGENT_VOICE_PROFILE_IDS).optional()
     }).parse(request.body);
+    if (body.voice === 'gpt-sovits-zhenqi' && !isAgentAdmin(user.username)) return reply.code(403).send(apiError('AGENT_PRIVATE_VOICE_REQUIRED', '这个本机专属音色只对站长账户开放。'));
     return { settings: updateAgentSettings(db, user.id, body) };
   });
 
@@ -319,6 +321,7 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     const user = requireAgent(db, keyring, request, reply); if (!user) return;
     const body = z.object({ text: z.string().trim().min(1).max(1500), voice: z.string().min(1).max(80).default('kokoro-zf-001'), persona: z.enum(['warm', 'bright', 'poetic']).default('warm') }).parse(request.body);
     const voice = normalizeAgentVoiceId(body.voice);
+    if (voice === 'gpt-sovits-zhenqi' && !isAgentAdmin(user.username)) return reply.code(403).send(apiError('AGENT_PRIVATE_VOICE_REQUIRED', '这个本机专属音色只对站长账户开放。'));
     const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150); if (monthlyAgentCost(db) >= budget && !speechSynthesis.isLocal(voice)) return reply.code(503).send(apiError('AGENT_BUDGET_EXHAUSTED', '本月在线语音额度已暂停，本地 Kokoro 仍可使用。'));
     if (!speechSynthesis.available(voice)) return reply.code(503).send(apiError('AGENT_TTS_VOICE_UNAVAILABLE', '这个音色尚未配置，文字聊天和浏览器朗读仍可使用。', { voice }));
     const instructions = body.persona === 'bright' ? '轻快、有活力、带着真诚笑意，但不要夸张。' : body.persona === 'poetic' ? '语速舒缓、克制、有轻微画面感，不要矫饰。' : '自然、温暖、机灵，像熟悉的朋友一样表达。';

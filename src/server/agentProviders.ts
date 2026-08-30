@@ -1,6 +1,7 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { embed } from 'ai';
 import { AGENT_VOICE_PROFILES, agentVoiceProfile, kokoroVoiceIdForProfile, normalizeAgentVoiceId, type AgentVoiceOption, type AgentVoiceProfileId } from '../shared/agentVoices.js';
+import { GptSoVitsProvider, loadGptSoVitsConfig } from './gptSoVitsProvider.js';
 
 export interface AgentProviderConfig {
   apiKey: string | null;
@@ -251,17 +252,19 @@ const BAILIAN_VOICES: Partial<Record<AgentVoiceProfileId, string>> = {
 
 export interface RoutedSpeechSynthesisResult extends SpeechSynthesisResult {
   profileId: AgentVoiceProfileId;
-  provider: 'kokoro-local' | 'azure-tts' | 'minimax-tts' | 'bailian-tts';
+  provider: 'kokoro-local' | 'gpt-sovits-local' | 'azure-tts' | 'minimax-tts' | 'bailian-tts';
   model: string;
 }
 
 export class AgentSpeechSynthesisRegistry {
   readonly kokoro: KokoroSpeechProvider;
+  readonly gptSoVits: GptSoVitsProvider;
   readonly azure: AzureSpeechProvider;
   readonly minimax: MiniMaxSpeechProvider;
   readonly bailian: BailianSpeechProvider;
   constructor(readonly env: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch) {
     this.kokoro = new KokoroSpeechProvider(loadKokoroSpeechConfig(env), fetcher);
+    this.gptSoVits = new GptSoVitsProvider(loadGptSoVitsConfig(env), fetcher);
     this.azure = new AzureSpeechProvider(loadAzureSpeechConfig(env), fetcher);
     this.minimax = new MiniMaxSpeechProvider(loadMiniMaxSpeechConfig(env), fetcher);
     this.bailian = new BailianSpeechProvider(loadAgentProviderConfig(env), fetcher);
@@ -270,6 +273,7 @@ export class AgentSpeechSynthesisRegistry {
     return AGENT_VOICE_PROFILES.map(profile => ({ ...profile, available: this.voiceTarget(profile.id) !== null }));
   }
   private voiceTarget(id: AgentVoiceProfileId): { provider: SpeechSynthesisProvider; voice: string; providerId: RoutedSpeechSynthesisResult['provider']; model: string } | null {
+    if (id === 'gpt-sovits-zhenqi') return this.gptSoVits.configured() ? { provider: { configured: () => true, synthesize: input => this.gptSoVits.synthesize(input) }, voice: 'zhenqi-private', providerId: 'gpt-sovits-local', model: this.gptSoVits.model } : null;
     const kokoroVoice = kokoroVoiceIdForProfile(id);
     if (kokoroVoice) return this.kokoro.configured() ? { provider: this.kokoro, voice: id === 'kokoro-zf-001' ? this.kokoro.config.voice : kokoroVoice, providerId: 'kokoro-local', model: this.kokoro.config.model } : null;
     if (id === 'azure-xiaoxiao') return this.azure.configured() ? { provider: this.azure, voice: this.azure.config.voice, providerId: 'azure-tts', model: this.azure.model } : null;
@@ -285,11 +289,17 @@ export class AgentSpeechSynthesisRegistry {
   }
   async synthesize(input: { text: string; voice: unknown; persona: 'warm' | 'bright' | 'poetic'; instructions?: string; signal?: AbortSignal }): Promise<RoutedSpeechSynthesisResult> {
     const profileId = normalizeAgentVoiceId(input.voice); const target = this.voiceTarget(profileId); if (!target) throw new Error('AGENT_TTS_VOICE_UNAVAILABLE');
-    const result = await target.provider.synthesize({ text: input.text, voice: target.voice, persona: input.persona, instructions: input.instructions, signal: input.signal });
-    return { ...result, profileId, provider: target.providerId, model: target.model };
+    try {
+      const result = await target.provider.synthesize({ text: input.text, voice: target.voice, persona: input.persona, instructions: input.instructions, signal: input.signal });
+      return { ...result, profileId, provider: target.providerId, model: target.model };
+    } catch (error) {
+      if (profileId !== 'gpt-sovits-zhenqi' || input.signal?.aborted || !this.kokoro.configured()) throw error;
+      const result = await this.kokoro.synthesize({ text: input.text, voice: this.kokoro.config.voice, persona: input.persona, signal: input.signal });
+      return { ...result, profileId, provider: 'kokoro-local', model: this.kokoro.config.model };
+    }
   }
   available(id: unknown) { const normalized = normalizeAgentVoiceId(id); return this.voiceTarget(normalized) !== null; }
-  isLocal(id: unknown) { return Boolean(kokoroVoiceIdForProfile(normalizeAgentVoiceId(id))) && this.kokoro.configured(); }
+  isLocal(id: unknown) { const voice = normalizeAgentVoiceId(id); return (voice === 'gpt-sovits-zhenqi' && this.gptSoVits.configured()) || (Boolean(kokoroVoiceIdForProfile(voice)) && this.kokoro.configured()); }
   profile(id: unknown) { return agentVoiceProfile(id); }
 }
 

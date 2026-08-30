@@ -19,6 +19,7 @@ type Dashed<T extends string> = T extends `${infer Prefix}_${infer Number}` ? `$
 export type KokoroVoiceProfileId = `kokoro-${Dashed<KokoroVoiceId>}`;
 
 const ONLINE_VOICE_PROFILE_IDS = [
+  'gpt-sovits-zhenqi',
   'azure-xiaoxiao',
   'azure-xiaoke',
   'minimax-soothing-host',
@@ -38,8 +39,8 @@ const kokoroProfileId = (voice: KokoroVoiceId) => `kokoro-${voice.replace('_', '
 export const KOKORO_VOICE_PROFILE_IDS = KOKORO_VOICE_IDS.map(kokoroProfileId);
 export type AgentVoiceProfileId = KokoroVoiceProfileId | typeof ONLINE_VOICE_PROFILE_IDS[number];
 export const AGENT_VOICE_PROFILE_IDS = [...KOKORO_VOICE_PROFILE_IDS, ...ONLINE_VOICE_PROFILE_IDS] as unknown as readonly [AgentVoiceProfileId, ...AgentVoiceProfileId[]];
-export type AgentVoiceProviderId = 'kokoro' | 'azure' | 'minimax' | 'bailian';
-export type AgentVoiceGroup = 'kokoro-female' | 'kokoro-male' | 'selected' | 'legacy';
+export type AgentVoiceProviderId = 'kokoro' | 'gpt-sovits' | 'azure' | 'minimax' | 'bailian';
+export type AgentVoiceGroup = 'private' | 'kokoro-female' | 'kokoro-male' | 'selected' | 'legacy';
 
 export interface AgentVoiceProfile {
   id: AgentVoiceProfileId;
@@ -72,6 +73,12 @@ const KOKORO_VOICE_PROFILES: readonly AgentVoiceProfile[] = KOKORO_VOICE_IDS.map
 
 export const AGENT_VOICE_PROFILES: readonly AgentVoiceProfile[] = [
   ...KOKORO_VOICE_PROFILES,
+  {
+    id: 'gpt-sovits-zhenqi', provider: 'gpt-sovits', group: 'private', recommended: true,
+    labelZh: '珍奇专属 · 高品质', labelEn: 'Zhenqi Private · High quality',
+    descriptionZh: '使用你选定的参考音频在本机显卡生成；首次朗读会自动启动模型，失败时回退至 Kokoro。',
+    descriptionEn: 'Generated locally from your selected reference voice; starts on demand and falls back to Kokoro if unavailable.'
+  },
   {
     id: 'azure-xiaoxiao', provider: 'azure', group: 'selected',
     labelZh: '晓晓 · 标准中文女声', labelEn: 'Xiaoxiao · Standard Chinese',

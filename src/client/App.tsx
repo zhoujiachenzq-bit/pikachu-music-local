@@ -233,6 +233,9 @@ export default function App() {
     const timers = new Set<number>();
     const createRipple = (event: PointerEvent) => {
       if (!(event.target instanceof Element)) return;
+      // Text controls live inside large ripple-enabled panels. Letting the lookup
+      // climb past them creates a panel-sized flash whenever the caret is placed.
+      if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
       const target = event.target.closest<HTMLElement>('button, .track-row, .source-grid label, .icon-upload, .search-box, .load-row, .search-mini-list, .now-card, .lyrics, .tabs, .playlist-toolbar, .playlist-content, .play-modes, .import-progress, .add-list, .account-card, .modal-card, .panel, .daily-editorial, .daily-spotlight-card, .mobile-mini-player, .mobile-nav, .tone-panel, .tone-card');
       if (!target || target.matches(':disabled')) return;
       const rect = target.getBoundingClientRect();

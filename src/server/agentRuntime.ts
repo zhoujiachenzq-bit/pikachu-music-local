@@ -286,13 +286,13 @@ export class AgentRuntime {
   cancel(userId: string) { this.active.get(userId)?.abort(); this.active.delete(userId); }
   providerStatus() { return { selectionMode: this.modelProviders.selectionMode(), providers: this.modelProviders.statuses() }; }
 
-  private async auditMusicIntent(
+  private async resolveMusicIntent(
     runId: string,
     input: AgentRunInput,
     legacyIntent: MusicIntentKind,
     selectedProvider: ReturnType<AgentModelProviderRegistry['selected']>
   ) {
-    if (process.env.AGENT_REFLECTION_SHADOW !== 'true' || !shouldRunMusicIntentShadow(input.message)) return;
+    if (process.env.AGENT_REFLECTION_SHADOW !== 'true' || !shouldRunMusicIntentShadow(input.message)) return null;
     const result = await runMusicIntentShadowGraph(this.db, { message: input.message, legacyIntent }, async (message, subject, evidence): Promise<ShadowModelResult | null> => {
       if (!selectedProvider) return null;
       const model = selectedProvider.modelName('flash');
@@ -329,6 +329,7 @@ export class AgentRuntime {
         estimatedCostCny: selectedProvider.estimateCostCny(result.model, result.inputTokens, result.outputTokens)
       });
     }
+    return result;
   }
 
   private async *executeTool(runId: string, input: AgentRunInput, call: AgentToolCall): AsyncGenerator<AgentStreamEvent, string> {
@@ -444,12 +445,23 @@ export class AgentRuntime {
       updateAgentRun(this.db, runId, input.user.id, 'context_building');
       const userMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'user', input.message, { webSearch: input.webSearch });
       const immediate = directIntent(input.message);
-      const ambiguousPlay = ambiguousPlayIntent(input.message, this.db);
-      const artistRecommendation = ambiguousPlay ? null : artistRecommendationIntent(input.message, this.db);
-      const explicitPlay = ambiguousPlay || artistRecommendation ? null : explicitPlayIntent(input.message);
+      let ambiguousPlay = ambiguousPlayIntent(input.message, this.db);
+      let artistRecommendation = ambiguousPlay ? null : artistRecommendationIntent(input.message, this.db);
+      let explicitPlay = ambiguousPlay || artistRecommendation ? null : explicitPlayIntent(input.message);
       const quickRecommendation = quickRecommendationIntent(input.message, input.context.currentTrack);
       const legacyIntent: MusicIntentKind = ambiguousPlay ? 'ambiguous' : artistRecommendation ? 'play_artist' : explicitPlay ? 'play_song' : quickRecommendation ? 'recommend' : 'chat';
-      void this.auditMusicIntent(runId, input, legacyIntent, selectedProvider).catch(() => undefined);
+      const reflected = safety.blocked ? null : await this.resolveMusicIntent(runId, input, legacyIntent, selectedProvider).catch(() => null);
+      let reflectedRecommendation: ArtistRecommendationIntent | null = null;
+      if (reflected && reflected.verdict !== 'skipped' && reflected.verdict !== 'failed') {
+        ambiguousPlay = null; artistRecommendation = null; explicitPlay = null;
+        if (reflected.finalIntent === 'ambiguous') ambiguousPlay = { term: reflected.subject };
+        else if (reflected.finalIntent === 'play_artist') artistRecommendation = { query: `${reflected.subject} 原唱 热门歌曲`, count: 5, playFirst: true, discovery: 'familiar' };
+        else if (reflected.finalIntent === 'play_song') explicitPlay = { title: reflected.subject };
+        else if (reflected.finalIntent === 'recommend') {
+          const artist = reflected.proposalArtist?.trim(); const focus = reflected.proposalSubject?.trim();
+          reflectedRecommendation = { query: [artist, focus && normalize(focus) !== normalize(artist || '') ? focus : '', '原唱'].filter(Boolean).join(' '), count: 5, playFirst: true, discovery: 'familiar' };
+        }
+      }
       if (safety.blocked) {
         assistantText = safety.response || '这项请求不能由珍奇处理。';
         yield { type: 'reason_card', kind: 'safety', title: safety.title || '安全边界', body: '已在本地完成判断，没有调用模型、联网服务或站内工具。' };
@@ -472,9 +484,9 @@ export class AgentRuntime {
         updateAgentRun(this.db, runId, input.user.id, 'generating');
         assistantText = yield* this.executeTool(runId, input, { toolName: 'play_song', input: explicitPlay });
         yield { type: 'text_delta', delta: assistantText };
-      } else if (artistRecommendation) {
+      } else if (artistRecommendation || reflectedRecommendation) {
         updateAgentRun(this.db, runId, input.user.id, 'generating');
-        assistantText = yield* this.executeTool(runId, input, { toolName: 'recommend_music', input: artistRecommendation });
+        assistantText = yield* this.executeTool(runId, input, { toolName: 'recommend_music', input: artistRecommendation || reflectedRecommendation! });
         yield { type: 'text_delta', delta: assistantText };
       } else if (quickRecommendation) {
         updateAgentRun(this.db, runId, input.user.id, 'generating');
