@@ -1,5 +1,6 @@
 import { tool, type ModelMessage } from 'ai';
 import { z } from 'zod';
+import { abortable, abortableStream, boundedDuration, deadline } from '../shared/asyncControl.js';
 import type { Db } from './db.js';
 import { rowToTrack, upsertTrack } from './db.js';
 import { searchAll } from './sources.js';
@@ -232,9 +233,11 @@ function fallbackTracks(db: Db, userId: string, limit: number): Track[] {
   return rows.map(rowToTrack).filter(track => !isDerivativeTrackVersion(track.title, track.album)).slice(0, limit);
 }
 
-async function discoverTracks(db: Db, userId: string, query: string, count: number): Promise<Track[]> {
+async function discoverTracks(db: Db, userId: string, query: string, count: number, signal?: AbortSignal): Promise<Track[]> {
+  signal?.throwIfAborted();
   let candidates: Track[] = [];
   try { candidates = (await searchAll(db, query, [...SOURCES], Math.max(4, count * 2))).tracks; } catch { candidates = []; }
+  signal?.throwIfAborted();
   const seen = new Set<string>(); const selected: Track[] = [];
   for (const raw of candidates) {
     if (isDerivativeTrackVersion(raw.title, raw.album)) continue;
@@ -263,7 +266,7 @@ async function resolveLibraryTrack(db: Db, input: AgentRunInput, title: string, 
   const matches = (tracks: Track[]) => tracks.filter(track => normalize(track.title) === requestedTitle && !isDerivativeTrackVersion(track.title, track.album)
     && (!requestedArtist || normalize(track.artist).includes(requestedArtist)));
   let candidates = matches(contextual);
-  if (!candidates.length) candidates = matches(await discoverTracks(db, input.user.id, `${title} ${artist}`.trim(), 8));
+  if (!candidates.length) candidates = matches(await discoverTracks(db, input.user.id, `${title} ${artist}`.trim(), 8, input.signal));
   if (!candidates.length) return { message: `没有找到能确认原唱身份的《${title}》，所以没有修改收藏或歌单。` };
   if (!requestedArtist) {
     const artists = new Set(candidates.map(track => normalize(track.artist)).filter(Boolean));
@@ -284,6 +287,7 @@ export class AgentRuntime {
   ) {}
 
   cancel(userId: string) { this.active.get(userId)?.abort(); this.active.delete(userId); }
+  dispose() { for (const controller of this.active.values()) controller.abort(); this.active.clear(); }
   providerStatus() { return { selectionMode: this.modelProviders.selectionMode(), providers: this.modelProviders.statuses() }; }
 
   private async resolveMusicIntent(
@@ -293,21 +297,23 @@ export class AgentRuntime {
     selectedProvider: ReturnType<AgentModelProviderRegistry['selected']>
   ) {
     if (process.env.AGENT_REFLECTION_SHADOW !== 'true' || !shouldRunMusicIntentShadow(input.message)) return null;
-    const result = await runMusicIntentShadowGraph(this.db, { message: input.message, legacyIntent }, async (message, subject, evidence): Promise<ShadowModelResult | null> => {
+    const timeout = deadline(boundedDuration(process.env.AGENT_REFLECTION_TIMEOUT_MS, 8000, 100, 60_000), input.signal, 'AGENT_REFLECTION_TIMEOUT');
+    try {
+    const result = await runMusicIntentShadowGraph(this.db, { message: input.message, legacyIntent, signal: timeout.signal }, async (message, subject, evidence): Promise<ShadowModelResult | null> => {
       if (!selectedProvider) return null;
       const model = selectedProvider.modelName('flash');
       const response = selectedProvider.stream({
         tier: 'flash',
-        system: `你是珍奇的影子语义审计器。你不回复用户，也不能调用播放器。你的唯一任务是调用 classify_music_intent。
+        system: `你是珍奇的音乐意图分类器。分类结果会经过程序校验后参与点歌分流；你不直接回复用户，也不能调用播放器。你的唯一任务是调用 classify_music_intent。
 区分歌曲名、歌手名、情境推荐和普通聊天。不要因为句子包含“来首”就把人名当歌名；也不要只凭常识覆盖给出的站内证据。
 如果证据同时支持歌手和歌名，或两者都不支持且文字没有明确“某人的歌”，必须选择 ambiguous。reasonCodes 只描述可核验特征，不输出思维链。`,
         messages: [{ role: 'user', content: JSON.stringify({ message, subject, evidence }) }],
         tools: reflectionTools,
-        toolChoice: 'required'
+        toolChoice: 'required', signal: timeout.signal
       });
       let proposal: Omit<ShadowModelResult, 'provider' | 'model' | 'inputTokens' | 'outputTokens'> | null = null;
       let inputTokens = 0; let outputTokens = 0;
-      for await (const part of response.fullStream) {
+      for await (const part of abortableStream(response.fullStream, timeout.signal)) {
         if (part.type === 'tool-call' && part.toolName === 'classify_music_intent' && !proposal) {
           const parsed = reflectionInputSchema.safeParse(part.input);
           if (parsed.success) proposal = {
@@ -321,6 +327,7 @@ export class AgentRuntime {
       if (!proposal) return null;
       return { ...proposal, provider: selectedProvider.id, model, inputTokens, outputTokens };
     });
+    timeout.signal.throwIfAborted();
     saveMusicIntentAudit(this.db, { runId, userId: input.user.id, result });
     if (selectedProvider && result.inputTokens + result.outputTokens > 0) {
       recordAgentUsage(this.db, {
@@ -330,10 +337,13 @@ export class AgentRuntime {
       });
     }
     return result;
+    } finally { timeout.dispose(); }
   }
 
   private async *executeTool(runId: string, input: AgentRunInput, call: AgentToolCall): AsyncGenerator<AgentStreamEvent, string> {
+    input.signal?.throwIfAborted();
     yield { type: 'tool_started', tool: call.toolName };
+    input.signal?.throwIfAborted();
     if (call.toolName === 'control_player') {
       const action = String(call.input.action) as 'pause' | 'resume' | 'next' | 'previous' | 'retry_current';
       const record = createToolAction(this.db, runId, input.user.id, call.toolName, 'direct', { action });
@@ -346,7 +356,7 @@ export class AgentRuntime {
       if (call.input.playMode) actions.push({ type: 'set_play_mode', mode: call.input.playMode as 'list' | 'loop' | 'shuffle' });
       if (call.input.theme) actions.push({ type: 'set_theme', theme: String(call.input.theme) });
       if (call.input.section) actions.push({ type: 'navigate', section: call.input.section as 'daily' | 'search' | 'player' | 'library' | 'agent' });
-      for (const action of actions) { const record = createToolAction(this.db, runId, input.user.id, call.toolName, 'direct', action); yield { type: 'client_action', actionId: record.id, action }; }
+      for (const action of actions) { input.signal?.throwIfAborted(); const record = createToolAction(this.db, runId, input.user.id, call.toolName, 'direct', action); yield { type: 'client_action', actionId: record.id, action }; }
       return actions.length ? '已经按你说的调好了，需要时可以撤销。' : '我没有收到可调整的设置。';
     }
     if (call.toolName === 'play_song') {
@@ -357,7 +367,7 @@ export class AgentRuntime {
       let selected = tracks.find(track => normalize(track.title) === titleKey && (!artistKey || normalize(track.artist).includes(artistKey)))
         || tracks.find(track => normalize(track.title).includes(titleKey) && (!artistKey || normalize(track.artist).includes(artistKey)));
       if (!selected) {
-        tracks = await discoverTracks(this.db, input.user.id, `${title} ${artist}`.trim(), 8);
+        tracks = await discoverTracks(this.db, input.user.id, `${title} ${artist}`.trim(), 8, input.signal);
         selected = tracks.find(track => normalize(track.title) === titleKey && (!artistKey || normalize(track.artist).includes(artistKey)))
           || tracks.find(track => normalize(track.title).includes(titleKey) && (!artistKey || normalize(track.artist).includes(artistKey)));
       }
@@ -368,11 +378,12 @@ export class AgentRuntime {
     }
     if (call.toolName === 'recommend_music') {
       const query = String(call.input.query || '').trim(); const count = Math.max(1, Math.min(8, Number(call.input.count) || 5));
-      const tracks = await discoverTracks(this.db, input.user.id, query, count);
+      const tracks = await discoverTracks(this.db, input.user.id, query, count, input.signal);
       if (!tracks.length) return '这次没找到能确认版本的歌，我宁可先不推荐错的。';
       const body = [call.input.mood, call.input.scene, call.input.era].filter(Boolean).join(' · ') || query;
       yield { type: 'reason_card', title: '此刻的临时队列', body, tracks };
       if (call.input.playFirst) {
+        input.signal?.throwIfAborted();
         const record = createToolAction(this.db, runId, input.user.id, call.toolName, 'direct', { trackId: tracks[0].id, query });
         yield { type: 'client_action', actionId: record.id, action: { type: 'play_track', track: tracks[0], queue: tracks, reason: body } };
       }
@@ -388,7 +399,7 @@ export class AgentRuntime {
     if (call.toolName === 'manage_music_library') {
       const operation = String(call.input.operation) as 'add_favorite' | 'remove_favorite' | 'add_to_playlist' | 'remove_from_playlist';
       const title = String(call.input.title || '').trim(); const artist = String(call.input.artist || '').trim();
-      const resolved = await resolveLibraryTrack(this.db, input, title, artist); if (!resolved.track) return resolved.message || '没有找到可确认的歌曲。';
+      const resolved = await resolveLibraryTrack(this.db, input, title, artist); input.signal?.throwIfAborted(); if (!resolved.track) return resolved.message || '没有找到可确认的歌曲。';
       const track = resolved.track; const playlistOperation = operation === 'add_to_playlist' || operation === 'remove_from_playlist';
       let playlist: { id: string; name: string } | undefined;
       if (playlistOperation) {
@@ -412,7 +423,8 @@ export class AgentRuntime {
     }
     if (call.toolName === 'draft_playlist') {
       const queries = Array.isArray(call.input.queries) ? call.input.queries.map(String).slice(0, 20) : [];
-      const discovered = await Promise.all(queries.map(query => discoverTracks(this.db, input.user.id, query, 3).catch(() => [])));
+      const discovered = await Promise.all(queries.map(query => discoverTracks(this.db, input.user.id, query, 3, input.signal).catch(() => [])));
+      input.signal?.throwIfAborted();
       const unique = new Map<string, Track>();
       for (const track of discovered.flat()) if (!unique.has(canonicalTrackKey(track.title, track.artist))) unique.set(canonicalTrackKey(track.title, track.artist), track);
       const tracks = [...unique.values()].slice(0, 50);
@@ -420,6 +432,7 @@ export class AgentRuntime {
       riskInput = { name: String(call.input.name || '珍奇的歌单'), description: String(call.input.description || ''), trackIds: tracks.map(track => track.id) };
       yield { type: 'reason_card', title: String(call.input.name || '歌单草案'), body: String(call.input.description || '确认后才会保存为普通歌单。'), tracks };
     }
+    input.signal?.throwIfAborted();
     const record = createToolAction(this.db, runId, input.user.id, call.toolName, 'confirm', riskInput);
     const summary = call.toolName === 'draft_playlist'
       ? `创建歌单草案“${String(call.input.name || '未命名')}”`
@@ -431,8 +444,15 @@ export class AgentRuntime {
   }
 
   async *run(input: AgentRunInput): AsyncGenerator<AgentStreamEvent> {
+    if (input.signal?.aborted) return;
     this.cancel(input.user.id); const controller = new AbortController(); this.active.set(input.user.id, controller);
-    input.signal?.addEventListener('abort', () => controller.abort(), { once: true });
+    input = { ...input, signal: input.signal ? AbortSignal.any([controller.signal, input.signal]) : controller.signal };
+    try { for await (const event of this.runSteps(input)) { if (input.signal?.aborted) return; yield event; } }
+    finally { controller.abort(); if (this.active.get(input.user.id) === controller) this.active.delete(input.user.id); }
+  }
+
+  private async *runSteps(input: AgentRunInput): AsyncGenerator<AgentStreamEvent> {
+    let completed = false;
     const settings = ensureAgentSettings(this.db, input.user.id); const budget = normalizeAgentBudget(Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150));
     const safety = inspectAgentInput(input.message);
     const cost = monthlyAgentCost(this.db); const selectedProvider = cost < budget ? this.modelProviders.selected() : null; const providerAvailable = Boolean(selectedProvider);
@@ -450,7 +470,8 @@ export class AgentRuntime {
       let explicitPlay = ambiguousPlay || artistRecommendation ? null : explicitPlayIntent(input.message);
       const quickRecommendation = quickRecommendationIntent(input.message, input.context.currentTrack);
       const legacyIntent: MusicIntentKind = ambiguousPlay ? 'ambiguous' : artistRecommendation ? 'play_artist' : explicitPlay ? 'play_song' : quickRecommendation ? 'recommend' : 'chat';
-      const reflected = safety.blocked ? null : await this.resolveMusicIntent(runId, input, legacyIntent, selectedProvider).catch(() => null);
+      const reflected = safety.blocked ? null : await this.resolveMusicIntent(runId, input, legacyIntent, selectedProvider).catch(() => { input.signal?.throwIfAborted(); return null; });
+      input.signal?.throwIfAborted();
       let reflectedRecommendation: ArtistRecommendationIntent | null = null;
       if (reflected && reflected.verdict !== 'skipped' && reflected.verdict !== 'failed') {
         ambiguousPlay = null; artistRecommendation = null; explicitPlay = null;
@@ -468,7 +489,7 @@ export class AgentRuntime {
         yield { type: 'text_delta', delta: assistantText };
       } else if (immediate) {
         const record = createToolAction(this.db, runId, input.user.id, 'control_player', 'direct', immediate);
-        yield { type: 'tool_started', tool: 'control_player' }; yield { type: 'client_action', actionId: record.id, action: immediate };
+        yield { type: 'tool_started', tool: 'control_player' }; input.signal?.throwIfAborted(); yield { type: 'client_action', actionId: record.id, action: immediate };
         assistantText = immediate.type === 'pause' ? '好，先暂停一下。' : immediate.type === 'resume' ? '好，继续播放。' : immediate.type === 'next' ? '切到下一首了。' : immediate.type === 'previous' ? '回到上一首了。' : '我让这首重新连接。';
         yield { type: 'text_delta', delta: assistantText };
       } else if (ambiguousPlay) {
@@ -504,7 +525,7 @@ export class AgentRuntime {
         updateAgentRun(this.db, runId, input.user.id, 'retrieving');
         let webContext: { answer: string; citations: Array<{ title: string; url: string }> } | null = null;
         if (input.webSearch && this.webSearchProvider.configured()) {
-          const searched = await this.webSearchProvider.search(input.message, controller.signal); webContext = { answer: searched.answer, citations: searched.citations };
+          const searched = await abortable(this.webSearchProvider.search(input.message, input.signal), input.signal); input.signal?.throwIfAborted(); webContext = { answer: searched.answer, citations: searched.citations };
           for (const citation of searched.citations) {
             const reference = { title: citation.title, url: citation.url, kind: 'web' as const, detail: '本条联网资料' }; responseCitations.push(reference); yield { type: 'citation', ...reference };
           }
@@ -519,6 +540,7 @@ export class AgentRuntime {
           });
         }
         const builtContext = await buildAgentContext(this.db, this.keyring, input, this.embeddingProvider, settings.memoryEnabled);
+        input.signal?.throwIfAborted();
         for (const item of builtContext.knowledge.slice(0, 4)) {
           const reference = { title: `${item.title}${item.artist ? ` — ${item.artist}` : ''}`, url: item.sourceUrl || undefined, kind: 'knowledge' as const, detail: '本地版本化策展知识' };
           if (responseCitations.some(current => current.kind === reference.kind && current.title === reference.title)) continue;
@@ -526,9 +548,9 @@ export class AgentRuntime {
         }
         const context = { ...builtContext, webSearch: webContext }; const history = listAgentMessages(this.db, this.keyring, input.user.id, input.conversationId, 40);
         updateAgentRun(this.db, runId, input.user.id, 'generating');
-        const result = selectedProvider!.stream({ tier: tier as 'flash' | 'plus', system: systemPrompt(settings, context), messages: providerMessages(history, userMessage.id), tools: agentTools, signal: controller.signal });
+        const result = selectedProvider!.stream({ tier: tier as 'flash' | 'plus', system: systemPrompt(settings, context), messages: providerMessages(history, userMessage.id), tools: agentTools, signal: input.signal });
         let toolCall: AgentToolCall | null = null; let rejectedToolCall = false; const outputGuard = new AgentOutputGuard();
-        for await (const part of result.fullStream) {
+        for await (const part of abortableStream(result.fullStream, input.signal)) {
           if (part.type === 'text-delta') for (const delta of outputGuard.push(part.text)) { assistantText += delta; yield { type: 'text_delta', delta }; }
           else if (part.type === 'tool-call' && !toolCall) {
             if (isAgentToolName(part.toolName)) toolCall = { toolName: part.toolName, input: part.input as Record<string, unknown> };
@@ -549,6 +571,7 @@ export class AgentRuntime {
         }
       }
       if (!assistantText.trim()) { assistantText = '我刚才没有组织好回答，但不会擅自操作你的数据。可以再说一次你想听什么。'; yield { type: 'text_delta', delta: assistantText }; }
+      input.signal?.throwIfAborted();
       updateAgentRun(this.db, runId, input.user.id, 'responding');
       const assistantMessage = saveAgentMessage(this.db, this.keyring, input.user.id, input.conversationId, 'assistant', assistantText, {
         model, provider: safety.blocked ? 'local-safety' : selectedProvider?.id || 'local', citations: responseCitations,
@@ -558,11 +581,12 @@ export class AgentRuntime {
       const estimatedCostCny = tier === 'local' ? 0 : selectedProvider!.estimateCostCny(model, inputTokens, outputTokens);
       if (tier !== 'local') recordAgentUsage(this.db, { userId: input.user.id, provider: selectedProvider!.id, model, inputTokens, outputTokens, estimatedCostCny });
       updateAgentRun(this.db, runId, input.user.id, 'completed');
+      completed = true;
       yield { type: 'usage', model, inputTokens, outputTokens, estimatedCostCny }; yield { type: 'done', runId, messageId: assistantMessage.id };
     } catch (error) {
-      const aborted = controller.signal.aborted; updateAgentRun(this.db, runId, input.user.id, aborted ? 'cancelled' : 'failed', aborted ? 'CANCELLED' : 'AGENT_PROVIDER_ERROR');
+      const aborted = input.signal?.aborted; updateAgentRun(this.db, runId, input.user.id, aborted ? 'cancelled' : 'failed', aborted ? 'CANCELLED' : 'AGENT_PROVIDER_ERROR');
       if (!aborted) yield { type: 'error', code: 'AGENT_UNAVAILABLE', message: '珍奇暂时无法连接，音乐播放和歌单不受影响。' };
-    } finally { if (this.active.get(input.user.id) === controller) this.active.delete(input.user.id); }
+    } finally { if (!completed && input.signal?.aborted) updateAgentRun(this.db, runId, input.user.id, 'cancelled', 'CANCELLED'); }
   }
 
   private rememberUserStatement(userId: string, sourceMessageId: string, message: string) {

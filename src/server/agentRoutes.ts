@@ -78,6 +78,7 @@ export function bindAgentStreamCancellation(
 export function registerAgentRoutes(app: FastifyInstance, db: Db) {
   const keyring = loadAgentKeyring(); const modelProviders = new AgentModelProviderRegistry(); const runtime = new AgentRuntime(db, keyring, modelProviders);
   const asrProvider = new BailianSpeechProvider(); const speechSynthesis = new AgentSpeechSynthesisRegistry(); const knowledgeEmbeddingProvider = new BailianEmbeddingProvider();
+  app.addHook('preClose', async () => { runtime.dispose(); await speechSynthesis.dispose(); });
   ensureClassicKnowledgeSeed(db);
 
   app.get('/api/agent/access', async (request, reply) => {
@@ -325,9 +326,16 @@ export function registerAgentRoutes(app: FastifyInstance, db: Db) {
     const budget = Number(process.env.AGENT_MONTHLY_BUDGET_CNY || 150); if (monthlyAgentCost(db) >= budget && !speechSynthesis.isLocal(voice)) return reply.code(503).send(apiError('AGENT_BUDGET_EXHAUSTED', '本月在线语音额度已暂停，本地 Kokoro 仍可使用。'));
     if (!speechSynthesis.available(voice)) return reply.code(503).send(apiError('AGENT_TTS_VOICE_UNAVAILABLE', '这个音色尚未配置，文字聊天和浏览器朗读仍可使用。', { voice }));
     const instructions = body.persona === 'bright' ? '轻快、有活力、带着真诚笑意，但不要夸张。' : body.persona === 'poetic' ? '语速舒缓、克制、有轻微画面感，不要矫饰。' : '自然、温暖、机灵，像熟悉的朋友一样表达。';
-    const controller = new AbortController(); request.raw.once('aborted', () => controller.abort());
-    try { const result = await speechSynthesis.synthesize({ text: body.text, voice, persona: body.persona, instructions, signal: controller.signal }); recordAgentUsage(db, { userId: user.id, provider: result.provider, model: result.model, ttsCharacters: body.text.length }); reply.header('content-type', result.contentType); reply.header('cache-control', 'private, no-store'); return reply.send(result.audio); }
-    catch { return reply.code(502).send(apiError('AGENT_TTS_FAILED', '语音回复暂时生成失败，可以继续阅读文字。')); }
+    const controller = new AbortController(); bindAgentStreamCancellation(request.raw, reply.raw, controller);
+    try {
+      const result = await speechSynthesis.synthesize({ text: body.text, voice, persona: body.persona, instructions, signal: controller.signal });
+      if (controller.signal.aborted) return reply;
+      recordAgentUsage(db, { userId: user.id, provider: result.provider, model: result.model, ttsCharacters: body.text.length });
+      reply.header('content-type', result.contentType); reply.header('cache-control', 'private, no-store');
+      reply.header('x-agent-voice-provider', result.provider);
+      reply.header('x-agent-voice-fallback', String(voice === 'gpt-sovits-zhenqi' && result.provider !== 'gpt-sovits-local'));
+      return reply.send(result.audio);
+    } catch { if (controller.signal.aborted) return reply; return reply.code(502).send(apiError('AGENT_TTS_FAILED', '语音回复暂时生成失败，可以继续阅读文字。')); }
   });
 
   app.post('/api/agent/invites/redeem', async (request, reply) => {

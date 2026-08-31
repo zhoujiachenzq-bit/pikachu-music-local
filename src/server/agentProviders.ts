@@ -2,6 +2,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { embed } from 'ai';
 import { AGENT_VOICE_PROFILES, agentVoiceProfile, kokoroVoiceIdForProfile, normalizeAgentVoiceId, type AgentVoiceOption, type AgentVoiceProfileId } from '../shared/agentVoices.js';
 import { GptSoVitsProvider, loadGptSoVitsConfig } from './gptSoVitsProvider.js';
+import { deadline } from '../shared/asyncControl.js';
 
 export interface AgentProviderConfig {
   apiKey: string | null;
@@ -47,7 +48,8 @@ export class BailianEmbeddingProvider implements EmbeddingProvider {
 }
 
 function timeoutSignal(timeoutMs: number, parent?: AbortSignal) {
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs); parent?.addEventListener('abort', () => controller.abort(), { once: true }); return { signal: controller.signal, clear: () => clearTimeout(timer) };
+  const timeout = deadline(timeoutMs, parent);
+  return { signal: timeout.signal, clear: timeout.dispose };
 }
 
 async function providerJson(response: Response) {
@@ -299,6 +301,7 @@ export class AgentSpeechSynthesisRegistry {
     }
   }
   available(id: unknown) { const normalized = normalizeAgentVoiceId(id); return this.voiceTarget(normalized) !== null; }
+  dispose() { return this.gptSoVits.dispose(); }
   isLocal(id: unknown) { const voice = normalizeAgentVoiceId(id); return (voice === 'gpt-sovits-zhenqi' && this.gptSoVits.configured()) || (Boolean(kokoroVoiceIdForProfile(voice)) && this.kokoro.configured()); }
   profile(id: unknown) { return agentVoiceProfile(id); }
 }

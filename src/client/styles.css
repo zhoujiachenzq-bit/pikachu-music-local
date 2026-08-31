@@ -258,7 +258,15 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .agent-choice-card > small { color: var(--brand); font-size: 7px; font-weight: 750; letter-spacing: .18em; }.agent-choice-card h3 { margin: 7px 0 11px; color: var(--text-strong); font-size: 16px; letter-spacing: -.03em; }.agent-choice-card > div { display: grid; gap: 7px; }.agent-choice-card button { min-width: 0; padding: 11px 12px; display: grid; grid-template-columns: minmax(0,1fr) 18px; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: color-mix(in srgb, var(--surface-2), transparent 10%); cursor: pointer; text-align: left; transition: border-color .18s ease, background .18s ease, transform .18s ease; }.agent-choice-card button span, .agent-choice-card button strong, .agent-choice-card button small { min-width: 0; display: block; }.agent-choice-card button strong { font-size: 10px; }.agent-choice-card button small { margin-top: 3px; color: var(--muted); font-size: 7px; }.agent-choice-card button .ui-icon { color: var(--quiet); }.agent-choice-card button:hover, .agent-choice-card button:focus-visible { border-color: color-mix(in srgb, var(--brand), transparent 45%); background: var(--hover-bg); transform: translateX(2px); }.agent-choice-card button:hover .ui-icon, .agent-choice-card button:focus-visible .ui-icon { color: var(--brand); }
 .agent-composer { padding: 10px 12px 12px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--surface-0), transparent 5%); transition: border-color .18s ease, box-shadow .18s ease; }
 .agent-composer textarea { width: 100%; min-height: 58px; max-height: 130px; padding: 8px 10px; resize: none; border: 0; outline: 0; color: var(--text-strong); background: transparent; font-size: 10px; line-height: 1.5; }
-.agent-composer > div:last-child { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 7px; }.agent-composer > div:last-child > button:first-child { padding: 6px 8px; display: flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); background: var(--control-bg); cursor: pointer; font-size: 8px; }.agent-composer > div:last-child > button:first-child.active { color: var(--brand); border-color: var(--line-strong); }.agent-mic { width: 29px; height: 29px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--control-bg); cursor: pointer; }.agent-mic.recording { color: #fff; border-color: var(--danger); background: var(--danger); animation: agent-recording 1s ease-in-out infinite alternate; }.agent-composer > div:last-child > small { color: var(--quiet); font-size: 7px; letter-spacing: .1em; text-align: right; }.agent-send { width: 37px; height: 37px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--brand-ink); background: var(--brand); cursor: pointer; box-shadow: 0 8px 22px color-mix(in srgb, var(--brand), transparent 78%); }
+/* Keep toolbar layout independent of extra status or browser-inserted siblings. */
+.agent-composer .agent-composer-toolbar { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 7px; }
+.agent-composer .agent-web-toggle { padding: 6px 8px; display: flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); background: var(--control-bg); cursor: pointer; font-size: 8px; }
+.agent-composer .agent-web-toggle.active { color: var(--brand); border-color: var(--line-strong); }
+.agent-mic { width: 29px; height: 29px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--control-bg); cursor: pointer; }.agent-mic.recording { color: #fff; border-color: var(--danger); background: var(--danger); animation: agent-recording 1s ease-in-out infinite alternate; }
+.agent-composer .agent-composer-hint, .agent-composer .agent-speech-status { min-width: 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.agent-composer .agent-composer-hint { text-align: right; }.agent-composer .agent-speech-status { display: block; margin: 0 0 6px; }
+.agent-composer textarea::placeholder { color: var(--muted); opacity: 1; }
+.agent-send { width: 37px; height: 37px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--brand-ink); background: var(--brand); cursor: pointer; box-shadow: 0 8px 22px color-mix(in srgb, var(--brand), transparent 78%); }
 @keyframes agent-recording { to { transform: scale(.9); opacity: .72; } }
 .agent-error { margin-bottom: 6px; padding: 6px 8px; display: flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--danger), transparent 65%); border-radius: 9px; color: var(--danger); background: color-mix(in srgb, var(--danger), transparent 94%); font-size: 8px; }.agent-error.standalone { margin: auto 18px 18px; }
 
@@ -933,7 +941,14 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
 
 /* Warm Paper keeps the active player as a dark media island. */
 .app-shell[data-tone='paper'] .topbar, .app-shell[data-tone='paper'] .search-panel, .app-shell[data-tone='paper'] .playlist-panel, .app-shell[data-tone='paper'] .player-panel.stage-mode-daily { box-shadow: 8px 8px 0 #17130d; }
-.app-shell[data-tone='paper'] .workspace > section.player-panel.stage-mode-player { --text: #f4f3ee; --text-strong: #fbfaf5; --muted: #9699a6; --quiet: #666b79; --line: rgba(255,255,255,.105); --line-strong: rgba(255,216,77,.28); --control-bg: rgba(27,31,43,.78); color: var(--text); border-color: #17130d; background: linear-gradient(145deg, color-mix(in srgb, var(--artwork-accent), #11151f 82%), rgba(6,8,14,.98)); box-shadow: 8px 8px 0 #17130d, inset 0 0 90px color-mix(in srgb, var(--artwork-accent), transparent 88%); }
+.app-shell[data-tone='paper'] .workspace > section.player-panel.stage-mode-player {
+  /* The player and companion share a dark stage, including their input surfaces. */
+  --text: #f4f3ee; --text-strong: #fbfaf5; --muted: #9699a6; --quiet: #666b79;
+  --surface-0: #05070d; --surface-1: rgba(10,13,21,.95); --surface-2: rgba(17,21,32,.9); --surface-3: rgba(31,36,50,.76);
+  --panel-a: rgba(16,20,30,.9); --panel-b: rgba(6,8,14,.95); --input-bg: rgba(7,10,16,.86);
+  --line: rgba(255,255,255,.105); --line-strong: rgba(255,216,77,.28); --control-bg: rgba(27,31,43,.78); --danger: #ff7189;
+  color: var(--text); border-color: #17130d; background: linear-gradient(145deg, color-mix(in srgb, var(--artwork-accent), #11151f 82%), rgba(6,8,14,.98)); box-shadow: 8px 8px 0 #17130d, inset 0 0 90px color-mix(in srgb, var(--artwork-accent), transparent 88%);
+}
 .app-shell[data-tone='paper'] .daily-editorial { border-color: #17130d; background: linear-gradient(108deg, #f24b2a 0 34%, #ffd84d 34% 36%, rgba(255,248,229,.94) 36%); }
 .app-shell[data-tone='paper'] .daily-spotlight-card { background: rgba(255,252,245,.66); }
 .app-shell[data-tone='paper'] .daily-copy p, .app-shell[data-tone='paper'] .spotlight-copy small, .app-shell[data-tone='paper'] .playlist-toolbar strong, .app-shell[data-tone='paper'] .track-copy small { color: var(--muted); }
@@ -970,4 +985,44 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
   .app-shell[data-tone='paper'] .topbar, .app-shell[data-tone='paper'] .search-panel, .app-shell[data-tone='paper'] .playlist-panel, .app-shell[data-tone='paper'] .player-panel { box-shadow: 4px 4px 0 #17130d; }
   .app-shell[data-tone='paper']::before { width: 88vw; right: -30%; bottom: -8%; }
   .app-shell[data-tone='paper']::after { left: 48%; width: 17vw; }
+}
+
+/* Settings use readable UI typography rather than the stage's display lettering. */
+.agent-settings {
+  --quiet: var(--muted);
+  font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.agent-panel .agent-settings .agent-settings-header h2 { font-size: clamp(24px, 2.3vw, 32px); font-weight: 650; line-height: 1.3; letter-spacing: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.agent-settings .agent-settings-header small { font-family: 'Space Grotesk Variable', sans-serif; font-size: 10px; letter-spacing: .12em; }
+.agent-settings .agent-settings-header p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.agent-settings .agent-settings-section > header strong { font-size: 16px; font-weight: 650; letter-spacing: 0; }
+.agent-settings .agent-settings-section > header > span { font-family: 'Space Grotesk Variable', sans-serif; font-size: 11px; }
+.agent-settings .agent-settings-section > header small,
+.agent-settings .agent-name-field > small,
+.agent-settings .agent-persona-grid small,
+.agent-settings .agent-switch-copy small,
+.agent-settings .agent-voice-setting small,
+.agent-settings .agent-system-voice small,
+.agent-settings .agent-data-actions small { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.agent-settings .agent-name-field > span,
+.agent-settings .agent-voice-setting > span,
+.agent-settings .agent-voice-preview label span { color: var(--muted); font-size: 12px; letter-spacing: 0; }
+.agent-settings .agent-name-field input, .agent-settings select { height: 42px; font-size: 14px; }
+.agent-settings .agent-persona-grid strong,
+.agent-settings .agent-switch-copy strong,
+.agent-settings .agent-system-voice strong,
+.agent-settings .agent-data-actions strong { font-size: 14px; font-weight: 600; line-height: 1.5; }
+.agent-settings .agent-persona-grid button { grid-template-columns: 18px minmax(0, 1fr); gap: 4px 6px; }
+.agent-settings .agent-voice-ready { font-size: 11px; }
+.agent-settings .agent-voice-preview button, .agent-settings .agent-system-voice button { font-size: 12px; }
+.agent-settings .agent-data-actions small { white-space: normal; overflow: visible; }
+/* The paper settings sheet has its own complete palette, independent of the dark player. */
+.app-shell[data-tone='paper'] .agent-settings {
+  --text: #292219; --text-strong: #17130d; --muted: #62584b; --quiet: #62584b;
+  --surface-0: #f0e4c8; --surface-1: #fff6df; --surface-2: #f4e0b8;
+  --input-bg: #fffbef; --control-bg: #fffbef;
+  --line: rgba(41,34,25,.2); --line-strong: rgba(41,34,25,.5); --hover-bg: rgba(155,56,31,.07);
+  --brand: #9b381f; --brand-bright: #b4482b; --brand-ink: #fffaf0; --danger: #b42336;
 }

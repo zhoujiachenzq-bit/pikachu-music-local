@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import type { Db } from './db.js';
+import { abortable } from '../shared/asyncControl.js';
 
 export type MusicIntentKind = 'play_song' | 'play_artist' | 'recommend' | 'chat' | 'ambiguous';
 export type ReflectionVerdict = 'pass' | 'revise' | 'ask_user' | 'skipped' | 'failed';
@@ -102,19 +103,22 @@ const ShadowState = Annotation.Root({
   outputTokens: Annotation<number>()
 });
 
-export function createMusicIntentShadowGraph(db: Db, analyze: (message: string, subject: string, evidence: MusicIntentEvidence) => Promise<ShadowModelResult | null>) {
+export function createMusicIntentShadowGraph(db: Db, analyze: (message: string, subject: string, evidence: MusicIntentEvidence) => Promise<ShadowModelResult | null>, signal?: AbortSignal) {
   const graph = new StateGraph(ShadowState)
     .addNode('local_parse', state => {
+      signal?.throwIfAborted();
       const subject = extractPlaySubject(state.message);
       return subject ? { subject: subject.candidate, explicitArtist: subject.explicitArtist } : { verdict: 'skipped' as const, reasonCodes: ['NOT_A_PLAY_SUBJECT'] };
     })
     .addNode('gather_evidence', state => {
+      signal?.throwIfAborted();
       if (!state.subject) return {};
       return { evidence: exactEvidence(db, { candidate: state.subject, explicitArtist: state.explicitArtist }) };
     })
     .addNode('semantic_parse', async state => {
+      signal?.throwIfAborted();
       if (!state.subject) return {};
-      const proposal = await analyze(state.message, state.subject, state.evidence).catch(() => null);
+      const proposal = await abortable(analyze(state.message, state.subject, state.evidence), signal).catch(() => { signal?.throwIfAborted(); return null; });
       if (!proposal) return { proposedIntent: state.legacyIntent, reasonCodes: ['MODEL_PARSE_UNAVAILABLE'] };
       return {
         proposal,
@@ -128,6 +132,7 @@ export function createMusicIntentShadowGraph(db: Db, analyze: (message: string, 
       };
     })
     .addNode('critic', state => {
+      signal?.throwIfAborted();
       if (!state.subject) return { finalIntent: state.legacyIntent, verdict: 'skipped' as const };
       const expected = expectedIntentFromEvidence(state.evidence);
       const reasons = [...state.reasonCodes];
@@ -167,11 +172,12 @@ export function createMusicIntentShadowGraph(db: Db, analyze: (message: string, 
 
 export async function runMusicIntentShadowGraph(
   db: Db,
-  input: { message: string; legacyIntent: MusicIntentKind },
+  input: { message: string; legacyIntent: MusicIntentKind; signal?: AbortSignal },
   analyze: (message: string, subject: string, evidence: MusicIntentEvidence) => Promise<ShadowModelResult | null>
 ): Promise<MusicIntentShadowResult> {
   const started = Date.now();
-  const output = await createMusicIntentShadowGraph(db, analyze).invoke({
+  input.signal?.throwIfAborted();
+  const output = await abortable(createMusicIntentShadowGraph(db, analyze, input.signal).invoke({
     message: input.message,
     legacyIntent: input.legacyIntent,
     subject: '',
@@ -187,7 +193,7 @@ export async function runMusicIntentShadowGraph(
     model: 'local',
     inputTokens: 0,
     outputTokens: 0
-  });
+  }, { signal: input.signal }), input.signal);
   return {
     subject: output.subject,
     proposalSubject: output.proposal?.subject,

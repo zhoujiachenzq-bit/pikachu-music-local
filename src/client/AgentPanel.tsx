@@ -4,6 +4,8 @@ import { streamAgentMessage } from './agentStream';
 import { decryptAgentArchive, encryptAgentArchive, type EncryptedAgentArchive } from './agentArchiveCrypto';
 import { Icon } from './ui';
 import { AgentAdminPanel } from './AgentAdminPanel';
+import { AgentSpeechPlayback, type SpeechState } from './agentSpeech';
+import { shouldSubmitAgentInput } from './agentInput';
 import type { AgentAccess, AgentClientAction, AgentClientActionResult, AgentClientContext, AgentConversation, AgentMemory, AgentMessage, AgentSettings, AgentStreamEvent, AgentVoiceOption, Track } from '../shared/types';
 
 interface ReasonCard { id: string; title: string; body: string; tracks: Track[]; kind: 'recommendation' | 'safety' | 'diagnostic'; }
@@ -69,6 +71,8 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [webSearch, setWebSearch] = useState(false); const [reasonCards, setReasonCards] = useState<ReasonCard[]>([]); const [intentChoices, setIntentChoices] = useState<IntentChoice[]>([]); const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [actionReceipts, setActionReceipts] = useState<ActionReceipt[]>([]);
   const [recording, setRecording] = useState(false); const [transcribing, setTranscribing] = useState(false); const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [speechPhase, setSpeechPhase] = useState<SpeechState['phase']>('idle');
+  const composing = useRef(false);
   const [inviteCode, setInviteCode] = useState(''); const [error, setError] = useState(''); const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false); const [memories, setMemories] = useState<AgentMemory[]>([]);
   const [memoryFilter, setMemoryFilter] = useState<MemoryFilter>('all');
@@ -78,7 +82,13 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   const [adminOpen, setAdminOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(() => window.localStorage.getItem(introKey(userId)) !== 'seen');
   const generation = useRef(0); const streamController = useRef<AbortController | null>(null); const scroller = useRef<HTMLDivElement>(null);
-  const streamText = useRef(''); const recorder = useRef<MediaRecorder | null>(null); const recorderStream = useRef<MediaStream | null>(null); const recorderChunks = useRef<Blob[]>([]); const recordingStartedAt = useRef(0); const recordingTimer = useRef<number | null>(null); const speechAudio = useRef<HTMLAudioElement | null>(null); const receiptTimers = useRef(new Map<string, number>());
+  const streamText = useRef(''); const recorder = useRef<MediaRecorder | null>(null); const recorderStream = useRef<MediaStream | null>(null); const recorderChunks = useRef<Blob[]>([]); const recordingStartedAt = useRef(0); const recordingTimer = useRef<number | null>(null); const receiptTimers = useRef(new Map<string, number>());
+  const speechCallbacks = useRef({ onSpeechState }); speechCallbacks.current = { onSpeechState };
+  const speechPlayback = useRef<AgentSpeechPlayback | null>(null);
+  if (!speechPlayback.current) speechPlayback.current = new AgentSpeechPlayback({
+    onState: state => { setSpeakingMessageId(state.messageId); setSpeechPhase(state.phase); speechCallbacks.current.onSpeechState?.(state.phase === 'speaking'); },
+    onNotice: setError
+  });
 
   const load = useCallback(async () => {
     setError('');
@@ -93,10 +103,9 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   useEffect(() => { if (open) void load(); }, [open, userId]);
   useEffect(() => { if (open && initialPrompt) setInput(value => value || initialPrompt); }, [initialPrompt, open]);
   useEffect(() => { requestAnimationFrame(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }); }, [messages, reasonCards, intentChoices, streaming]);
-  const stopSpeech = useCallback(() => {
-    if (speechAudio.current) { speechAudio.current.pause(); if (speechAudio.current.src.startsWith('blob:')) URL.revokeObjectURL(speechAudio.current.src); speechAudio.current = null; }
-    window.speechSynthesis?.cancel(); setSpeakingMessageId(null); onSpeechState?.(false);
-  }, [onSpeechState]);
+  const stopSpeech = useCallback(() => speechPlayback.current?.stop(), []);
+  useEffect(() => { composing.current = false; stopSpeech(); return stopSpeech; }, [userId, stopSpeech]);
+  useEffect(() => { if (!open) stopSpeech(); }, [open, stopSpeech]);
   const availableVoices = voices.filter(voice => voice.available);
   const selectedVoice = availableVoices.find(voice => voice.id === settings?.voice) || availableVoices[0];
   useEffect(() => () => { streamController.current?.abort(); if (recordingTimer.current !== null) window.clearTimeout(recordingTimer.current); receiptTimers.current.forEach(timer => window.clearTimeout(timer)); receiptTimers.current.clear(); recorder.current?.stop(); recorderStream.current?.getTracks().forEach(track => track.stop()); stopSpeech(); }, [stopSpeech]);
@@ -127,20 +136,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   };
 
   const readText = async (text: string, messageId: string) => {
-    const clean = text.trim(); if (!clean) return; if (speakingMessageId === messageId) { stopSpeech(); return; }
-    stopSpeech(); setSpeakingMessageId(messageId); onSpeechState?.(true);
-    const fallback = () => {
-      if (messageId === 'voice-preview') { setError(zh ? '这个音色尚未配置或暂时无法试听。' : 'This voice is not configured or cannot be previewed right now.'); stopSpeech(); return; }
-      if (!('speechSynthesis' in window)) { setError('当前浏览器不能朗读这段文字。'); stopSpeech(); return; }
-      const utterance = new SpeechSynthesisUtterance(clean); utterance.lang = zh ? 'zh-CN' : 'en-US'; utterance.rate = settings?.persona === 'bright' ? 1.06 : settings?.persona === 'poetic' ? .93 : 1;
-      utterance.onend = stopSpeech; utterance.onerror = stopSpeech; window.speechSynthesis.speak(utterance);
-    };
-    try {
-      if (!selectedVoice) { fallback(); return; }
-      const response = await fetch('/api/agent/voice/synthesize', json('POST', { text: clean.slice(0, 1500), voice: selectedVoice.id, persona: settings?.persona || 'warm' }));
-      if (!response.ok) { fallback(); return; }
-      const url = URL.createObjectURL(await response.blob()); const audioElement = new Audio(url); speechAudio.current = audioElement; audioElement.onended = stopSpeech; audioElement.onerror = fallback; await audioElement.play();
-    } catch { fallback(); }
+    await speechPlayback.current?.read({ text, messageId, voiceId: selectedVoice?.id, persona: settings?.persona || 'warm', lang });
   };
 
   const handleEvent = async (event: AgentStreamEvent, draftId: string, activeGeneration: number) => {
@@ -162,7 +158,7 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
   };
 
   const send = async (event?: FormEvent, preset?: string) => {
-    event?.preventDefault(); const text = (preset ?? input).trim(); if (!text || !conversation) return;
+    event?.preventDefault(); if (composing.current && preset === undefined) return; const text = (preset ?? input).trim(); if (!text || !conversation) return;
     setIntentChoices([]);
     const activeGeneration = ++generation.current; streamController.current?.abort(); const controller = new AbortController(); streamController.current = controller;
     const stamp = new Date().toISOString(); const userDraft: AgentMessage = { id: `local-user-${activeGeneration}`, conversationId: conversation.id, role: 'user', content: text, createdAt: stamp };
@@ -348,8 +344,14 @@ export function AgentPanel({ userId, lang, open, mobile, context, initialPrompt,
       </div>
       <form className="agent-composer" onSubmit={event => void send(event)}>
         {error && <div className="agent-error"><Icon name="warning" size={14}/>{error}</div>}
-        <textarea rows={2} value={input} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={zh ? '给珍奇发消息' : 'Message Zhenqi'}/>
-        <div><button type="button" className={webSearch ? 'active' : ''} title={zh ? '仅下一条消息联网' : 'Web for next message only'} onClick={() => setWebSearch(value => !value)}><Icon name="globe" size={16}/><span>{webSearch ? (zh ? '本条联网' : 'Web on') : (zh ? '联网' : 'Web')}</span></button><button type="button" className={`agent-mic ${recording ? 'recording' : ''}`} disabled={transcribing} title={recording ? (zh ? '结束录音' : 'Stop recording') : (zh ? '语音输入，最长 60 秒' : 'Voice input, up to 60s')} onClick={() => void toggleRecording()}><Icon name="microphone" size={15}/></button><small>{recording ? (zh ? '正在录音…' : 'Recording…') : transcribing ? (zh ? '正在转写…' : 'Transcribing…') : streaming ? (zh ? '珍奇正在组织回应…' : 'Zhenqi is responding…') : zh ? 'Enter 发送 · Shift+Enter 换行' : 'Enter to send · Shift+Enter for new line'}</small><button className="agent-send" disabled={!input.trim()} aria-label={zh ? '发送' : 'Send'}><Icon name="send" size={17}/></button></div>
+        <textarea rows={2} value={input} onChange={event => setInput(event.target.value)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => { if (shouldSubmitAgentInput({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.nativeEvent.keyCode }, composing.current)) { event.preventDefault(); void send(); } }} placeholder={zh ? '给珍奇发消息' : 'Message Zhenqi'}/>
+        {speakingMessageId && <small className="agent-speech-status" role="status">{speechPhase === 'generating' ? (zh ? '语音生成中，可点击当前朗读按钮停止。' : 'Generating speech. Click the active read button to stop.') : (zh ? '正在朗读，可点击当前朗读按钮停止。' : 'Speaking. Click the active read button to stop.')}</small>}
+        <div className="agent-composer-toolbar">
+          <button type="button" className={`agent-web-toggle${webSearch ? ' active' : ''}`} aria-pressed={webSearch} title={zh ? '仅下一条消息联网' : 'Web for next message only'} onClick={() => setWebSearch(value => !value)}><Icon name="globe" size={16}/><span>{webSearch ? (zh ? '本条联网' : 'Web on') : (zh ? '联网' : 'Web')}</span></button>
+          <button type="button" className={`agent-mic ${recording ? 'recording' : ''}`} disabled={transcribing} title={recording ? (zh ? '结束录音' : 'Stop recording') : (zh ? '语音输入，最长 60 秒' : 'Voice input, up to 60s')} onClick={() => void toggleRecording()}><Icon name="microphone" size={15}/></button>
+          <small className="agent-composer-hint">{recording ? (zh ? '正在录音…' : 'Recording…') : transcribing ? (zh ? '正在转写…' : 'Transcribing…') : streaming ? (zh ? '珍奇正在组织回应…' : 'Zhenqi is responding…') : zh ? 'Enter 发送 · Shift+Enter 换行' : 'Enter to send · Shift+Enter for new line'}</small>
+          <button className="agent-send" disabled={!input.trim()} aria-label={zh ? '发送' : 'Send'}><Icon name="send" size={17}/></button>
+        </div>
       </form>
     </>}
     {!introOpen && error && (!access?.entitled || !access?.configured) && <div className="agent-error standalone"><Icon name="warning" size={14}/>{error}</div>}

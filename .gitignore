@@ -9,4 +9,5 @@ __pycache__/
 .env
 .env.*
 !.env.example
+PROJECT_HANDOFF.local.md
 .DS_Store

@@ -6,3 +6,4 @@ data
 coverage
 *.log
 .env*
+PROJECT_HANDOFF.local.md
