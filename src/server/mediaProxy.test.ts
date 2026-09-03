@@ -31,4 +31,18 @@ describe('same-origin compatibility media tickets', () => {
     await expect(openMediaTicket(ticket, undefined, async () => new Response('<html/>', { headers: { 'content-type': 'text/html' } }))).rejects.toThrow('Invalid media response');
     expect(safeRangeHeader('bytes=0-99')).toBe('bytes=0-99'); expect(safeRangeHeader('bytes=0-1,5-8')).toBeUndefined();
   });
+
+  it('revalidates every media redirect before the server follows it', async () => {
+    const ticket = { token: 'x'.repeat(32), userId: 'u', source: 'qq' as const, url: track.audioUrl, expiresAt: Date.now() + 1000 };
+    const allowed = vi.fn(async (input: string | URL) => String(input).includes('redirect')
+      ? new Response('audio', { status: 200, headers: { 'content-type': 'audio/mp4' } })
+      : new Response(null, { status: 302, headers: { location: 'https://dl.stream.qqmusic.qq.com/redirect.m4a' } }));
+    await expect(openMediaTicket(ticket, undefined, allowed)).resolves.toMatchObject({ status: 200 });
+    expect(allowed).toHaveBeenCalledTimes(2);
+    expect(allowed.mock.calls[0][1]?.redirect).toBe('manual');
+
+    const internalRedirect = vi.fn(async () => new Response(null, { status: 302, headers: { location: 'http://127.0.0.1:3000/api/health' } }));
+    await expect(openMediaTicket(ticket, undefined, internalRedirect)).rejects.toThrow('Unsafe media redirect');
+    expect(internalRedirect).toHaveBeenCalledTimes(1);
+  });
 });

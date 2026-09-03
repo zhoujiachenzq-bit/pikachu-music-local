@@ -73,12 +73,25 @@ export async function openMediaTicket(ticket: MediaTicket, range: string | undef
   if (ticket.source === 'qq') headers.referer = 'https://y.qq.com/';
   if (ticket.source === 'migu') headers.referer = 'https://music.migu.cn/';
   try {
-    const response = await fetcher(ticket.url, { headers, signal: controller.signal, redirect: 'follow' });
-    const type = response.headers.get('content-type') || '';
-    if (![200, 206].includes(response.status) || !response.body || type && !/^(audio\/|application\/octet-stream)/i.test(type)) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new Error(`Invalid media response: ${response.status} ${type || 'unknown content type'}`);
+    let url = ticket.url;
+    for (let redirects = 0; redirects <= 4; redirects += 1) {
+      const response = await fetcher(url, { headers, signal: controller.signal, redirect: 'manual' });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        await response.body?.cancel().catch(() => undefined);
+        const next = location ? allowedMediaUrl(new URL(location, url).toString(), ticket.source) : null;
+        if (!next) throw new Error('Unsafe media redirect');
+        if (redirects === 4) throw new Error('Too many media redirects');
+        url = next;
+        continue;
+      }
+      const type = response.headers.get('content-type') || '';
+      if (![200, 206].includes(response.status) || !response.body || type && !/^(audio\/|application\/octet-stream)/i.test(type)) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new Error(`Invalid media response: ${response.status} ${type || 'unknown content type'}`);
+      }
+      return response;
     }
-    return response;
+    throw new Error('Too many media redirects');
   } finally { clearTimeout(timer); }
 }

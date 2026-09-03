@@ -710,7 +710,18 @@ export default function App() {
     onProactivePreferenceChange={enabled => { if (!enabled) setAgentPrompt(null); }}
   />;
   return <div className={`app-shell mobile-section-${mobileSection} ${showMobileMini ? 'has-mobile-mini' : ''} ${previewTone ? 'tone-previewing' : ''} ${visualPreferences.motionEnabled ? 'motion-on' : 'motion-off'}`} data-tone={activeTone} style={{ '--track-accent': visualPalette.secondary, '--track-glow': visualPalette.glow, '--artwork-accent': artworkAccent || visualPalette.secondary, '--scene-theme-accent': TONE_THEMES[activeTone].sceneAccent, '--scene-theme-glow': TONE_THEMES[activeTone].sceneGlow } as React.CSSProperties}>
-    <div className="particle-field" aria-hidden="true">{Array.from({ length: 26 }, (_, i) => <i key={i} style={{ '--x': `${(i * 37) % 100}%`, '--y': `${(i * 61) % 100}%`, '--d': `${5 + (i % 7)}s`, '--s': `${2 + (i % 4)}px` } as React.CSSProperties}/>)}</div>
+    <div className="particle-field" aria-hidden="true">{Array.from({ length: 44 }, (_, i) => {
+      const edgeX = ((i * 7) % 23) / 10;
+      return <i key={i} style={{
+        '--x': `${i % 2 ? 100 - edgeX : edgeX}%`,
+        '--y': `${(i * 43) % 97}%`,
+        '--d': `${6 + (i % 8) * .7}s`,
+        '--delay': `${-(i % 11) * .8}s`,
+        '--s': `${1.5 + (i % 4) * .75}px`,
+        '--drift-x': `${i % 2 ? -8 - (i % 5) * 2 : 8 + (i % 5) * 2}px`,
+        '--drift-y': `${-14 - (i % 6) * 4}px`,
+      } as React.CSSProperties}/>;
+    })}</div>
     {!serviceOnline && <div className="service-notice app-service-notice" role="alert"><Icon name="warning"/><div><strong>音乐服务连接已中断</strong><small>当前页面可能来自缓存，播放与数据操作会在服务恢复后继续。</small></div><button type="button" onClick={() => void retryService()}>重新连接</button></div>}
     <header className="topbar panel">
       <div className="brand"><div className="logo-ring"><img src="/pikachu.gif" alt="Pikachu"/></div><div><span className="brand-kicker">PIKACHU MUSIC</span><h1>{lang === 'zh' ? `${user.username}的音乐小屋` : `${user.username}'s Music Cottage`}</h1></div></div>

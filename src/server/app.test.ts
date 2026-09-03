@@ -44,6 +44,15 @@ describe('local API integration', () => {
     expect((await app.inject({ method: 'GET', url: '/api/favorites', headers: { cookie } })).statusCode).toBe(401);
   });
 
+  it('rejects oversized password verification work before scrypt runs', async () => {
+    db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
+    const registered = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'BoundedPassword', password: 'Pikachu-2026' } });
+    const cookie = registered.headers['set-cookie']!.split(';')[0];
+    const changed = await app.inject({ method: 'PATCH', url: '/api/auth/password', headers: { cookie }, payload: { currentPassword: 'x'.repeat(100_000), newPassword: 'Raichu-2026' } });
+    const deleted = await app.inject({ method: 'DELETE', url: '/api/auth/account', headers: { cookie }, payload: { password: 'x'.repeat(100_000) } });
+    expect(changed.statusCode).toBe(400); expect(deleted.statusCode).toBe(400);
+  });
+
   it('accepts public same-origin writes and rejects cross-origin writes', async () => {
     db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
     const accepted = await app.inject({
@@ -96,6 +105,9 @@ describe('local API integration', () => {
     expect(health.headers['x-frame-options']).toBe('DENY');
     expect(health.headers['content-security-policy']).toContain("frame-ancestors 'none'");
     expect(health.headers['cache-control']).toBe('no-store');
+    const trace = await app.inject({ method: 'TRACE', url: '/', headers: { 'x-audit-marker': 'must-not-echo' } });
+    expect(trace.statusCode).toBe(405);
+    expect(trace.body).not.toContain('must-not-echo');
   });
 
   it('protects compatibility media relay tickets by account and forwards Range', async () => {

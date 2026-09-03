@@ -151,6 +151,9 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.addHook('onRequest', async (request, reply) => {
     securityHeaders(reply, process.env.NODE_ENV === 'production');
     if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
+    if (['TRACE', 'CONNECT'].includes(request.method)) {
+      return reply.code(405).send(apiError('METHOD_NOT_ALLOWED', '不支持该请求方法。'));
+    }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !safeOrigin(request.headers.origin, request.headers.host)) {
       return reply.code(403).send(apiError('ORIGIN_REJECTED', '只接受来自同源页面的写入请求。'));
     }
@@ -211,7 +214,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.post('/api/auth/logout', async (request, reply) => { revokeToken(db, request.cookies[SESSION_COOKIE]); clearSessionCookie(reply); return { ok: true }; });
   app.patch('/api/auth/password', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
-    const body = z.object({ currentPassword: z.string(), newPassword: z.string().min(8).max(72) }).parse(request.body);
+    const body = z.object({ currentPassword: z.string().max(72), newPassword: z.string().min(8).max(72) }).parse(request.body);
     const row = db.prepare('SELECT password_hash,password_salt FROM users WHERE id=?').get(user.id) as Record<string, unknown>;
     if (!(await verifyPassword(body.currentPassword, String(row.password_salt), String(row.password_hash)))) return reply.code(401).send(apiError('INVALID_PASSWORD', '当前密码不正确。'));
     const { salt, hash } = await hashPassword(body.newPassword);
@@ -227,7 +230,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   });
   app.delete('/api/auth/account', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
-    const body = z.object({ password: z.string() }).parse(request.body);
+    const body = z.object({ password: z.string().max(72) }).parse(request.body);
     const row = db.prepare('SELECT password_hash,password_salt FROM users WHERE id=?').get(user.id) as Record<string, unknown>;
     if (!(await verifyPassword(body.password, String(row.password_salt), String(row.password_hash)))) return reply.code(401).send(apiError('INVALID_PASSWORD', '密码不正确。'));
     db.prepare('DELETE FROM users WHERE id=?').run(user.id); clearSessionCookie(reply); return { ok: true };

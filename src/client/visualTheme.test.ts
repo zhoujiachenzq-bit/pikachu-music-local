@@ -8,7 +8,7 @@ class MemoryStorage {
 }
 
 describe('visual theme preferences', () => {
-  it('falls back to Pikachu Night for missing or invalid data', () => {
+  it('falls back to Papercut Studio for missing or invalid data', () => {
     expect(parseVisualPreferences(null)).toEqual(DEFAULT_VISUAL_PREFERENCES);
     expect(parseVisualPreferences('{"version":1,"theme":"unknown","motionEnabled":true}')).toEqual(DEFAULT_VISUAL_PREFERENCES);
     expect(parseVisualPreferences('not-json')).toEqual(DEFAULT_VISUAL_PREFERENCES);

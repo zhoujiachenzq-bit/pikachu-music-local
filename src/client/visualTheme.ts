@@ -1,4 +1,4 @@
-export const TONE_THEME_IDS = ['night', 'vinyl', 'arcade', 'burgundy', 'cobalt', 'paper'] as const;
+export const TONE_THEME_IDS = ['paper', 'night', 'vinyl', 'arcade', 'burgundy', 'cobalt'] as const;
 
 export type ToneThemeId = typeof TONE_THEME_IDS[number];
 
@@ -32,17 +32,17 @@ export type SceneVariant = 'vinyl' | 'arcade' | 'halo';
 export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
   night: {
     id: 'night',
-    name: { zh: '皮卡丘夜幕', en: 'Pikachu Night' },
-    description: { zh: '克制黑黄与清晰层级', en: 'Practical black-yellow clarity' },
-    canvas: '#05070d', surface: '#10131b', sceneAccent: '#857536', sceneGlow: '#e4dcb6',
-    swatches: ['#05070d', '#202531', '#ffd84d'],
+    name: { zh: '剪纸夜幕', en: 'Paper Night' },
+    description: { zh: '靛蓝纸山与暖黄月光', en: 'Indigo paper hills and a warm moon' },
+    canvas: '#07111f', surface: '#122039', sceneAccent: '#f0b93f', sceneGlow: '#ffe39a',
+    swatches: ['#07111f', '#243b62', '#f0b93f'],
   },
   vinyl: {
     id: 'vinyl',
-    name: { zh: '午夜唱片店', en: 'Midnight Records' },
-    description: { zh: '唱片黑、暖奶油与印刷棕', en: 'Vinyl black, warm cream and print brown' },
-    canvas: '#090806', surface: '#17130f', sceneAccent: '#a87842', sceneGlow: '#f0dfbb',
-    swatches: ['#090806', '#8f6035', '#f0dfbb'],
+    name: { zh: '纸上唱片店', en: 'Vinyl Room' },
+    description: { zh: '奶油纸、唱片黑与砖红标签', en: 'Cream paper, vinyl black and brick-red labels' },
+    canvas: '#d8c39e', surface: '#f5ead3', sceneAccent: '#a84432', sceneGlow: '#e2aa39',
+    swatches: ['#efe1c4', '#191613', '#a84432'],
   },
   arcade: {
     id: 'arcade',
@@ -67,8 +67,8 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
   },
   paper: {
     id: 'paper',
-    name: { zh: '暖纸工作室', en: 'Warm Paper Studio' },
-    description: { zh: '暖纸底色与红蓝编辑块', en: 'Warm paper with red-blue editorial blocks' },
+    name: { zh: '剪纸画室', en: 'Papercut Studio' },
+    description: { zh: '暖纸底色与红蓝拼贴', en: 'Warm paper with red-blue collage' },
     canvas: '#f0e4c8', surface: '#fff6df', sceneAccent: '#f24b2a', sceneGlow: '#1768ff',
     swatches: ['#f0e4c8', '#f24b2a', '#1768ff'],
   },
@@ -77,19 +77,19 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
 export const TONE_THEME_GROUPS: readonly ToneThemeGroupDefinition[] = [
   {
     id: 'pikachu',
-    name: { zh: '皮卡丘系列', en: 'Pikachu Series' },
-    description: { zh: '三种黑夜能量叙事', en: 'Three electric night stories' },
-    themes: ['night', 'vinyl', 'arcade'],
+    name: { zh: '纸上音乐馆', en: 'Paper Music Rooms' },
+    description: { zh: '剪纸画室、月夜与唱片店', en: 'Papercut studio, moonlit hills and a record room' },
+    themes: ['paper', 'night', 'vinyl'],
   },
   {
     id: 'curated',
-    name: { zh: '策展色调', en: 'Curated Tones' },
-    description: { zh: '剧场、画廊与编辑工作室', en: 'Theatre, gallery and editorial studio' },
-    themes: ['burgundy', 'cobalt', 'paper'],
+    name: { zh: '沉浸色场', en: 'Immersive Color Fields' },
+    description: { zh: '霓虹、剧场与电蓝画廊', en: 'Neon, theatre and electric-blue gallery' },
+    themes: ['arcade', 'burgundy', 'cobalt'],
   },
 ] as const;
 
-export const DEFAULT_VISUAL_PREFERENCES: VisualPreferences = { version: 1, theme: 'night', motionEnabled: true };
+export const DEFAULT_VISUAL_PREFERENCES: VisualPreferences = { version: 1, theme: 'paper', motionEnabled: true };
 
 export function isToneThemeId(value: unknown): value is ToneThemeId {
   return typeof value === 'string' && (TONE_THEME_IDS as readonly string[]).includes(value);
