@@ -110,10 +110,12 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 @keyframes panel-scan { 0%, 65% { translate: 0 0; } 100% { translate: 690% 0; } }
 
 .app-shell {
-  width: min(1680px, 100%);
+  width: 100%;
   height: 100vh;
   margin: 0 auto;
-  padding: 22px 32px 10px;
+  /* Keep the working area at its original 1680px maximum while allowing the
+     active theme and edge atmosphere to cover the whole browser viewport. */
+  padding: 22px max(32px, calc((100vw - 1680px) / 2 + 32px)) 10px;
   display: grid;
   grid-template-rows: 92px minmax(0, 1fr) 26px;
   gap: 11px;
