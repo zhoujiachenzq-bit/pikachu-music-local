@@ -1,0 +1,67 @@
+/* Theme-aware controls. Phosphor supplies icons; these surfaces are original CSS. */
+.app-shell .record-wrap, .app-shell .now-card:hover .record-wrap { position: relative; transform: none; }
+.record-tilt { width: 100%; height: 100%; display: grid; place-items: center; position: relative; border: 1px solid color-mix(in srgb,var(--brand),transparent 65%); border-radius: 16px; background: linear-gradient(135deg,color-mix(in srgb,var(--surface-2),var(--brand) 12%),var(--surface-0)); box-shadow: 0 5px 0 color-mix(in srgb,var(--surface-0),black 30%),0 16px 25px #0005,inset 0 1px #ffffff30; }
+.record-tilt .record { display: grid; }
+.app-shell .header-actions { gap: 10px; }
+.app-shell .language { gap: 3px; padding: 4px; border-radius: 13px; border: 1px solid var(--line); background: color-mix(in srgb,var(--surface-0),transparent 12%); box-shadow: inset 0 1px 3px #0001; }
+.app-shell .language button { min-width: 33px; min-height: 29px; padding: 4px 7px; border-radius: 9px; color: var(--muted); font-size: 11px; font-weight: 650; }
+.app-shell .language button.active { background: var(--text-strong); color: var(--surface-0); box-shadow: 0 2px 5px #0002; }
+.app-shell .agent-launch { min-height: 41px; padding: 4px 16px; gap: 9px; border-radius: 13px; border-color: var(--line); color: var(--text-strong); background: linear-gradient(140deg,color-mix(in srgb,var(--surface-2),var(--brand) 10%),var(--surface-1)); box-shadow: inset 0 1px #ffffff24,0 3px 8px #0001; }
+.app-shell .agent-launch > span:not(.companion-emblem) { font-size: 12px; letter-spacing: .04em; }
+.app-shell .companion-emblem { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; color: var(--brand-ink); background: var(--brand); box-shadow: inset 0 1px #fff5; }
+.app-shell .agent-launch > i { width: 4px; height: 4px; box-shadow: none; animation: none; }
+.app-shell .agent-launch.active { border-color: var(--brand); background: color-mix(in srgb,var(--surface-1),var(--brand) 15%); }
+.app-shell .profile-button { min-height: 41px; padding: 4px 11px 4px 4px; border-radius: 13px; border-color: var(--line); background: var(--surface-1); box-shadow: 0 3px 8px #0001; }
+.app-shell .profile-button > span { width: 31px; height: 31px; border-radius: 10px; background: linear-gradient(145deg,color-mix(in srgb,var(--brand),white 22%),var(--brand)); color: var(--brand-ink); font-size: 13px; box-shadow: inset 0 1px #fff6,inset 0 -2px #0001; }
+.app-shell .profile-button > b { font-size: 11px; }
+.app-shell .tone-trigger { width: 39px; height: 39px; border-radius: 13px; box-shadow: inset 0 1px #fff2; }
+
+.app-shell .panel-heading h2 { flex-shrink: 0; gap: 8px; font-size: 13px; font-weight: 650; letter-spacing: .015em; white-space: nowrap; }
+.app-shell .panel-heading h2 > .ui-icon { width: 29px; height: 29px; padding: 5px; border-radius: 9px; color: var(--brand); background: color-mix(in srgb,var(--brand),transparent 90%); }
+.app-shell .playlist-panel .tabs { margin-top: 2px; padding: 3px; gap: 3px; min-height: 53px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb,var(--surface-0),transparent 12%); box-shadow: inset 0 1px 4px #0001; }
+.app-shell .playlist-panel .tabs button { min-width: 0; min-height: 45px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 4px 2px; border-radius: 10px; color: var(--muted); font-size: 10px; line-height: 1.3; font-weight: 600; background: transparent; box-shadow: none; }
+.app-shell .playlist-panel .tabs button.active { color: var(--brand-ink); background: var(--brand); box-shadow: 0 2px 5px #0002,inset 0 1px #fff3; }
+.app-shell .playlist-panel .tabs button::after { display: none; }
+.app-shell .playlist-panel .tabs button:not(.active):hover { color: var(--text-strong); background: var(--hover-bg); }
+.app-shell .playlist-panel .playlist-toolbar { min-height: 44px; padding: 10px 4px; margin-top: 4px; border-bottom: 1px solid var(--line); }
+.app-shell .playlist-panel .playlist-toolbar > strong { position: relative; max-width: 100%; padding-left: 10px; color: var(--text-strong); font-size: 11px; font-weight: 650; }
+.app-shell .playlist-panel .playlist-toolbar > strong::before { content: ''; position: absolute; left: 0; top: 3px; bottom: 3px; width: 3px; border-radius: 3px; background: var(--brand); }
+
+.app-shell .transport { flex-wrap: wrap; gap: 7px; padding: 7px; border: 1px solid var(--line); border-radius: 17px; background: color-mix(in srgb,var(--surface-0),transparent 22%); box-shadow: inset 0 1px #fff1,0 5px 12px #0001; }
+.app-shell .transport > button:not(.mobile-volume-toggle):not(.play-main) { width: 36px; height: 36px; border: 1px solid transparent; border-radius: 11px; color: var(--text-strong); background: color-mix(in srgb,var(--control-bg),transparent 15%); box-shadow: none; }
+.app-shell .transport > button > .ui-icon { width: 20px; height: 20px; }
+.app-shell .transport > .play-main { width: 49px; height: 44px; border-radius: 14px; color: var(--brand-ink); background: linear-gradient(145deg,color-mix(in srgb,var(--brand),white 14%),var(--brand)); border-color: color-mix(in srgb,var(--brand),white 15%); box-shadow: 0 4px 9px color-mix(in srgb,var(--brand),transparent 82%),inset 0 1px #fff5; }
+.app-shell .transport > .play-main > .ui-icon { width: 24px; height: 24px; }
+.app-shell .hero-actions { gap: 6px; }
+.app-shell .hero-actions button { border-radius: 11px; color: var(--muted); border-color: var(--line); background: color-mix(in srgb,var(--surface-1),transparent 8%); box-shadow: inset 0 1px #fff2; }
+.app-shell .hero-actions button .ui-icon { width: 20px; height: 20px; }
+.app-shell .hero-actions button.active { color: var(--brand-ink); border-color: var(--brand); background: var(--brand); }
+.app-shell .transport .volume { gap: 8px; padding: 4px 7px; margin-left: auto; }
+.app-shell .transport .volume > .ui-icon { width: 19px; height: 19px; color: var(--text); }
+.app-shell .elastic-volume-visual { height: 6px; background: color-mix(in srgb,var(--text),transparent 84%); box-shadow: inset 0 1px 2px #0002; }
+.app-shell .elastic-volume-visual > span::after { top: -4px; width: 14px; height: 14px; border-width: 3px; border-color: var(--surface-1); box-shadow: 0 0 0 1px color-mix(in srgb,var(--brand),transparent 45%),0 2px 5px #0003; }
+.app-shell.motion-on :is(.transport > button,.hero-actions button,.language button,.tabs button,.profile-button,.agent-launch) { transition: background .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease; }
+@media (hover:hover) {
+  .app-shell.motion-on :is(.transport > button,.hero-actions button,.profile-button,.agent-launch):hover { transform: translateY(-1px); border-color: var(--brand); }
+}
+.app-shell :is(.transport > button,.hero-actions button,.language button,.tabs button,.profile-button,.agent-launch):focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+@media (min-width: 761px) and (max-width: 1280px) {
+  .app-shell .transport { justify-content: center; }
+  .app-shell .transport .volume { flex-basis: 100%; justify-content: center; margin-left: 0; }
+}
+@media (max-width: 760px) {
+  .app-shell .header-actions { gap: 6px; }
+  .app-shell .language { padding: 3px; }
+  .app-shell .language button { min-width: 26px; min-height: 26px; padding: 3px 5px; font-size: 10px; }
+  .app-shell .profile-button { padding: 3px; min-height: 35px; }
+  .app-shell .profile-button > span { width: 27px; height: 27px; }
+  .app-shell .tone-trigger { width: 34px; height: 34px; }
+  .app-shell .transport { padding: 5px; gap: 5px; }
+  .app-shell .transport > button:not(.play-main) { width: 32px; height: 34px; }
+  .app-shell .transport > button:not(.play-main):not(.mobile-volume-toggle) { width: 32px; height: 34px; }
+  .app-shell .transport > .play-main { width: 42px; height: 40px; }
+  .app-shell .transport .volume[data-mobile-open='true'] { margin: 3px 0 0; padding: 7px 9px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .app-shell.motion-on :is(.transport > button,.hero-actions button,.language button,.tabs button,.profile-button,.agent-launch) { transition: none; transform: none; }
+}

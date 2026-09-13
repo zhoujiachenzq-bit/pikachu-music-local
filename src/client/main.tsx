@@ -3,8 +3,11 @@ import ReactDOM from 'react-dom/client';
 import '@fontsource-variable/space-grotesk';
 import App from './App';
 import './styles.css';
+import './roomEffects.css';
+import './controlStyles.css';
+import './landscapeThemes.css';
 
-document.documentElement.dataset.visualRelease = '0.3.0';
+document.documentElement.dataset.visualRelease = '0.5.0';
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

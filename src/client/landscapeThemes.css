@@ -1,0 +1,53 @@
+/* Shared light UI for the two daylight illustrations. Legacy IDs preserve preferences. */
+:where(.app-shell,.tone-panel)[data-tone='night'] {
+  --landscape-image: url('/summer-coast.png'); --brand: #287b89; --brand-bright: #176572; --brand-ink: #fffdf6;
+  --text: #294854; --text-strong: #183d48; --muted: #506c75; --quiet: #607983;
+  --surface-0: #dceff2; --surface-1: #f0f8f5; --surface-2: #e7f2ef; --surface-3: #d5e8e6;
+  --panel-a: #eff8f5; --panel-b: #d9ecee; --control-bg: #e0eeeb; --input-bg: #f6fbf8;
+  --line: #436f763d; --line-strong: #287b8980; --hover-bg: #287b8912; --scene-theme-accent: #287b89; --scene-theme-glow: #a7dce5;
+}
+:where(.app-shell,.tone-panel)[data-tone='vinyl'] {
+  --landscape-image: url('/walled-meadow.png'); --brand: #527445; --brand-bright: #3b6130; --brand-ink: #fffdf6;
+  --text: #3e5036; --text-strong: #2b4225; --muted: #5b6c50; --quiet: #67775a;
+  --surface-0: #e6ebd4; --surface-1: #faf8e9; --surface-2: #eff1dc; --surface-3: #e1e8ca;
+  --panel-a: #faf9ec; --panel-b: #e6edd5; --control-bg: #e5ebd2; --input-bg: #fffdf2;
+  --line: #6176493d; --line-strong: #52744580; --hover-bg: #52744512; --scene-theme-accent: #527445; --scene-theme-glow: #d8dda8;
+}
+.illustrated-landscape { position: fixed; z-index: 0; inset: 0; pointer-events: none; background: linear-gradient(#eef5e96b,#eef5e947),var(--landscape-image) center 65% / cover no-repeat; }
+.illustrated-scene { background: var(--landscape-image) center / cover no-repeat; }
+.landscape-air { inset: 45% -5% 10%; background: radial-gradient(ellipse,#fff9e32a,transparent 70%); }
+.landscape-light { inset: 0; background: linear-gradient(125deg,#fffce920,transparent 45%); }
+.illustrated-scene[data-motion='true'] .landscape-air { animation: landscape-breeze 24s ease-in-out infinite alternate; }
+@keyframes landscape-breeze { from { transform: translateX(-2%); opacity: .4; } to { transform: translateX(2%); opacity: .9; } }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) { background: var(--surface-0); --edge-particle-a: var(--brand); --edge-particle-b: #fff8dd; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl'])::before,
+.app-shell:is([data-tone='night'],[data-tone='vinyl'])::after { display: none; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.topbar.panel,.workspace > section.panel) { border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 30px #354f4426,inset 0 1px #fff9; background: linear-gradient(140deg,color-mix(in srgb,var(--panel-a),transparent 4%),color-mix(in srgb,var(--panel-b),transparent 5%)); }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.search-panel,.playlist-panel)::before,
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .panel::after { display: none; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .now-card { border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb,var(--surface-1),transparent 15%); box-shadow: 0 8px 22px #354f441c; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .lyrics { border: 1px solid var(--line); background: linear-gradient(90deg,#fffdf520,#fffdf5bc 34% 66%,#fffdf520); box-shadow: none; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .lyric-line { color: var(--text); text-shadow: 0 1px 3px #fffdf5; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .lyric-line.active { color: var(--text-strong); text-shadow: 0 1px 4px #fffdf5; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.search-box,.playlist-search,.transport,.tabs) { background: var(--surface-2); border: 1px solid var(--line); box-shadow: none; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.search-box input,.track-hero h3,.track-hero p,.panel-heading h2,.topbar h1) { color: var(--text-strong); }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.play-main,.search-box > button,.daily-actions .btn.primary,.tabs button.active) { color: var(--brand-ink); background: var(--brand); border-color: var(--brand); box-shadow: none; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.hero-actions button,.transport > button:not(.play-main),.load-row .btn,.daily-actions .stage-return) { color: var(--text-strong); background: var(--surface-1); border-color: var(--line); }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .track-row.active { background: var(--hover-bg); box-shadow: inset 3px 0 var(--brand); }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .daily-editorial { background: linear-gradient(90deg,#fffdf5ec,#fffdf560),var(--landscape-image) center 67% / cover; border: 1px solid var(--line); border-radius: 14px; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .daily-editorial > .grainient { opacity: .1; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .daily-copy h2 { color: var(--text-strong); text-shadow: none; }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.mobile-nav,.mobile-mini-player,.agent-header,.agent-composer) { background: var(--surface-1); border-color: var(--line); color: var(--text-strong); }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .agent-panel { color: var(--text-strong); background: color-mix(in srgb,var(--surface-1),transparent 65%); }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.play-modes button,.playlist-toolbar button,.daily-tools select) { color: var(--text-strong); background: var(--surface-2); border-color: var(--line); }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .mobile-nav button.active { color: var(--brand); background: var(--hover-bg); }
+.app-shell:is([data-tone='night'],[data-tone='vinyl']) .agent-composer textarea { color: var(--text-strong); }
+@media (max-width: 760px), (prefers-reduced-motion: reduce) {
+  .illustrated-scene[data-motion='true'] .landscape-air { animation: none; }
+}
+@media (max-width: 760px) {
+  .app-shell.mobile-section-agent[data-tone='vinyl'],.app-shell[data-tone='vinyl'] .player-panel.agent-center-open { overflow: clip; }
+  .app-shell[data-tone='vinyl'] .agent-center-open .stage-surface-hidden { display: none; }
+  .app-shell[data-tone='vinyl'] .agent-stage-layer.mobile,.app-shell[data-tone='vinyl'] .agent-stage-layer.mobile .agent-panel-mobile { position: absolute; inset: 0; }
+  .app-shell.has-mobile-mini[data-tone='vinyl'] .agent-stage-layer.mobile .agent-panel-mobile { bottom: 64px; }
+}

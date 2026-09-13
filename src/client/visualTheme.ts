@@ -1,4 +1,4 @@
-export const TONE_THEME_IDS = ['paper', 'night', 'vinyl', 'arcade', 'burgundy', 'cobalt'] as const;
+export const TONE_THEME_IDS = ['paper', 'arcade', 'cobalt', 'night', 'vinyl', 'burgundy'] as const;
 
 export type ToneThemeId = typeof TONE_THEME_IDS[number];
 
@@ -32,17 +32,17 @@ export type SceneVariant = 'vinyl' | 'arcade' | 'halo';
 export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
   night: {
     id: 'night',
-    name: { zh: '剪纸夜幕', en: 'Paper Night' },
-    description: { zh: '靛蓝纸山与暖黄月光', en: 'Indigo paper hills and a warm moon' },
-    canvas: '#07111f', surface: '#122039', sceneAccent: '#f0b93f', sceneGlow: '#ffe39a',
-    swatches: ['#07111f', '#243b62', '#f0b93f'],
+    name: { zh: '夏日海岸', en: 'Summer Coast' },
+    description: { zh: '浅碧海水、奶白沙滩与棕榈树影', en: 'Turquoise waves, soft sand and palm shadows' },
+    canvas: '#dceff2', surface: '#f2faf8', sceneAccent: '#287b89', sceneGlow: '#a7dce5',
+    swatches: ['#91d3e5', '#fcf0d8', '#287b89'],
   },
   vinyl: {
     id: 'vinyl',
-    name: { zh: '纸上唱片店', en: 'Vinyl Room' },
-    description: { zh: '奶油纸、唱片黑与砖红标签', en: 'Cream paper, vinyl black and brick-red labels' },
-    canvas: '#d8c39e', surface: '#f5ead3', sceneAccent: '#a84432', sceneGlow: '#e2aa39',
-    swatches: ['#efe1c4', '#191613', '#a84432'],
+    name: { zh: '晴空花野', en: 'Sunny Meadow' },
+    description: { zh: '高墙远景、坡上大树与晴空花野', en: 'Sunlit meadow, hillside tree and monumental walls' },
+    canvas: '#e6ebd4', surface: '#faf8e9', sceneAccent: '#527445', sceneGlow: '#d8dda8',
+    swatches: ['#b3d6ed', '#dce6ab', '#527445'],
   },
   arcade: {
     id: 'arcade',
@@ -52,11 +52,12 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
     swatches: ['#05040b', '#2fe6ff', '#ff4bd8'],
   },
   burgundy: {
+    // Keep the stored ID compatible with existing account preferences.
     id: 'burgundy',
-    name: { zh: '酒红剧场', en: 'Burgundy Theatre' },
-    description: { zh: '深红幕布与粉色聚光', en: 'Crimson curtains and vivid spotlights' },
-    canvas: '#160006', surface: '#310815', sceneAccent: '#ff2864', sceneGlow: '#ff9cbd',
-    swatches: ['#160006', '#8b123a', '#ff5a88'],
+    name: { zh: '暮光花园', en: 'Twilight Garden' },
+    description: { zh: '蓝紫暮色、暖灯小屋与粉色花海', en: 'Periwinkle dusk, a glowing cottage and pink meadows' },
+    canvas: '#252747', surface: '#343659', sceneAccent: '#efc3d7', sceneGlow: '#a9b2ef',
+    swatches: ['#414f96', '#aa7caf', '#ffd7aa'],
   },
   cobalt: {
     id: 'cobalt',
@@ -77,15 +78,15 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
 export const TONE_THEME_GROUPS: readonly ToneThemeGroupDefinition[] = [
   {
     id: 'pikachu',
-    name: { zh: '纸上音乐馆', en: 'Paper Music Rooms' },
-    description: { zh: '剪纸画室、月夜与唱片店', en: 'Papercut studio, moonlit hills and a record room' },
-    themes: ['paper', 'night', 'vinyl'],
+    name: { zh: '经典设计', en: 'Signature Designs' },
+    description: { zh: '剪纸拼贴、霓虹与电蓝画廊', en: 'Papercut, neon and electric-blue gallery' },
+    themes: ['paper', 'arcade', 'cobalt'],
   },
   {
     id: 'curated',
-    name: { zh: '沉浸色场', en: 'Immersive Color Fields' },
-    description: { zh: '霓虹、剧场与电蓝画廊', en: 'Neon, theatre and electric-blue gallery' },
-    themes: ['arcade', 'burgundy', 'cobalt'],
+    name: { zh: '治愈风景', en: 'Restful Landscapes' },
+    description: { zh: '海岸、花野与暮光花园', en: 'Coast, meadow and twilight garden' },
+    themes: ['night', 'vinyl', 'burgundy'],
   },
 ] as const;
 

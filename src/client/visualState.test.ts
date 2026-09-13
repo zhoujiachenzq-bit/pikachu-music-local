@@ -39,8 +39,8 @@ describe('immersive visual state', () => {
 
   it('keeps an empty stage on the pure theme palette', () => {
     expect(deriveVisualPalette(null, 'paper')).toMatchObject({ primary: '#ffd84d', secondary: '#f24b2a', glow: '#1768ff' });
-    expect(deriveVisualPalette(null, 'night')).toMatchObject({ primary: '#ffd84d', secondary: '#f0b93f', glow: '#ffe39a' });
-    expect(deriveVisualPalette(null, 'vinyl')).toMatchObject({ secondary: '#a84432', glow: '#e2aa39' });
+    expect(deriveVisualPalette(null, 'night')).toMatchObject({ primary: '#ffd84d', secondary: '#287b89', glow: '#a7dce5' });
+    expect(deriveVisualPalette(null, 'vinyl')).toMatchObject({ secondary: '#527445', glow: '#d8dda8' });
     expect(deriveVisualPalette(null, 'arcade')).toMatchObject({ secondary: '#2fe6ff', glow: '#ff4bd8' });
   });
 

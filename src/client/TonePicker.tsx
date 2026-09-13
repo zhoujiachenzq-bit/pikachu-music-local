@@ -99,7 +99,7 @@ export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, o
     </div>
     <button className={`motion-toggle ${motionEnabled ? 'active' : ''}`} onClick={() => onMotionChange(!motionEnabled)} aria-pressed={motionEnabled}>
       <span><Icon name="motion" size={16}/></span>
-      <span><strong>{zh ? '动态场景' : 'Motion scene'}</strong><small>{zh ? '桌面与手机均使用完整 WebGL' : 'Full WebGL on desktop and mobile'}</small></span>
+      <span><strong>{zh ? '动态场景' : 'Motion scene'}</strong><small>{zh ? '轻缓光影与互动，关闭后保留静态材质' : 'Gentle light and interaction; static textures when off'}</small></span>
       <i/>
     </button>
   </section> : null;
