@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { findAudioCandidates, hasTimedLyric, isAmbiguousFallback, isLikelyKuwoRestrictionAudio, isSafeAutomaticMatch, matchScore, metadataDurationEvidence, parseLegacyKuwoSearch, parsePlaylistInput, parseQqSearchResponse, readLimitedText, resolveTrackWithFallback, SourceError } from './sources.js';
+import { describe, expect, it, vi } from 'vitest';
+import { findAudioCandidates, hasTimedLyric, isAmbiguousFallback, isLikelyKuwoRestrictionAudio, isSafeAutomaticMatch, matchScore, metadataDurationEvidence, parseLegacyKuwoSearch, parsePlaylistInput, parseQqSearchResponse, readLimitedText, resolveTrackWithFallback, searchSource, SourceError } from './sources.js';
 import { createDatabase, setCached } from './db.js';
 import type { Track } from '../shared/types.js';
 
@@ -48,10 +48,33 @@ describe('cross-source match scoring', () => {
   });
 });
 
+describe('QQ search response', () => {
+  it('reads the current musicu response shape as well as the older one', () => {
+    const song = { mid: 'abc', name: '晴天', singer: [{ name: '周杰伦' }], album: { mid: 'alb', name: '叶惠美' }, interval: 269 };
+    for (const body of [{ req: { code: 0, data: { body: { song: { list: [song] } } } } }, { data: { song: { list: [song] } } }]) {
+      expect(parseQqSearchResponse(body, '晴天')[0]).toMatchObject({ id: 'qq:abc', title: '晴天', artist: '周杰伦', album: '叶惠美', duration: 269000 });
+    }
+  });
+
+  it('treats a refused anonymous search as unavailable, without retrying or trying slower paths', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ code: 0, req: { code: 2001, data: { body: { song: { list: [] } } } } })));
+    vi.stubGlobal('fetch', fetcher);
+    try {
+      await expect(searchSource('qq', '稻香', 5)).rejects.toMatchObject({ code: 'SOURCE_RESTRICTED' });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
 describe('Kuwo legacy search response', () => {
   it('normalizes its object-literal payload without evaluating source text', () => {
     const raw = `{'abslist':[{'DC_TARGETID':'474678847','DURATION':'210','NAME':'花海','ARTIST':'周杰伦','ALBUM':'魔杰座','payInfo':{'play':'0'}}]}`;
     expect(parseLegacyKuwoSearch(raw)).toEqual([{ id: '474678847', title: '花海', artist: '周杰伦', album: '魔杰座', duration: 210000 }]);
+  });
+
+  it('decodes escaped characters left in artist names', () => {
+    const raw = String.raw`{'abslist':[{'DC_TARGETID':'1','DURATION':'210','NAME':'干杯','ARTIST':'周杰伦\\u0026五月天','ALBUM':''}]}`;
+    expect(parseLegacyKuwoSearch(raw)[0].artist).toBe('周杰伦&五月天');
   });
 });
 

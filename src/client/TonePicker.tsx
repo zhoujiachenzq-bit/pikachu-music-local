@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './ui';
 import { TONE_THEMES, TONE_THEME_GROUPS, type ToneThemeId } from './visualTheme';
@@ -17,12 +17,14 @@ interface TonePickerProps {
   committedTheme: ToneThemeId;
   lang: 'zh' | 'en';
   motionEnabled: boolean;
+  backgroundArtEnabled: boolean;
   onCommit: (theme: ToneThemeId, origin: { x: number; y: number }) => void;
   onMotionChange: (enabled: boolean) => void;
+  onBackgroundArtChange: (enabled: boolean) => void;
   onPreview: (theme: ToneThemeId | null) => void;
 }
 
-export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, onCommit, onMotionChange, onPreview }: TonePickerProps) {
+export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, backgroundArtEnabled, onCommit, onMotionChange, onBackgroundArtChange, onPreview }: TonePickerProps) {
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState({ top: 0, right: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -35,6 +37,12 @@ export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, o
     if (rect) setAnchor({ top: rect.bottom + 9, right: Math.max(10, window.innerWidth - rect.right) });
     setOpen(value => { if (value) onPreview(null); return !value; });
   };
+
+  // The panel is wider than the space left of a trigger on narrower desktops.
+  useLayoutEffect(() => {
+    const width = open ? panelRef.current?.offsetWidth : 0;
+    if (width) setAnchor(value => ({ ...value, right: Math.max(10, Math.min(value.right, window.innerWidth - width - 10)) }));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +108,11 @@ export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, o
     <button className={`motion-toggle ${motionEnabled ? 'active' : ''}`} onClick={() => onMotionChange(!motionEnabled)} aria-pressed={motionEnabled}>
       <span><Icon name="motion" size={16}/></span>
       <span><strong>{zh ? '动态场景' : 'Motion scene'}</strong><small>{zh ? '轻缓光影与互动，关闭后保留静态材质' : 'Gentle light and interaction; static textures when off'}</small></span>
+      <i/>
+    </button>
+    <button className={`motion-toggle background-art-toggle ${backgroundArtEnabled ? 'active' : ''}`} onClick={() => onBackgroundArtChange(!backgroundArtEnabled)} aria-pressed={backgroundArtEnabled}>
+      <span><Icon name="palette" size={16}/></span>
+      <span><strong>{zh ? '风景背景图' : 'Landscape artwork'}</strong><small>{zh ? '适用于海岸、花野与花园；关闭后保留纯色氛围' : 'For coast, meadow and garden; keep the calm colours when off'}</small></span>
       <i/>
     </button>
   </section> : null;

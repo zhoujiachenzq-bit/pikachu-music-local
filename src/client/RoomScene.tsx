@@ -8,7 +8,7 @@ export function RoomLandscape({ theme }: { theme: ToneThemeId }) {
 
 export function RoomStage({ theme, motionEnabled = false }: { theme: 'night' | 'vinyl' | 'burgundy'; coverUrl?: string | null; motionEnabled?: boolean }) {
   if (theme === 'burgundy') return <div className="room-stage garden-scene" data-motion={motionEnabled} aria-hidden="true">
-    <i className="garden-haze"/><i className="garden-fireflies"/><i className="garden-shade"/>
+    <i className="garden-stars"/><i className="garden-haze"/><i className="garden-fireflies"/><i className="garden-shade"/>
   </div>;
   return <div className={`room-stage illustrated-scene scene-${theme}`} data-motion={motionEnabled} aria-hidden="true">
     <i className="landscape-air"/><i className="landscape-light"/>

@@ -16,7 +16,6 @@ import { goMusicApiBaseUrl, openGoMusicApiStream } from './goMusicApi.js';
 import { MediaTicketStore, openMediaTicket } from './mediaProxy.js';
 import { applyRateLimitHeaders, clearRateLimit, consumeRateLimits, positiveEnvInt, type RateLimitRule } from './rateLimit.js';
 import { resetSourceHealthCircuits } from './sourceHealth.js';
-import { registerAgentRoutes } from './agentRoutes.js';
 import { SOURCES, type MusicSource, type Track } from '../shared/types.js';
 
 const credentialsSchema = z.object({ username: z.string().trim().min(2).max(24).regex(/^[\p{L}\p{N}_.-]+$/u), password: z.string().min(8).max(72) });
@@ -190,7 +189,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     ], '注册请求过于频繁。')) return;
     const { salt, hash } = await hashPassword(body.password); const id = createUserId(); const stamp = new Date().toISOString();
     db.prepare(`INSERT INTO users(id,username,password_hash,password_salt,created_at,updated_at) VALUES(?,?,?,?,?,?)`).run(id, username, hash, salt, stamp, stamp);
-    const token = createSession(db, id); setSessionCookie(reply, token);
+    const token = createSession(db, id); setSessionCookie(reply, request, token);
     const created = db.prepare('SELECT * FROM users WHERE id=?').get(id) as Record<string, unknown>;
     return reply.code(201).send({ user: rowToUser(created) });
   });
@@ -206,12 +205,12 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
       return reply.code(401).send(apiError('INVALID_CREDENTIALS', '用户名或密码不正确。'));
     }
     clearRateLimit(db, { scope: 'login:account', identifier: accountIdentifier });
-    const token = createSession(db, String(row.id)); setSessionCookie(reply, token);
+    const token = createSession(db, String(row.id)); setSessionCookie(reply, request, token);
     return { user: rowToUser(row) };
   });
 
   app.get('/api/auth/me', async request => ({ user: getSessionUser(db, request) }));
-  app.post('/api/auth/logout', async (request, reply) => { revokeToken(db, request.cookies[SESSION_COOKIE]); clearSessionCookie(reply); return { ok: true }; });
+  app.post('/api/auth/logout', async (request, reply) => { revokeToken(db, request.cookies[SESSION_COOKIE]); clearSessionCookie(reply, request); return { ok: true }; });
   app.patch('/api/auth/password', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
     const body = z.object({ currentPassword: z.string().max(72), newPassword: z.string().min(8).max(72) }).parse(request.body);
@@ -219,7 +218,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     if (!(await verifyPassword(body.currentPassword, String(row.password_salt), String(row.password_hash)))) return reply.code(401).send(apiError('INVALID_PASSWORD', '当前密码不正确。'));
     const { salt, hash } = await hashPassword(body.newPassword);
     transaction(db, () => { db.prepare('UPDATE users SET password_hash=?,password_salt=?,updated_at=? WHERE id=?').run(hash, salt, new Date().toISOString(), user.id); db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id); });
-    clearSessionCookie(reply); return { ok: true, relogin: true };
+    clearSessionCookie(reply, request); return { ok: true, relogin: true };
   });
   app.patch('/api/auth/preferences', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
@@ -233,7 +232,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     const body = z.object({ password: z.string().max(72) }).parse(request.body);
     const row = db.prepare('SELECT password_hash,password_salt FROM users WHERE id=?').get(user.id) as Record<string, unknown>;
     if (!(await verifyPassword(body.password, String(row.password_salt), String(row.password_hash)))) return reply.code(401).send(apiError('INVALID_PASSWORD', '密码不正确。'));
-    db.prepare('DELETE FROM users WHERE id=?').run(user.id); clearSessionCookie(reply); return { ok: true };
+    db.prepare('DELETE FROM users WHERE id=?').run(user.id); clearSessionCookie(reply, request); return { ok: true };
   });
 
   app.get('/api/search', async (request, reply) => {
@@ -519,12 +518,12 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     return { ok: true, favorites: listFavorites(db, user.id).length, playlists: listPlaylists(db, user.id).length };
   });
 
-  registerAgentRoutes(app, db);
 
   const staticDir = options.staticDir || resolve('dist/client');
   if (existsSync(staticDir)) {
-    await app.register(fastifyStatic, { root: staticDir, wildcard: false });
-    app.setNotFoundHandler((request, reply) => request.url.startsWith('/api/') ? reply.code(404).send(apiError('NOT_FOUND', '接口不存在。')) : reply.sendFile('index.html'));
+    await app.register(fastifyStatic, { root: staticDir });
+    app.setNotFoundHandler((request, reply) => request.url.startsWith('/api/') || request.url.startsWith('/assets/')
+      ? reply.code(404).send(apiError('NOT_FOUND', '资源不存在。')) : reply.sendFile('index.html'));
   }
   recoverImportJobs(db);
   app.addHook('onClose', async () => { if (!options.db) db.close(); });

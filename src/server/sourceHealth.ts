@@ -78,6 +78,8 @@ export async function withSourceHealth<T>(
   } catch (error) {
     if (error instanceof SourceCircuitOpenError) throw error;
     if (isTrackLevelFailure(error)) throw error;
+    // A caller stopping early says nothing about the provider's health.
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     const stamp = new Date(clock()).toISOString();
     db.prepare(`INSERT INTO source_health(source,operation,successes,failures,consecutive_failures,average_latency_ms,circuit_open_until,updated_at)
       VALUES(?,?,0,1,1,0,NULL,?) ON CONFLICT(source,operation) DO UPDATE SET

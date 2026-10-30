@@ -16,8 +16,8 @@ describe('visual theme preferences', () => {
 
   it('isolates preferences by local account', () => {
     const storage = new MemoryStorage();
-    writeVisualPreferences(storage, 'user-a', { version: 1, theme: 'burgundy', motionEnabled: false });
-    expect(readVisualPreferences(storage, 'user-a')).toEqual({ version: 1, theme: 'burgundy', motionEnabled: false });
+    writeVisualPreferences(storage, 'user-a', { version: 1, theme: 'burgundy', motionEnabled: false, backgroundArtEnabled: false });
+    expect(readVisualPreferences(storage, 'user-a')).toEqual({ version: 1, theme: 'burgundy', motionEnabled: false, backgroundArtEnabled: false });
     expect(readVisualPreferences(storage, 'user-b')).toEqual(DEFAULT_VISUAL_PREFERENCES);
     expect(visualPreferencesStorageKey('user-a')).not.toBe(visualPreferencesStorageKey('user-b'));
   });
@@ -32,6 +32,10 @@ describe('visual theme preferences', () => {
     expect(parseVisualPreferences('{"version":1,"theme":"night","motionEnabled":true}').theme).toBe('night');
     expect(parseVisualPreferences('{"version":1,"theme":"vinyl","motionEnabled":true}').theme).toBe('vinyl');
     expect(parseVisualPreferences('{"version":1,"theme":"arcade","motionEnabled":false}').theme).toBe('arcade');
+  });
+
+  it('keeps artwork enabled for existing saved preferences without the new switch', () => {
+    expect(parseVisualPreferences('{"version":1,"theme":"night","motionEnabled":false}')).toEqual({ version: 1, theme: 'night', motionEnabled: false, backgroundArtEnabled: true });
   });
 
   it('keeps the practical default scene calm while mapping the expressive themes', () => {

@@ -24,6 +24,7 @@ export interface VisualPreferences {
   version: 1;
   theme: ToneThemeId;
   motionEnabled: boolean;
+  backgroundArtEnabled: boolean;
 }
 
 export type SceneQuality = 'off' | 'tablet' | 'desktop';
@@ -33,9 +34,9 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
   night: {
     id: 'night',
     name: { zh: '夏日海岸', en: 'Summer Coast' },
-    description: { zh: '浅碧海水、奶白沙滩与棕榈树影', en: 'Turquoise waves, soft sand and palm shadows' },
-    canvas: '#dceff2', surface: '#f2faf8', sceneAccent: '#287b89', sceneGlow: '#a7dce5',
-    swatches: ['#91d3e5', '#fcf0d8', '#287b89'],
+    description: { zh: '海边明信片、邮票封面与整片海景', en: 'A seaside postcard with stamp covers and open water' },
+    canvas: '#f7efe0', surface: '#fffcf5', sceneAccent: '#cb4630', sceneGlow: '#0f7c8a',
+    swatches: ['#7fd0de', '#fffcf5', '#cb4630'],
   },
   vinyl: {
     id: 'vinyl',
@@ -47,17 +48,17 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
   arcade: {
     id: 'arcade',
     name: { zh: '霓虹游戏厅', en: 'Neon Arcade' },
-    description: { zh: '像素星空、青紫霓虹与扫描线', en: 'Pixel stars, cyan-magenta neon and scanlines' },
-    canvas: '#05040b', surface: '#111027', sceneAccent: '#2fe6ff', sceneGlow: '#ff4bd8',
-    swatches: ['#05040b', '#2fe6ff', '#ff4bd8'],
+    description: { zh: '街机机台、CRT 歌词屏与高分榜', en: 'An arcade cabinet with a CRT and a high-score table' },
+    canvas: '#08070f', surface: '#0f0d1c', sceneAccent: '#ff3d8b', sceneGlow: '#22e3ff',
+    swatches: ['#08070f', '#ff3d8b', '#ffd23f'],
   },
   burgundy: {
     // Keep the stored ID compatible with existing account preferences.
     id: 'burgundy',
     name: { zh: '暮光花园', en: 'Twilight Garden' },
-    description: { zh: '蓝紫暮色、暖灯小屋与粉色花海', en: 'Periwinkle dusk, a glowing cottage and pink meadows' },
-    canvas: '#252747', surface: '#343659', sceneAccent: '#efc3d7', sceneGlow: '#a9b2ef',
-    swatches: ['#414f96', '#aa7caf', '#ffd7aa'],
+    description: { zh: '夜色绘本、拱形窗与灯笼暖光', en: 'A dusk picture book with an arched window and lantern light' },
+    canvas: '#12142e', surface: '#181a38', sceneAccent: '#ffc978', sceneGlow: '#f2b6cd',
+    swatches: ['#12142e', '#7a5da8', '#ffc978'],
   },
   cobalt: {
     id: 'cobalt',
@@ -90,7 +91,7 @@ export const TONE_THEME_GROUPS: readonly ToneThemeGroupDefinition[] = [
   },
 ] as const;
 
-export const DEFAULT_VISUAL_PREFERENCES: VisualPreferences = { version: 1, theme: 'paper', motionEnabled: true };
+export const DEFAULT_VISUAL_PREFERENCES: VisualPreferences = { version: 1, theme: 'paper', motionEnabled: true, backgroundArtEnabled: true };
 
 export function isToneThemeId(value: unknown): value is ToneThemeId {
   return typeof value === 'string' && (TONE_THEME_IDS as readonly string[]).includes(value);
@@ -105,7 +106,7 @@ export function parseVisualPreferences(raw: string | null | undefined): VisualPr
   try {
     const value = JSON.parse(raw) as Partial<VisualPreferences> | null;
     if (!value || value.version !== 1 || !isToneThemeId(value.theme) || typeof value.motionEnabled !== 'boolean') return { ...DEFAULT_VISUAL_PREFERENCES };
-    return { version: 1, theme: value.theme, motionEnabled: value.motionEnabled };
+    return { version: 1, theme: value.theme, motionEnabled: value.motionEnabled, backgroundArtEnabled: typeof value.backgroundArtEnabled === 'boolean' ? value.backgroundArtEnabled : true };
   } catch {
     return { ...DEFAULT_VISUAL_PREFERENCES };
   }

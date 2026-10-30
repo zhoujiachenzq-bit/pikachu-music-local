@@ -1,0 +1,166 @@
+/* The phone layout: one continuous app, in the manner of Discord. Flat stacked
+   surfaces edge to edge, separated by tone and hairlines. No blur, no translucency
+   and no floating cards; each theme contributes its palette, not a new structure. */
+.lyrics-peek, .lyrics-page-bar { display: none; }
+
+@media (max-width: 760px) {
+  .app-shell { --m-bg: #f5ecd8; --m-raised: #fff8e8; --m-sunken: #eaddc0; --m-ink: #17130d; --m-muted: #62584b; --m-accent: #d9411f; --m-on-accent: #fff8e8; --m-line: #17130d1f; --m-header: 52px; --m-nav: 56px; --m-peek: 64px; --m-safe-top: env(safe-area-inset-top, 0px); --m-safe-bottom: env(safe-area-inset-bottom, 0px); }
+  .app-shell[data-tone='arcade'] { --m-bg: #0b0a15; --m-raised: #15132a; --m-sunken: #07060f; --m-ink: #e9ecff; --m-muted: #a6a4cc; --m-accent: #ff3d8b; --m-on-accent: #16040d; --m-line: #ffffff14; }
+  .app-shell[data-tone='cobalt'] { --m-bg: #081a4a; --m-raised: #0f2a6e; --m-sunken: #051236; --m-ink: #eef7ff; --m-muted: #a9c9e8; --m-accent: #ffd84d; --m-on-accent: #241c03; --m-line: #ffffff1a; }
+  .app-shell[data-tone='night'] { --m-bg: #f7efe0; --m-raised: #fffcf5; --m-sunken: #ece1cc; --m-ink: #0b2f39; --m-muted: #4a6b73; --m-accent: #cb4630; --m-on-accent: #fffaf0; --m-line: #0e3a4524; }
+  .app-shell[data-tone='vinyl'] { --m-bg: #f1f0df; --m-raised: #faf8e9; --m-sunken: #e4e8cf; --m-ink: #2b4225; --m-muted: #5b6c50; --m-accent: #527445; --m-on-accent: #fffdf6; --m-line: #61764933; }
+  .app-shell[data-tone='burgundy'] { --m-bg: #12142e; --m-raised: #1c1e41; --m-sunken: #0d0f24; --m-ink: #f3ecdf; --m-muted: #bdb6cf; --m-accent: #ffc978; --m-on-accent: #2b1b0c; --m-line: #e9d9b81f; }
+
+  /* Everything decorative goes: the structure carries the identity now. */
+  .app-shell[data-tone]::before, .app-shell[data-tone]::after, .app-shell .particle-field, .app-shell .illustrated-landscape, .app-shell .room-landscape, .app-shell .room-stage, .app-shell .immersive-backdrop, .app-shell .grainient, .app-shell .vinyl-grainient, .app-shell .vinyl-metal-stamp, .app-shell .panel::after, .app-shell .topbar::before, .app-shell .lyrics-effects { display: none !important; }
+  .app-shell, .app-shell * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+  .app-shell[data-tone] { padding: 0; color: var(--m-ink); background: var(--m-bg); }
+  .app-shell[data-tone] .topbar.panel { height: calc(var(--m-header) + var(--m-safe-top)); margin: 0; padding: var(--m-safe-top) 12px 0; border: 0; border-bottom: 1px solid var(--m-line); border-image: none; border-radius: 0; background: var(--m-raised); box-shadow: none; outline: 0; }
+  .app-shell[data-tone] .logo-ring { width: 34px; height: 34px; padding: 2px; border-radius: 50%; background: var(--m-sunken); box-shadow: none; }
+  .app-shell[data-tone] .logo-ring img { border-radius: 50%; }
+  .app-shell[data-tone] .brand { gap: 10px; }
+  .app-shell[data-tone] .brand-kicker { display: none; }
+  .app-shell[data-tone] .brand h1 { margin: 0; color: var(--m-ink); font-family: inherit; font-size: 16px; font-weight: 700; letter-spacing: 0; text-shadow: none; }
+  .app-shell[data-tone] .language { padding: 2px; border: 0; border-radius: 8px; background: var(--m-sunken); box-shadow: none; }
+  .app-shell[data-tone] .language button { min-height: 28px; border-radius: 6px; color: var(--m-muted); font-family: inherit; }
+  .app-shell[data-tone] .language button.active { color: var(--m-on-accent); background: var(--m-accent); box-shadow: none; }
+  .app-shell[data-tone] :is(.tone-trigger,.profile-button) { border: 0; border-radius: 50%; color: var(--m-ink); background: var(--m-sunken); box-shadow: none; }
+  .app-shell[data-tone] .profile-button > span { border-radius: 50%; color: var(--m-on-accent); background: var(--m-accent); box-shadow: none; }
+
+  .app-shell[data-tone] .workspace { height: calc(100dvh - var(--m-header) - var(--m-nav) - var(--m-safe-top) - var(--m-safe-bottom)); gap: 0; }
+  .app-shell[data-tone] .workspace > section.panel { padding: 12px 14px; border: 0; border-image: none; border-radius: 0; background: var(--m-bg); box-shadow: none; outline: 0; }
+  .app-shell[data-tone] :is(.search-panel,.playlist-panel)::before { display: none; }
+  .app-shell[data-tone] .panel-heading h2 { color: var(--m-ink); font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+  .app-shell[data-tone] .panel-heading h2 > .ui-icon { display: none; }
+  .app-shell[data-tone] .panel-heading small { display: none; }
+
+  /* Controls */
+  .app-shell[data-tone] .search-box { min-height: 44px; margin-top: 4px; padding: 4px 4px 4px 12px; border: 0; border-radius: 8px; background: var(--m-sunken); box-shadow: none; }
+  .app-shell[data-tone] .search-box > .ui-icon { color: var(--m-muted); }
+  .app-shell[data-tone] .search-box input { color: var(--m-ink); font-family: inherit; font-size: 15px; }
+  .app-shell[data-tone] .search-box input::placeholder { color: var(--m-muted); }
+  .app-shell[data-tone] .search-box > button { min-height: 36px; border: 0; border-radius: 6px; color: var(--m-on-accent); background: var(--m-accent); box-shadow: none; font-family: inherit; }
+  .app-shell[data-tone] .source-grid { gap: 6px; margin-block: 10px; }
+  .app-shell[data-tone] .source-grid label { min-height: 32px; padding: 4px 10px; border: 0; border-radius: 16px; color: var(--m-muted); background: var(--m-sunken); font-family: inherit; font-size: 12px; }
+  .app-shell[data-tone] .source-grid label.checked { color: var(--m-ink); background: color-mix(in srgb, var(--m-accent) 18%, var(--m-sunken)); }
+  .app-shell[data-tone] .source-grid i { border-radius: 50%; box-shadow: none; }
+  .app-shell[data-tone] .load-row { color: var(--m-muted); font-size: 12px; }
+  .app-shell[data-tone] :is(.load-row select,.load-row .btn,.daily-tools select,.playlist-toolbar button,.icon-upload) { border: 0; border-radius: 6px; color: var(--m-ink); background: var(--m-sunken); box-shadow: none; font-family: inherit; }
+  .app-shell[data-tone] .source-warning { border: 0; border-radius: 6px; color: var(--m-muted); background: var(--m-sunken); font-size: 12px; }
+
+  /* Rows */
+  .app-shell[data-tone] .track-row { min-height: 56px; margin-inline: -6px; padding-inline: 6px; border: 0; border-radius: 8px; background: none; box-shadow: none; }
+  .app-shell[data-tone] .track-row:active { background: var(--m-raised); }
+  .app-shell[data-tone] .track-row.active { background: var(--m-raised); box-shadow: none; }
+  .app-shell[data-tone] .track-row.active .track-copy strong { color: var(--m-accent); }
+  .app-shell[data-tone] .track-row.active :is(small,time,.row-actions) { color: var(--m-muted); }
+  .app-shell[data-tone] .track-source { width: 36px; height: 36px; border: 0; border-radius: 50%; color: var(--m-muted); background: var(--m-sunken); font-family: inherit; font-size: 12px; }
+  .app-shell[data-tone] .track-copy strong { color: var(--m-ink); font-size: 15px; font-weight: 600; }
+  .app-shell[data-tone] .track-copy small { margin-top: 2px; color: var(--m-muted); font-family: inherit; font-size: 12px; }
+  .app-shell[data-tone] .track-main time { color: var(--m-muted); font-family: inherit; font-size: 12px; }
+  .app-shell[data-tone] .empty-state { color: var(--m-muted); }
+  .app-shell[data-tone] .empty-state .ui-icon { color: var(--m-muted); }
+
+  /* Library */
+  .app-shell[data-tone] .playlist-panel .tabs { min-height: 40px; margin: 0 0 6px; padding: 2px; grid-template-columns: repeat(4, 1fr); gap: 2px; border: 0; border-radius: 8px; background: var(--m-sunken); box-shadow: none; }
+  .app-shell[data-tone] .playlist-panel .tabs button { min-height: 36px; flex-direction: row; border-radius: 6px; color: var(--m-muted); font-family: inherit; font-size: 12px; }
+  .app-shell[data-tone] .playlist-panel .tabs button .ui-icon { display: none; }
+  .app-shell[data-tone] .playlist-panel .tabs button.active { color: var(--m-ink); background: var(--m-raised); box-shadow: none; }
+  .app-shell[data-tone] .playlist-panel .playlist-toolbar { border-bottom: 1px solid var(--m-line); }
+  .app-shell[data-tone] .playlist-panel .playlist-toolbar > strong { color: var(--m-ink); font-family: inherit; font-size: 12px; }
+  .app-shell[data-tone] .playlist-panel .playlist-toolbar > strong::before { display: none; }
+  .app-shell[data-tone] .play-modes { border-top: 1px solid var(--m-line); background: none; }
+  .app-shell[data-tone] .play-modes button { border: 0; border-radius: 6px; color: var(--m-muted); background: var(--m-sunken); box-shadow: none; }
+
+  /* Daily: a compact header, then the list */
+  .app-shell[data-tone] .daily-editorial, .app-shell[data-tone] .daily-editorial.has-grainient { min-height: 0; margin: 0 0 10px; padding: 16px; display: block; border: 0; border-radius: 8px; background: var(--m-raised); box-shadow: none; }
+  .app-shell[data-tone] .daily-collage, .app-shell[data-tone] .daily-spotlight { display: none; }
+  .app-shell[data-tone] .daily-kicker { color: var(--m-accent); font-family: inherit; letter-spacing: .06em; }
+  .app-shell[data-tone] .daily-copy h2 { margin: 6px 0; color: var(--m-ink); font-family: inherit; font-size: 22px; font-weight: 700; line-height: 1.25; letter-spacing: 0; text-shadow: none; text-transform: none; }
+  .app-shell[data-tone] .daily-copy p { color: var(--m-muted); font-size: 13px; }
+  .app-shell[data-tone] .daily-actions { margin-top: 12px; }
+  .app-shell[data-tone] .daily-actions .btn { min-height: 38px; border: 0; border-radius: 8px; color: var(--m-ink); background: var(--m-sunken); box-shadow: none; font-family: inherit; }
+  .app-shell[data-tone] .daily-actions .btn.primary { color: var(--m-on-accent); background: var(--m-accent); }
+  .app-shell[data-tone] .daily-mobile-list { border: 0; }
+  .app-shell[data-tone] .daily-loading { border: 0; border-radius: 8px; color: var(--m-muted); background: var(--m-raised); }
+
+  /* The console: artwork first, nothing competing with it */
+  .app-shell[data-tone] .workspace > section.panel.player-panel { padding: 0 20px calc(var(--m-peek) + 8px); background: var(--m-bg) !important; }
+  .app-shell[data-tone] .workspace > section.panel.player-panel[data-mobile-section='daily'] { padding: 12px 14px; }
+  .app-shell[data-tone] .player-panel[data-mobile-section='player'] .stage-surface { display: flex; flex-direction: column; touch-action: pan-x; }
+  .app-shell[data-tone] .player-panel[data-mobile-section='player'] .player-heading { display: none; }
+  .app-shell[data-tone] .now-card { position: relative; min-height: 0; flex: 1; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; border: 0; border-radius: 0; background: none; box-shadow: none; rotate: none; text-align: left; }
+  .app-shell[data-tone] .record-wrap { width: min(72vw, 38dvh); padding: 0; background: none; filter: none; }
+  .app-shell[data-tone] .record-wrap::before { display: none; }
+  .app-shell[data-tone] .record-tilt { padding: 0; border: 0; border-radius: 12px; background: var(--m-raised); box-shadow: none; -webkit-mask: none; mask: none; }
+  .app-shell[data-tone] .record { width: 100%; height: 100%; border-radius: 12px; background: var(--m-sunken); box-shadow: none; }
+  .app-shell[data-tone] .record img { opacity: 1; }
+  .app-shell[data-tone] .spinning .record { animation: none; }
+  .app-shell[data-tone] .record::after { display: none; }
+  .app-shell[data-tone] .record-center { width: 40%; border-radius: 0; background: url('/pikachu-192.png') center / contain no-repeat; box-shadow: none; }
+  .app-shell[data-tone] .track-hero { width: 100%; }
+  .app-shell[data-tone] .now-kicker { display: none; }
+  .app-shell[data-tone] .track-hero h3 { display: block; color: var(--m-ink); font-family: inherit; font-size: 22px; font-weight: 700; line-height: 1.25; letter-spacing: 0; text-shadow: none; white-space: nowrap; }
+  .app-shell[data-tone] .track-hero p { margin: 2px 0 12px; color: var(--m-muted); font-family: inherit; font-size: 14px; text-shadow: none; }
+  .app-shell[data-tone] .progress-row { color: var(--m-muted); font-family: inherit; font-size: 12px; }
+  .app-shell[data-tone] .player-range { --range-empty: var(--m-sunken); }
+  .app-shell[data-tone] .player-range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; box-shadow: none; background: linear-gradient(90deg, var(--m-accent) 0 var(--range-progress), var(--m-sunken) var(--range-progress) 100%); }
+  .app-shell[data-tone] .player-range::-webkit-slider-thumb { width: 14px; height: 14px; margin-top: -5px; border: 0; border-radius: 50%; background: var(--m-accent); box-shadow: none; }
+  .app-shell[data-tone] .transport { margin-top: 8px; padding: 0; justify-content: center; gap: 22px; border: 0; background: none; box-shadow: none; }
+  .app-shell[data-tone] .transport > button:not(.mobile-volume-toggle):not(.play-main) { width: 44px; height: 44px; border: 0; border-radius: 50%; color: var(--m-ink); background: none; box-shadow: none; }
+  .app-shell[data-tone] .transport > .play-main { width: 60px; height: 60px; border: 0; border-radius: 50%; color: var(--m-on-accent); background: var(--m-accent); box-shadow: none; }
+  .app-shell[data-tone] .transport > .mobile-volume-toggle { display: none; }
+  .app-shell[data-tone] .hero-actions { position: absolute; right: 0; bottom: 100%; display: none; }
+  .app-shell[data-tone] .now-card .hero-actions { position: static; display: flex; justify-content: center; gap: 12px; }
+  .app-shell[data-tone] .hero-actions button { width: 40px; height: 40px; border: 0; border-radius: 50%; color: var(--m-muted); background: var(--m-sunken); box-shadow: none; }
+  .app-shell[data-tone] .hero-actions button.active { color: var(--m-on-accent); background: var(--m-accent); }
+  .app-shell[data-tone] .hero-actions span { display: none; }
+
+  /* The lyrics page rests under the console and rises over everything */
+  .app-shell[data-tone] .lyrics { --sheet-rest: calc(100dvh - var(--m-nav) - var(--m-safe-bottom) - var(--m-peek)); position: fixed; z-index: 40; left: 0; right: 0; top: 0; height: 100dvh; min-height: 0; margin: 0; flex: none; overflow: hidden; border: 0; border-radius: 12px 12px 0 0; background: var(--m-raised); box-shadow: 0 -1px 0 var(--m-line); transform: translateY(calc(var(--sheet-rest) + var(--sheet-drag, 0px))); transition: transform .32s cubic-bezier(.2,.8,.2,1), border-radius .32s ease; }
+  .app-shell[data-tone] .lyrics.is-dragging { transition: none; }
+  .app-shell[data-tone] .lyrics.sheet-open { border-radius: 0; background: var(--m-bg); transform: translateY(var(--sheet-drag, 0px)); }
+  .lyrics-peek { position: absolute; z-index: 3; inset: 0 0 auto; height: var(--m-peek); padding: 8px 20px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; border: 0; color: var(--m-ink); background: none; cursor: pointer; font: inherit; }
+  .lyrics-peek i { width: 36px; height: 4px; border-radius: 2px; background: var(--m-line); }
+  .lyrics-peek span { max-width: 100%; overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+  .lyrics.sheet-open .lyrics-peek { display: none; }
+  .app-shell[data-tone] .lyrics-scroll { top: calc(var(--m-safe-top) + 60px); padding-inline: 20px; visibility: hidden; }
+  .app-shell[data-tone] .lyrics.sheet-open .lyrics-scroll, .app-shell[data-tone] .lyrics.is-dragging .lyrics-scroll { visibility: visible; }
+  .lyrics-page-bar { position: absolute; z-index: 3; inset: 0 0 auto; padding: var(--m-safe-top) 8px 0; height: calc(var(--m-safe-top) + 60px); align-items: center; gap: 4px; background: var(--m-bg); touch-action: none; }
+  .lyrics.sheet-open .lyrics-page-bar { display: flex; }
+  .lyrics-page-bar button { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--m-ink); background: none; cursor: pointer; }
+  .lyrics-page-bar span { min-width: 0; text-align: left; }
+  .lyrics-page-bar strong, .lyrics-page-bar small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lyrics-page-bar strong { color: var(--m-ink); font-size: 15px; }
+  .lyrics-page-bar small { color: var(--m-muted); font-size: 12px; }
+  .app-shell[data-tone] .lyric-line { margin: 2px 0; padding: 10px 0; grid-template-columns: minmax(0,1fr); color: var(--m-muted); background: none; font-family: inherit; font-size: 19px; font-weight: 600; line-height: 1.45; text-shadow: none; transform: none; }
+  .app-shell[data-tone] .lyric-line > span { grid-column: 1; }
+  .app-shell[data-tone] .lyric-line time { display: none; }
+  .app-shell[data-tone] .lyric-line.active { color: var(--m-ink); background: none; font-family: inherit; font-size: 23px; font-weight: 700; text-shadow: none; transform: none; }
+  .app-shell[data-tone] .empty-lyrics { color: var(--m-muted); }
+  .app-shell[data-tone] .empty-lyrics .ui-icon { color: var(--m-muted); }
+  .app-shell[data-tone] .lyric-follow-button { border: 0; border-radius: 16px; color: var(--m-on-accent); background: var(--m-accent); font-size: 12px; }
+
+  /* Navigation sits on the edge; the current track is attached straight above it */
+  .app-shell[data-tone] .mobile-nav { left: 0; right: 0; bottom: 0; height: calc(var(--m-nav) + var(--m-safe-bottom)); padding: 4px 8px var(--m-safe-bottom); grid-template-columns: repeat(4, 1fr); border: 0; border-top: 1px solid var(--m-line); border-radius: 0; background: var(--m-raised); box-shadow: none; transition: transform .28s ease; }
+  .app-shell.lyrics-sheet-open[data-tone] .mobile-nav { transform: translateY(110%); }
+  .app-shell[data-tone] .mobile-nav button { min-width: 0; color: var(--m-muted); background: none; }
+  .app-shell[data-tone] .mobile-nav button > span { width: 52px; height: 26px; display: grid; place-items: center; border-radius: 13px; }
+  .app-shell[data-tone] .mobile-nav button small { font-size: 11px; }
+  .app-shell[data-tone] .mobile-nav button.active { color: var(--m-ink); background: none; }
+  .app-shell[data-tone] .mobile-nav button.active > span { color: var(--m-on-accent); background: var(--m-accent); }
+  .app-shell[data-tone] .mobile-nav button.is-playing > span::after { right: 8px; top: 2px; background: var(--m-accent); box-shadow: none; }
+  .app-shell[data-tone] .mobile-nav button.active.is-playing > span::after { background: var(--m-on-accent); }
+  .app-shell[data-tone] .mobile-mini-player { left: 0; right: 0; bottom: calc(var(--m-nav) + var(--m-safe-bottom)); height: 56px; padding: 6px 10px 6px 12px; gap: 8px; border: 0; border-top: 1px solid var(--m-line); border-radius: 0; background: var(--m-raised); box-shadow: none; }
+  .app-shell[data-tone] .mini-track > img, .app-shell[data-tone] .mini-track > span:first-child { width: 42px; height: 42px; border-radius: 6px; color: var(--m-muted); background: var(--m-sunken); }
+  .app-shell[data-tone] .mini-track strong { color: var(--m-ink); font-size: 14px; }
+  .app-shell[data-tone] .mini-track small { color: var(--m-muted); font-size: 12px; }
+  .app-shell[data-tone] .mini-toggle { color: var(--m-on-accent); background: var(--m-accent); box-shadow: none; }
+  .app-shell[data-tone].has-mobile-mini .workspace > section[data-mobile-active='true'] { padding-bottom: 68px; }
+
+  /* Overlays stay solid too */
+  .tone-panel, .tone-group-heading { backdrop-filter: none !important; }
+  .tone-panel { border-radius: 12px; background: var(--surface-1); }
+  .tone-group-heading { background: var(--surface-1); }
+  .toast { bottom: calc(var(--m-nav, 56px) + 72px + env(safe-area-inset-bottom, 0px)); }
+}

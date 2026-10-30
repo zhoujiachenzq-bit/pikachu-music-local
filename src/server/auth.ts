@@ -29,18 +29,20 @@ export function createSession(db: Db, userId: string) {
   return token;
 }
 
-function useSecureCookies() {
-  return process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production';
+function useSecureCookies(request: FastifyRequest) {
+  // Explicit configuration and production always win. Only an unconfigured
+  // development server on plain HTTP may drop the flag for its local preview.
+  return process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production' || request.protocol === 'https';
 }
 
-export function setSessionCookie(reply: FastifyReply, token: string) {
+export function setSessionCookie(reply: FastifyReply, request: FastifyRequest, token: string) {
   reply.setCookie(SESSION_COOKIE, token, {
-    path: '/', httpOnly: true, sameSite: 'strict', secure: useSecureCookies(), maxAge: SESSION_MS / 1000
+    path: '/', httpOnly: true, sameSite: 'strict', secure: useSecureCookies(request), maxAge: SESSION_MS / 1000
   });
 }
 
-export function clearSessionCookie(reply: FastifyReply) {
-  reply.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, sameSite: 'strict', secure: useSecureCookies() });
+export function clearSessionCookie(reply: FastifyReply, request: FastifyRequest) {
+  reply.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, sameSite: 'strict', secure: useSecureCookies(request) });
 }
 
 export function getSessionUser(db: Db, request: FastifyRequest): User | null {

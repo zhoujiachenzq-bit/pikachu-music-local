@@ -3,6 +3,14 @@ import { createDatabase } from './db.js';
 import { listSourceHealth, resetSourceHealthCircuits, SourceCircuitOpenError, withSourceHealth } from './sourceHealth.js';
 
 describe('source health circuit breaker', () => {
+  it('does not count a caller stopping early as a provider failure', async () => {
+    const db = createDatabase(':memory:'); const stopped = () => { throw new DOMException('stopped', 'AbortError'); };
+    for (let count = 0; count < 4; count += 1) await expect(withSourceHealth(db, 'kuwo', 'search', async () => stopped())).rejects.toThrow('stopped');
+    expect(listSourceHealth(db)).toEqual([]);
+    await expect(withSourceHealth(db, 'kuwo', 'search', async () => ['ok'])).resolves.toEqual(['ok']);
+    db.close();
+  });
+
   it('opens after three consecutive failures and resets after a successful probe', async () => {
     const db = createDatabase(':memory:'); let time = Date.parse('2026-08-12T00:00:00.000Z');
     for (let count = 0; count < 3; count += 1) {

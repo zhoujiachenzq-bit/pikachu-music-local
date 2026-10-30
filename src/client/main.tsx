@@ -6,8 +6,10 @@ import './styles.css';
 import './roomEffects.css';
 import './controlStyles.css';
 import './landscapeThemes.css';
+import './themeArtDirection.css';
+import './mobileShell.css';
 
-document.documentElement.dataset.visualRelease = '0.5.0';
+document.documentElement.dataset.visualRelease = '0.6.0';
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

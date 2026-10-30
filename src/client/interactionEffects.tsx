@@ -3,10 +3,6 @@
 import { useEffect, useRef, type InputHTMLAttributes, type PointerEvent, type ReactNode } from 'react';
 import { useReducedMotion } from './motionEffects';
 
-export function GlassIcon({ children }: { children: ReactNode }) {
-  return <span className="glass-icon" aria-hidden="true"><span className="glass-back"/><span className="glass-front">{children}</span></span>;
-}
-
 export function ElasticVolume({ motionEnabled, ...props }: InputHTMLAttributes<HTMLInputElement> & { motionEnabled: boolean }) {
   const visual = useRef<HTMLSpanElement>(null);
   const spring = useRef<Animation | null>(null);
@@ -68,25 +64,6 @@ export function TiltSurface({ children, enabled, className = '', intensity = 6 }
       root.current?.style.setProperty('--tilt-scale', '1.03');
     });
   }}>{children}</span>;
-}
-
-export function SettingsCardNav({ zh }: { zh: boolean }) {
-  const reduced = useReducedMotion();
-  return <details className="settings-card-nav" open><summary>{zh ? '设置导航' : 'Settings navigation'}<span aria-hidden="true">↗</span></summary>
-    <div>{[
-      ['identity', '01', zh ? '身份与陪伴' : 'Identity & companionship', zh ? '称呼 · 性格 · 陪伴方式' : 'Name · tone · behavior'],
-      ['voice', '02', zh ? '声音' : 'Voice', zh ? '音色 · 试听 · 朗读' : 'Voice · preview · read aloud'],
-      ['data', '03', zh ? '记忆与数据' : 'Memory & data', zh ? '记忆 · 知识 · 加密档案' : 'Memory · knowledge · archives'],
-    ].map(([id, number, label, detail]) => <button key={id} type="button" onClick={event => {
-      const panel = event.currentTarget.closest('.agent-settings');
-      const scroller = panel?.querySelector<HTMLElement>('.agent-settings-scroll');
-      const target = panel?.querySelector<HTMLElement>(`[data-settings-section="${id}"]`);
-      if (!target || !scroller) return;
-      const top = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 12;
-      scroller.scrollTo({ top, behavior: !reduced && panel?.closest('.motion-on') ? 'smooth' : 'instant' });
-      target.focus({ preventScroll: true });
-    }}><small>{number}</small><strong>{label}</strong><span>{detail}</span></button>)}</div>
-  </details>;
 }
 
 /** Localized panel light only; never moves content or listens to editing areas. */

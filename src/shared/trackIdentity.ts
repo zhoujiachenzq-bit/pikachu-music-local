@@ -1,7 +1,15 @@
 const punctuation = /[\s\-‐‑‒–—―_·•.,，。!！?？:：;；'"“”‘’()[\]{}（）【】《》<>]/g;
 
-const derivativeVersionPattern = /(?:翻唱|翻奏|cover(?:\s*version)?|live|现场(?:版|录音)?|演唱会版?|铃声(?:版)?|手机铃声|伴奏|instrumental|karaoke|ktv|(?:^|[^a-z])dj(?:版|\s*(?:mix|remix))?(?:$|[^a-z])|remix|混音版?|纯音乐|钢琴版|吉他版|女声版|男声版|加速版|慢速版|sped\s*up|slowed(?:\s*down)?|8d(?:环绕)?)/i;
+const derivativeVersionPattern = /(?:翻唱|翻自|翻奏|cover(?:\s*version)?|(?<![a-z])(?:live|edit)(?![a-z])|现场(?:版|录音)?|演唱会版?|音乐会|特辑|铃声(?:版)?|手机铃声|伴奏|instrumental|karaoke|ktv|(?:^|[^a-z])dj(?:版|\s*(?:mix|remix))?(?:$|[^a-z])|remix|混音版?|纯音乐|钢琴版|吉他版|女声版|男声版|加速版|慢速版|sped\s*up|slowed(?:\s*down)?|8d(?:环绕)?|改编|指弹|弹唱|钢琴曲|吉他曲|串烧|medley|mashup|长音频|胎教|助眠|白噪音)/i;
+// Crediting an original artist in the title means this recording is someone
+// else's: "说了再见 (原唱: 周杰伦)". "(原唱版)" still names the original itself.
+const creditedOriginalPattern = /原唱\s*[:：]|[（(【[](?![^）)】\]]*原唱版)[^）)】\]]*原唱[^）)】\]]*[）)】\]]/;
+// Album names use "版" for ordinary editions, so these two only read the title.
+const qualifiedEditionPattern = /[（(【[](?![^）)】\]]*(?:原唱|完整|正式|录音室|国语|粤语|闽南语|日语|英文|英语|韩语|电影|剧场)版)[^）)】\]]*版[）)】\]]/;
+// Hashtags mark short-video clips rather than songs.
+const medleyTitlePattern = /\s\+\s|\+[^+]+\+|#/;
 const trailingQualifier = /\s*[（(【[]([^）)】\]]{1,48})[）)】\]]\s*$/;
+const artistSeparators = /[/／,，、&＆;；|+()（）]|\s(?:feat\.?|ft\.?|with|x|×)\s/i;
 
 export function normalizeTrackText(value: string): string {
   return value.normalize('NFKC').toLowerCase().replace(/&nbsp;|&#160;/gi, ' ').replace(punctuation, '');
@@ -12,7 +20,24 @@ export function canonicalTrackKey(title: string, artist: string): string {
 }
 
 export function isDerivativeTrackVersion(title: string, album = ''): boolean {
-  return derivativeVersionPattern.test(`${title} ${album}`);
+  return derivativeVersionPattern.test(`${title} ${album}`) || creditedOriginalPattern.test(title)
+    || qualifiedEditionPattern.test(title) || medleyTitlePattern.test(title);
+}
+
+function artistNames(artist: string): string[] {
+  return artist.split(artistSeparators).map(normalizeTrackText).filter(Boolean);
+}
+
+/** Lower is better. Orders search results without hiding any version. */
+export function searchRelevance(track: { title: string; artist: string; album?: string }, query: string): number {
+  const wanted = normalizeTrackText(query);
+  const credited = artistNames(track.artist).find(name => wanted.includes(name));
+  const remainder = credited ? wanted.replace(credited, '') : wanted;
+  const title = normalizeTrackText(track.title);
+  const titled = Boolean(remainder) && (title === remainder || trackFamilyKey(track.title) === remainder
+    || (!credited && title.length > 1 && wanted.includes(title)));
+  const rank = titled && credited ? 0 : titled ? 1 : credited ? 2 : 3;
+  return isDerivativeTrackVersion(track.title, track.album) ? rank + 4 : rank;
 }
 
 export function baseTrackTitle(title: string): string {

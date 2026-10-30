@@ -1,22 +1,22 @@
 import type { MouseEvent } from 'react';
-import { Plus, Robot, UploadSimple, X, Prohibit, DownloadSimple, Globe, Headphones, Heart, ArrowSquareIn, Playlist, Microphone, Waveform, MusicNotes, SkipForward, Palette, Pause, Play, SkipBack, Repeat, RepeatOnce, ArrowUUpLeft, MagnifyingGlass, PaperPlaneTilt, SlidersHorizontal, Shuffle, Sparkle, SpeakerHigh, ArrowsClockwise, UserCircle, Warning } from '@phosphor-icons/react';
+import { CaretDown, SpeakerHigh, Plus, UploadSimple, X, Prohibit, DownloadSimple, Headphones, Heart, ArrowSquareIn, Playlist, Waveform, MusicNotes, SkipForward, Palette, Pause, Play, SkipBack, Repeat, RepeatOnce, MagnifyingGlass, Shuffle, Sparkle, ArrowsClockwise, Warning } from '@phosphor-icons/react';
 import { Grainient } from './Grainient';
 import { TiltSurface } from './interactionEffects';
 import type { ToneThemeId } from './visualTheme';
 import type { MusicSource, RecommendedTrack, Track } from '../shared/types';
 import type { MobileSection } from './visualState';
 
-export type IconName = 'add' | 'agent' | 'backup' | 'close' | 'dislike' | 'download' | 'globe' | 'headphones' | 'heart' | 'import' | 'library' | 'microphone' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'return' | 'search' | 'send' | 'settings' | 'shuffle' | 'sparkles' | 'speaker' | 'sync' | 'user' | 'volume' | 'warning';
+export type IconName = 'add' | 'collapse' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'volume' | 'warning';
 
 const iconComponents = {
-  add: Plus, agent: Robot, backup: UploadSimple, close: X, dislike: Prohibit,
-  download: DownloadSimple, globe: Globe, headphones: Headphones, heart: Heart,
-  import: ArrowSquareIn, library: Playlist, microphone: Microphone, motion: Waveform,
+  add: Plus, collapse: CaretDown, backup: UploadSimple, close: X, dislike: Prohibit,
+  download: DownloadSimple, headphones: Headphones, heart: Heart,
+  import: ArrowSquareIn, library: Playlist, motion: Waveform,
   music: MusicNotes, next: SkipForward, palette: Palette, pause: Pause, play: Play,
   previous: SkipBack, repeat: Repeat, repeatOne: RepeatOnce, restore: DownloadSimple,
-  return: ArrowUUpLeft, search: MagnifyingGlass, send: PaperPlaneTilt, settings: SlidersHorizontal,
-  shuffle: Shuffle, sparkles: Sparkle, speaker: SpeakerHigh, sync: ArrowsClockwise,
-  user: UserCircle, volume: SpeakerHigh, warning: Warning,
+  search: MagnifyingGlass,
+  shuffle: Shuffle, sparkles: Sparkle, sync: ArrowsClockwise,
+  volume: SpeakerHigh, warning: Warning,
 } as const;
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
@@ -132,7 +132,6 @@ export function MobileNavigation({ active, lang, playing, onChange }: { active: 
     { section: 'search', icon: 'search', label: zh ? '搜索' : 'Search' },
     { section: 'player', icon: 'headphones', label: zh ? '播放' : 'Player' },
     { section: 'library', icon: 'library', label: zh ? '歌单' : 'Library' },
-    { section: 'agent', icon: 'agent', label: zh ? '珍奇' : 'Zhenqi' },
   ];
   return <nav className="mobile-nav" aria-label={zh ? '主要导航' : 'Primary navigation'}>{items.map(item => <button key={item.section} className={`${active === item.section ? 'active' : ''} ${item.section === 'player' && playing ? 'is-playing' : ''}`} aria-current={active === item.section ? 'page' : undefined} onClick={() => onChange(item.section)}><span><Icon name={item.icon} size={20}/></span><small>{item.label}</small></button>)}</nav>;
 }

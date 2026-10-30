@@ -1,5 +1,5 @@
-const CACHE_NAME = 'pikachu-music-shell-v0.5.0-r1';
-const STATIC_PATHS = new Set(['/manifest.webmanifest', '/pikachu.svg', '/pikachu.gif', '/pikachu.ico', '/pikachu-192.png', '/pikachu-512.png']);
+const CACHE_NAME = 'pikachu-music-shell-v0.6.0-r1';
+const STATIC_PATHS = new Set(['/manifest.webmanifest', '/pikachu.svg', '/pikachu.gif', '/pikachu.ico', '/pikachu-192.png', '/pikachu-512.png', '/summer-coast.webp', '/walled-meadow.webp', '/twilight-garden.webp']);
 
 function isCacheableResponse(response, url) {
   if (!response.ok) return false;

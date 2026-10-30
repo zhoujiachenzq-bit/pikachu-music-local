@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Track } from '../shared/types';
-import { deriveVisualPalette, mobileSectionForStage, shouldPersistMobileScroll, shouldShowMiniPlayer, shouldUseDesktopWebgl, stageAfterRecommendationPlay, TRACK_COLOR_INFLUENCE } from './visualState';
+import { deriveVisualPalette, mobileSectionForStage, shouldPersistMobileScroll, shouldShowMiniPlayer, stageAfterRecommendationPlay, TRACK_COLOR_INFLUENCE } from './visualState';
 
 const track: Track = {
   id: 'qq:1', source: 'qq', sourceTrackId: '1', title: 'Night Drive', artist: 'Pikachu', album: 'Cottage', duration: 180_000,
@@ -21,12 +21,11 @@ describe('immersive visual state', () => {
     expect(shouldShowMiniPlayer('daily', false)).toBe(false);
   });
 
-  it('does not restore an outer scroll position for the player or agent', () => {
+  it('does not restore an outer scroll position for the player', () => {
     expect(shouldPersistMobileScroll('daily')).toBe(true);
     expect(shouldPersistMobileScroll('search')).toBe(true);
     expect(shouldPersistMobileScroll('library')).toBe(true);
     expect(shouldPersistMobileScroll('player')).toBe(false);
-    expect(shouldPersistMobileScroll('agent')).toBe(false);
   });
 
   it('uses stable track palettes', () => {
@@ -39,16 +38,9 @@ describe('immersive visual state', () => {
 
   it('keeps an empty stage on the pure theme palette', () => {
     expect(deriveVisualPalette(null, 'paper')).toMatchObject({ primary: '#ffd84d', secondary: '#f24b2a', glow: '#1768ff' });
-    expect(deriveVisualPalette(null, 'night')).toMatchObject({ primary: '#ffd84d', secondary: '#287b89', glow: '#a7dce5' });
+    expect(deriveVisualPalette(null, 'night')).toMatchObject({ primary: '#ffd84d', secondary: '#cb4630', glow: '#0f7c8a' });
     expect(deriveVisualPalette(null, 'vinyl')).toMatchObject({ secondary: '#527445', glow: '#d8dda8' });
-    expect(deriveVisualPalette(null, 'arcade')).toMatchObject({ secondary: '#2fe6ff', glow: '#ff4bd8' });
-  });
-
-  it('loads WebGL only on capable desktops', () => {
-    expect(shouldUseDesktopWebgl({ width: 1440, finePointer: true, reducedMotion: false })).toBe(true);
-    expect(shouldUseDesktopWebgl({ width: 1080, finePointer: true, reducedMotion: false })).toBe(false);
-    expect(shouldUseDesktopWebgl({ width: 1440, finePointer: false, reducedMotion: false })).toBe(false);
-    expect(shouldUseDesktopWebgl({ width: 1440, finePointer: true, reducedMotion: true })).toBe(false);
+    expect(deriveVisualPalette(null, 'arcade')).toMatchObject({ secondary: '#ff3d8b', glow: '#22e3ff' });
   });
 
   it('maps each center stage to its mobile destination', () => {

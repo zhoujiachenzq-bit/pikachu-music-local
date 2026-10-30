@@ -4,8 +4,7 @@ import type { StageMode, VisualPalette } from './visualState';
 
 interface ImmersiveBackdropProps {
   coverUrl?: string | null;
-  focus?: 'content' | 'agent';
-  motionEnabled: boolean;
+   motionEnabled: boolean;
   palette: VisualPalette;
   playing: boolean;
   progress: number;
@@ -23,7 +22,6 @@ function capability(): { width: number; reducedMotion: boolean } {
 /** A single, focused scene behind the center player stage. */
 export function ImmersiveBackdrop({
   coverUrl,
-  focus = 'content',
   motionEnabled,
   palette,
   playing,
@@ -272,7 +270,7 @@ export function ImmersiveBackdrop({
   }, [calmDefault, motionEnabled, palette.glow, palette.primary, palette.secondary, palette.seed, quality, variant]);
 
   return <div
-    className={`immersive-backdrop scene-${variant} quality-${quality} ${webglReady ? 'webgl-ready' : 'css-fallback'} ${cssMotionActive ? 'motion-active' : 'motion-still'} ${playing ? 'is-playing' : 'is-paused'} stage-${stage} focus-${focus}`}
+    className={`immersive-backdrop scene-${variant} quality-${quality} ${webglReady ? 'webgl-ready' : 'css-fallback'} ${cssMotionActive ? 'motion-active' : 'motion-still'} ${playing ? 'is-playing' : 'is-paused'} stage-${stage}`}
     data-theme={theme}
     aria-hidden="true"
     style={{

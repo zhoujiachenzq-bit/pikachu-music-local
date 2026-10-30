@@ -1,0 +1,401 @@
+
+
+
+/* Art direction for three themes. Each one changes material and composition, not
+   just colour: Neon Arcade is a cabinet, Summer Coast a postcard, Twilight Garden
+   a picture book. Stored IDs stay night/burgundy so preferences keep working. */
+/* Reading sizes for every theme: names and times must be legible on their own. */
+
+
+
+.app-shell .track-copy strong { font-size: 13px; }
+.app-shell .track-copy small { font-size: 11px; }
+.app-shell .track-main time { font-size: 11px; }
+.app-shell .panel-heading small { font-size: 10px; }
+.app-shell .search-box input { font-size: 13px; }
+.app-shell .source-grid label { font-size: 11px; }
+.app-shell .load-row { font-size: 11px; }
+.app-shell .playlist-panel .tabs button { font-size: 11px; }
+.app-shell .track-hero p { font-size: 13px; }
+.app-shell .progress-row { font-size: 11px; }
+.app-shell .lyric-line { font-size: 15px; }
+.app-shell .hero-actions span { font-size: 10px; }
+.app-shell .shortcuts { font-size: 10px; }
+.app-shell .daily-copy p { font-size: 13px; }
+.app-shell .spotlight-copy strong { font-size: 13px; }
+.app-shell .spotlight-copy small { font-size: 11px; }
+.app-shell .spotlight-copy em { font-size: 10px; }
+.app-shell:is([data-tone='arcade'],[data-tone='night'],[data-tone='burgundy']) .particle-field { display: none; }
+
+/* Chinese headings break between phrases, never one character onto its own line. */
+
+
+.app-shell .daily-copy h2 { font-size: clamp(30px, 3.3vw, 50px); line-height: 1.12; word-break: keep-all; text-wrap: balance; }
+
+
+/* ─── Neon Arcade: a cabinet. Pixel frames, a CRT, a high-score table, a health bar. ─── */
+
+
+
+:where(.app-shell,.tone-panel)[data-tone='arcade'] {
+  --brand: #ff3d8b; --brand-bright: #ff7fb2; --brand-ink: #16040d; --coin: #ffd23f; --beam: #22e3ff; --phosphor: #7dffb2;
+  --text: #e4e9ff; --text-strong: #ffffff; --muted: #a6a4cc; --quiet: #7e7ba8;
+  --surface-0: #08070f; --surface-1: #0f0d1c; --surface-2: #17142b; --surface-3: #241f42;
+  --panel-a: #0f0d1c; --panel-b: #0b0a15; --control-bg: #1b1733; --input-bg: #06050c; --hover-bg: #22e3ff14;
+  --line: #3a346880; --line-strong: #22e3ff99; --radius-panel: 0;
+  --arcade-mono: 'Cascadia Mono', 'Cascadia Code', Consolas, 'SFMono-Regular', Menlo, 'Microsoft YaHei', monospace;
+  --pixel-frame: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3468' d='M8 0h8v4h4v4h4v8h-4v4h-4v4H8v-4H4v-4H0V8h4V4h4z'/%3E%3Cpath fill='%230f0d1c' d='M10 2h4v4h4v4h4v4h-4v4h-4v4h-4v-4H6v-4H2v-4h4V6h4z'/%3E%3C/svg%3E");
+  --pixel-frame-lit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' shape-rendering='crispEdges'%3E%3Cpath fill='%2322e3ff' d='M8 0h8v4h4v4h4v8h-4v4h-4v4H8v-4H4v-4H0V8h4V4h4z'/%3E%3Cpath fill='%2308070f' d='M10 2h4v4h4v4h4v4h-4v4h-4v4h-4v-4H6v-4H2v-4h4V6h4z'/%3E%3C/svg%3E");
+}
+.app-shell[data-tone='arcade'] { background: #08070f; }
+.app-shell[data-tone='arcade']::before { opacity: .5; inset: 0; transform: none; mask-image: none; background-image: radial-gradient(#7e7ba8 1px, transparent 1.5px), radial-gradient(#22e3ff 1px, transparent 1.5px); background-size: 127px 113px, 211px 173px; background-position: 13px 29px, 71px 5px; }
+.app-shell[data-tone='arcade']::after { opacity: .5; mix-blend-mode: normal; background: repeating-linear-gradient(to bottom, transparent 0 3px, #0000001f 3px 4px); }
+.app-shell[data-tone='arcade'] .panel::after { display: none; }
+.app-shell[data-tone='arcade'] .topbar.panel, .app-shell[data-tone='arcade'] .workspace > section.panel { padding: 6px; border: 8px solid transparent; border-radius: 0; border-image: var(--pixel-frame) 8 fill / 8px stretch; background: none; box-shadow: none; backdrop-filter: none; }
+.app-shell[data-tone='arcade'] .workspace > section.player-panel { border-image-source: var(--pixel-frame-lit); }
+.app-shell[data-tone='arcade'] :is(.search-panel,.playlist-panel)::before { display: none; }
+
+/* The marquee: the one place allowed to glow. Bulbs chase only while motion is on. */
+
+
+.app-shell[data-tone='arcade'] .topbar::before { inset: 2px 12px auto; height: 3px; opacity: 1; background: radial-gradient(circle, var(--coin) 0 1.5px, transparent 2px) 0 0 / 16px 3px repeat-x; }
+.app-shell.motion-on[data-tone='arcade'] .topbar::before { animation: arcade-bulbs 1.6s steps(4) infinite; }
+@keyframes arcade-bulbs { to { background-position: 16px 0; } }
+.app-shell[data-tone='arcade'] .brand h1 { font-family: var(--arcade-mono); font-weight: 700; letter-spacing: .02em; text-shadow: 2px 2px 0 var(--brand); }
+.app-shell[data-tone='arcade'] .brand-kicker { color: var(--coin); font-family: var(--arcade-mono); text-shadow: none; }
+.app-shell[data-tone='arcade'] .logo-ring { border-radius: 0; background: var(--coin); box-shadow: 4px 4px 0 var(--brand); }
+.app-shell[data-tone='arcade'] .logo-ring img { border-radius: 0; image-rendering: pixelated; }
+.app-shell[data-tone='arcade'] .language { border-radius: 0; border-color: var(--line); background: var(--input-bg); }
+.app-shell[data-tone='arcade'] .language button { border-radius: 0; font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .language button.active { color: var(--brand-ink); background: var(--coin); box-shadow: none; }
+.app-shell[data-tone='arcade'] :is(.tone-trigger,.profile-button) { border-radius: 0; border: 1px solid var(--line); background: var(--surface-2); box-shadow: none; font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .profile-button > span { border-radius: 0; color: var(--brand-ink); background: var(--coin); box-shadow: none; }
+.app-shell[data-tone='arcade'] .shortcuts { color: var(--quiet); font-family: var(--arcade-mono); }
+
+/* HUD labels */
+
+
+.app-shell[data-tone='arcade'] .panel-heading h2 { color: var(--text-strong); font-family: var(--arcade-mono); font-weight: 700; letter-spacing: .08em; }
+.app-shell[data-tone='arcade'] .panel-heading h2 > .ui-icon { border-radius: 0; color: var(--brand-ink); background: var(--beam); text-shadow: none; }
+.app-shell[data-tone='arcade'] .panel-heading small { border: 0; border-radius: 0; color: var(--coin); background: none; font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .search-box { border: 2px solid var(--line); border-radius: 0; background: var(--input-bg); box-shadow: none; }
+.app-shell[data-tone='arcade'] .search-box:focus-within { border-color: var(--beam); }
+.app-shell[data-tone='arcade'] .search-box > .ui-icon { color: var(--beam); }
+.app-shell[data-tone='arcade'] .search-box input { font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .search-box > button { border-radius: 0; color: var(--brand-ink); background: var(--brand); box-shadow: 0 3px 0 #8f1650; font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .search-box > button:active { translate: 0 2px; box-shadow: 0 1px 0 #8f1650; }
+.app-shell[data-tone='arcade'] .source-grid label { border-radius: 0; font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .source-grid i { border-radius: 0; box-shadow: none; }
+.app-shell[data-tone='arcade'] :is(.load-row select,.load-row .btn,.daily-tools select,.playlist-toolbar button,.icon-upload) { border-radius: 0; font-family: var(--arcade-mono); }
+
+/* The high-score table */
+
+
+.app-shell[data-tone='arcade'] .track-row { min-height: 46px; border-bottom: 1px dashed var(--line); border-radius: 0; }
+.app-shell[data-tone='arcade'] .track-row:hover { background: var(--hover-bg); }
+.app-shell[data-tone='arcade'] .track-row.active { background: var(--coin); box-shadow: none; }
+.app-shell[data-tone='arcade'] .track-row.active :is(.track-copy strong,.track-copy small,time) { color: var(--brand-ink); }
+.app-shell[data-tone='arcade'] .track-row.active .row-actions { color: var(--brand-ink); }
+.app-shell[data-tone='arcade'] .track-source { border-radius: 0; border-color: var(--line); color: var(--muted); background: var(--surface-2); font-family: var(--arcade-mono); font-size: 10px; }
+.app-shell[data-tone='arcade'] .track-copy small, .app-shell[data-tone='arcade'] .track-main time { font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .playlist-panel .tabs { border-radius: 0; border-color: var(--line); background: var(--input-bg); }
+.app-shell[data-tone='arcade'] .playlist-panel .tabs button { border-radius: 0; font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .playlist-panel .tabs button.active { color: var(--brand-ink); background: var(--beam); box-shadow: none; }
+.app-shell[data-tone='arcade'] .playlist-panel .playlist-toolbar > strong { font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .playlist-panel .playlist-toolbar > strong::before { border-radius: 0; background: var(--coin); }
+
+/* The control deck */
+
+
+.app-shell[data-tone='arcade'] .now-card { border: 0; border-bottom: 2px dashed var(--line); border-radius: 0; background: none; box-shadow: none; }
+.app-shell[data-tone='arcade'] .record-tilt { border: 4px solid var(--coin); border-radius: 0; background: var(--surface-2); box-shadow: 6px 6px 0 var(--brand); }
+.app-shell[data-tone='arcade'] .record { width: 100%; height: 100%; border-radius: 0; background: var(--surface-1); box-shadow: none; }
+.app-shell[data-tone='arcade'] .record img { opacity: 1; }
+.app-shell[data-tone='arcade'] .spinning .record { animation: none; }
+.app-shell[data-tone='arcade'] .record::after { display: none; }
+.app-shell[data-tone='arcade'] .record-center { width: 58%; border-radius: 0; background: url('/pikachu-192.png') center / contain no-repeat; box-shadow: none; image-rendering: pixelated; }
+.app-shell[data-tone='arcade'] .now-kicker { color: var(--coin); font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .track-hero h3 { color: var(--text-strong); font-family: var(--arcade-mono); font-weight: 700; letter-spacing: -.02em; text-shadow: 3px 3px 0 var(--brand); }
+.app-shell[data-tone='arcade'] .track-hero p, .app-shell[data-tone='arcade'] .progress-row { font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .progress-row { color: var(--beam); }
+
+/* The health bar */
+
+
+.app-shell[data-tone='arcade'] .player-range::-webkit-slider-runnable-track { height: 10px; border-radius: 0; box-shadow: none; background: repeating-linear-gradient(90deg, transparent 0 7px, #08070f 7px 9px), linear-gradient(90deg, var(--phosphor) 0 var(--range-progress), #241f42 var(--range-progress) 100%); }
+.app-shell[data-tone='arcade'] .player-range::-moz-range-track { height: 10px; border-radius: 0; box-shadow: none; background: repeating-linear-gradient(90deg, transparent 0 7px, #08070f 7px 9px), linear-gradient(90deg, var(--phosphor) 0 var(--range-progress), #241f42 var(--range-progress) 100%); }
+.app-shell[data-tone='arcade'] .player-range::-moz-range-progress { height: 10px; border-radius: 0; background: transparent; }
+.app-shell[data-tone='arcade'] .player-range::-webkit-slider-thumb { width: 8px; height: 18px; margin-top: -4px; border: 0; border-radius: 0; background: var(--text-strong); box-shadow: none; }
+.app-shell[data-tone='arcade'] .player-range::-moz-range-thumb { width: 8px; height: 18px; border: 0; border-radius: 0; background: var(--text-strong); box-shadow: none; }
+.app-shell[data-tone='arcade'] .transport { border: 0; border-radius: 0; background: none; box-shadow: none; }
+.app-shell[data-tone='arcade'] .transport > button:not(.mobile-volume-toggle):not(.play-main) { border-radius: 0; border: 1px solid var(--line); background: var(--surface-2); box-shadow: 0 3px 0 #000; }
+.app-shell[data-tone='arcade'] .transport > .play-main { width: 52px; height: 52px; border: 3px solid #ffb3d1; border-radius: 50%; background: var(--brand); box-shadow: 0 5px 0 #8f1650, 0 0 0 4px #17142b; }
+.app-shell[data-tone='arcade'] .transport > .play-main:active { translate: 0 4px; box-shadow: 0 1px 0 #8f1650, 0 0 0 4px #17142b; }
+.app-shell[data-tone='arcade'] .hero-actions button { border-radius: 0; background: var(--surface-2); }
+.app-shell[data-tone='arcade'] .hero-actions button.active { color: var(--brand-ink); border-color: var(--brand); background: var(--brand); }
+.app-shell[data-tone='arcade'] .hero-actions span { border-radius: 0; font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .elastic-volume-visual { height: 8px; border-radius: 0; background: #241f42; box-shadow: none; }
+.app-shell[data-tone='arcade'] .elastic-volume-visual > span { background: repeating-linear-gradient(90deg, var(--beam) 0 6px, #08070f 6px 8px); }
+.app-shell[data-tone='arcade'] .elastic-volume-visual > span::after { top: -5px; right: -4px; width: 8px; height: 18px; border: 0; border-radius: 0; background: var(--text-strong); box-shadow: none; }
+
+/* The CRT: bezel, phosphor text and scanlines. Nothing else in the room moves. */
+
+
+.app-shell[data-tone='arcade'] .lyrics { margin: 12px 6px 6px; border: 0; border-radius: 22px / 26px; background: radial-gradient(ellipse at 50% 42%, #0b1f19 0, #050b0a 72%); box-shadow: 0 0 0 6px #17142b, 0 0 0 8px var(--line), inset 0 0 60px #000c; }
+.app-shell[data-tone='arcade'] .lyrics-effects { display: block; }
+.app-shell[data-tone='arcade'] .lyrics-effects::before { opacity: 1; inset: 0; animation: none; background: repeating-linear-gradient(to bottom, transparent 0 2px, #0000004d 2px 4px); }
+.app-shell[data-tone='arcade'] .lyrics-effects::after { display: none; }
+.app-shell[data-tone='arcade'] .lyric-line { color: #7dffb2a6; font-family: var(--arcade-mono); text-shadow: none; }
+.app-shell[data-tone='arcade'] .lyric-line.active { color: #dcffe9; transform: none; background: none; font-size: 19px; font-weight: 700; text-shadow: 0 0 10px #7dffb2b0; }
+.app-shell[data-tone='arcade'] .lyric-line time { color: var(--phosphor); font-size: 11px; }
+.app-shell[data-tone='arcade'] .empty-lyrics { color: var(--phosphor); font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .empty-lyrics .ui-icon { color: var(--phosphor); }
+
+/* Daily: tonight's top scores */
+
+
+.app-shell[data-tone='arcade'] .daily-editorial { border: 2px solid var(--coin); border-radius: 0; background: #0b0a15; box-shadow: none; }
+.app-shell[data-tone='arcade'] .daily-editorial > .grainient { display: none; }
+.app-shell[data-tone='arcade'] .daily-copy h2 { color: var(--coin); font-family: var(--arcade-mono); font-weight: 700; letter-spacing: -.03em; text-transform: none; text-shadow: 2px 2px 0 #8f1650; }
+.app-shell[data-tone='arcade'] .daily-kicker { color: var(--beam); font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .daily-collage .collage-tilt img { border: 3px solid var(--text-strong); border-radius: 0; box-shadow: 5px 5px 0 #000; }
+.app-shell[data-tone='arcade'] .daily-count { color: var(--brand); font-family: var(--arcade-mono); text-shadow: 3px 3px 0 #000; }
+.app-shell[data-tone='arcade'] .daily-spotlight-card { border-radius: 0; background: var(--surface-1); }
+.app-shell[data-tone='arcade'] .daily-spotlight-card img, .app-shell[data-tone='arcade'] .spotlight-placeholder { border-radius: 0; }
+.app-shell[data-tone='arcade'] .daily-spotlight-card.active { border-color: var(--coin); background: #ffd23f14; }
+.app-shell[data-tone='arcade'] :is(.daily-actions .btn,.btn.primary) { border-radius: 0; font-family: var(--arcade-mono); }
+.app-shell[data-tone='arcade'] .daily-actions .btn.primary { color: var(--brand-ink); border-color: var(--brand); background: var(--brand); box-shadow: 0 3px 0 #8f1650; }
+@media (min-width: 1081px) {
+  .app-shell[data-tone='arcade'] .workspace { grid-template-columns: minmax(250px, .72fr) minmax(560px, 2fr) minmax(270px, .78fr); gap: 8px; }
+}
+@media (max-width: 760px) {
+  .app-shell[data-tone='arcade'] .topbar.panel, .app-shell[data-tone='arcade'] .workspace > section.panel { padding: 2px; border-width: 6px; }
+  .app-shell[data-tone='arcade'] .lyrics { margin: 10px 8px 8px; }
+  .app-shell[data-tone='arcade'] :is(.mobile-nav,.mobile-mini-player) { border: 2px solid var(--line); border-radius: 0; background: #0f0d1c; }
+  .app-shell[data-tone='arcade'] .mobile-nav button.active { color: var(--brand-ink); background: var(--coin); border-radius: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .app-shell[data-tone='arcade'] .topbar::before { animation: none !important; } }
+
+
+/* ─── Summer Coast: a postcard. Solid paper over an unfiltered sea. ─── */
+
+
+
+:where(.app-shell,.tone-panel)[data-tone='night'] {
+  --brand: #cb4630; --brand-bright: #e2583e; --brand-ink: #fffaf0; --sea: #0f7c8a; --ink: #0b2f39;
+  --text: #123a44; --text-strong: #0b2f39; --muted: #4a6b73; --quiet: #54727a;
+  --surface-0: #f7efe0; --surface-1: #fffcf5; --surface-2: #f6eedf; --surface-3: #ece1cc;
+  --panel-a: #fffcf5; --panel-b: #fffcf5; --control-bg: #f6eedf; --input-bg: #fffefa;
+  --line: #0e3a4524; --line-strong: #e2583e80; --hover-bg: #0f7c8a12; --scene-theme-accent: #e2583e; --scene-theme-glow: #0f7c8a; --radius-panel: 6px;
+  --airmail: repeating-linear-gradient(115deg, #e2583e 0 16px, #fffcf5 16px 26px, #0f7c8a 26px 42px, #fffcf5 42px 52px);
+}
+.app-shell[data-tone='night'] .illustrated-landscape { background: var(--landscape-image) center 62% / cover no-repeat; filter: saturate(1.14) contrast(1.03); }
+.app-shell[data-tone='night'][data-background-art='off'] .illustrated-landscape { background: linear-gradient(#a8dfe8, #d9efe9 48%, #f7efe0 72%); filter: none; }
+.app-shell[data-tone='night'] .topbar.panel, .app-shell[data-tone='night'] .workspace > section:is(.search-panel,.playlist-panel) { border: 0; border-radius: 6px; background: var(--surface-1); box-shadow: 0 18px 38px #0b3a4538, 0 2px 4px #0b3a451f; backdrop-filter: none; }
+.app-shell[data-tone='night'] .topbar::before { display: block; inset: 0 0 auto; height: 6px; opacity: 1; background: var(--airmail); }
+.app-shell[data-tone='night'] :is(.search-panel,.playlist-panel)::before { display: block; z-index: 1; inset: 0 0 auto; height: 6px; opacity: 1; border: 0; background: var(--airmail); box-shadow: none; }
+.app-shell[data-tone='night'] .workspace > section.player-panel { border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+.app-shell[data-tone='night'] .player-panel .room-stage { display: none; }
+.app-shell[data-tone='night'] .logo-ring { background: var(--surface-2); box-shadow: 0 0 0 1px var(--line); }
+.app-shell[data-tone='night'] .brand-kicker { color: var(--sea); }
+.app-shell[data-tone='night'] .brand h1 { color: var(--ink); font-weight: 750; }
+.app-shell[data-tone='night'] .language { background: var(--surface-2); }
+.app-shell[data-tone='night'] .language button.active { color: var(--brand-ink); background: var(--ink); }
+.app-shell[data-tone='night'] :is(.tone-trigger,.profile-button) { border-color: var(--line); background: var(--surface-1); box-shadow: none; }
+.app-shell[data-tone='night'] .profile-button > span { color: var(--brand-ink); background: var(--sea); box-shadow: none; }
+.app-shell[data-tone='night'] .panel-heading h2 { color: var(--ink); font-weight: 750; }
+.app-shell[data-tone='night'] .panel-heading h2 > .ui-icon { color: var(--sea); background: #0f7c8a14; }
+.app-shell[data-tone='night'] .panel-heading small { color: var(--muted); border-color: var(--line); background: none; }
+.app-shell[data-tone='night'] .search-box { border: 1.5px solid var(--ink); border-radius: 4px; background: var(--input-bg); box-shadow: none; }
+.app-shell[data-tone='night'] .search-box:focus-within { border-color: var(--brand); }
+.app-shell[data-tone='night'] .search-box > .ui-icon { color: var(--sea); }
+.app-shell[data-tone='night'] .search-box > button { border-radius: 3px; color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='night'] .source-grid label { border-radius: 3px; background: none; }
+.app-shell[data-tone='night'] .source-grid label.checked { color: var(--ink); }
+.app-shell[data-tone='night'] .track-row { border-bottom: 1px solid var(--line); border-radius: 0; }
+.app-shell[data-tone='night'] .track-row.active { background: none; box-shadow: inset 3px 0 var(--brand); }
+.app-shell[data-tone='night'] .track-row.active .track-copy strong { color: var(--brand); }
+.app-shell[data-tone='night'] .track-source { border-radius: 3px; border-color: transparent; color: var(--brand-ink); background: var(--sea); font-size: 10px; }
+.app-shell[data-tone='night'] .playlist-panel .tabs { border-radius: 4px; background: var(--surface-2); box-shadow: none; }
+.app-shell[data-tone='night'] .playlist-panel .tabs button { border-radius: 3px; }
+.app-shell[data-tone='night'] .playlist-panel .tabs button.active { color: var(--brand-ink); background: var(--ink); box-shadow: none; }
+.app-shell[data-tone='night'] .playlist-panel .playlist-toolbar > strong::before { background: var(--brand); }
+
+/* The card itself, with the cover as its stamp */
+
+
+.app-shell[data-tone='night'] .now-card { margin-top: 4px; padding: 16px 18px; border: 0; border-radius: 6px; background: var(--surface-1); box-shadow: 0 18px 38px #0b3a4538, 0 2px 4px #0b3a451f; }
+.app-shell[data-tone='night'] .player-heading { padding: 4px 12px; border-radius: 4px; background: #fffcf5e6; width: fit-content; max-width: 100%; gap: 12px; }
+
+/* The shadow sits on the wrapper: a mask would cut it away from the perforated edge. */
+
+
+.app-shell[data-tone='night'] .record-wrap { background: none; filter: drop-shadow(0 1px 1px #0b3a4566) drop-shadow(0 6px 10px #0b3a4540); }
+.app-shell[data-tone='night'] .record-tilt { padding: 9px; border: 0; border-radius: 0; background: #fffefa; box-shadow: none; -webkit-mask: radial-gradient(circle at center, #0000 4.5px, #000 5px) -8px -8px / 16px 16px, linear-gradient(#000 0 0) content-box; mask: radial-gradient(circle at center, #0000 4.5px, #000 5px) -8px -8px / 16px 16px, linear-gradient(#000 0 0) content-box; mask-composite: add; }
+.app-shell[data-tone='night'] .record { width: 100%; height: 100%; border-radius: 0; background: linear-gradient(160deg, #a8dfe8, #f7efe0); box-shadow: none; }
+.app-shell[data-tone='night'] .record img { opacity: 1; }
+.app-shell[data-tone='night'] .spinning .record { animation: none; }
+.app-shell[data-tone='night'] .record::after { display: none; }
+.app-shell[data-tone='night'] .record-center { width: 46%; background: radial-gradient(circle, #e2583e 0 62%, #e2583e00 64%); box-shadow: none; }
+.app-shell[data-tone='night'] .now-kicker { color: var(--sea); }
+.app-shell[data-tone='night'] .track-hero h3 { color: var(--ink); font-weight: 800; }
+.app-shell[data-tone='night'] .progress-row { color: var(--muted); }
+.app-shell[data-tone='night'] .player-range { --range-empty: #0e3a4524; }
+.app-shell[data-tone='night'] .transport { border: 0; background: none; box-shadow: none; padding-left: 0; }
+.app-shell[data-tone='night'] .transport > button:not(.mobile-volume-toggle):not(.play-main) { border: 1px solid var(--line); border-radius: 50%; background: none; }
+.app-shell[data-tone='night'] .transport > .play-main { width: 52px; height: 52px; border: 0; border-radius: 50%; color: var(--brand-ink); background: var(--brand); box-shadow: 0 6px 14px #e2583e55; }
+.app-shell[data-tone='night'] .hero-actions button { border-radius: 50%; background: none; box-shadow: none; }
+.app-shell[data-tone='night'] .hero-actions button.active { color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='night'] .hero-actions span { color: var(--muted); }
+
+/* Lyrics float over the sea on a tide line */
+
+
+.app-shell[data-tone='night'] .lyrics { margin-top: 14px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.app-shell[data-tone='night'] .lyrics-effects { display: block; position: absolute; z-index: 0; inset: 0; background: linear-gradient(#0a455399, #0a4553c7 34%, #082f3be6); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='28'%3E%3Cpath d='M0 28V14c60-18 120-18 180 0s120 18 180 0 80-14 120 0v14z'/%3E%3C/svg%3E") 0 0 / 480px 28px repeat-x, linear-gradient(#000 0 0) 0 27px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='28'%3E%3Cpath d='M0 28V14c60-18 120-18 180 0s120 18 180 0 80-14 120 0v14z'/%3E%3C/svg%3E") 0 0 / 480px 28px repeat-x, linear-gradient(#000 0 0) 0 27px no-repeat; }
+.app-shell.motion-on[data-tone='night'] .lyrics-effects { animation: coast-tide 26s linear infinite; }
+@keyframes coast-tide { to { -webkit-mask-position: 480px 0, 0 27px; mask-position: 480px 0, 0 27px; } }
+.app-shell[data-tone='night'] .lyrics-effects::before, .app-shell[data-tone='night'] .lyrics-effects::after { display: none; }
+.app-shell[data-tone='night'] .lyric-line { color: #e6f4f4b8; text-shadow: none; }
+.app-shell[data-tone='night'] .lyric-line.active { color: #ffdca8; transform: none; background: none; font-size: 19px; font-weight: 700; text-shadow: none; }
+.app-shell[data-tone='night'] .lyric-line time { color: #ffdca8; font-size: 11px; }
+.app-shell[data-tone='night'] .empty-lyrics, .app-shell[data-tone='night'] .empty-lyrics .ui-icon { color: #e6f4f4; }
+.app-shell[data-tone='night'] .lyric-follow-button { color: var(--ink); background: var(--surface-1); }
+
+/* Daily: the front of the postcard */
+
+
+.app-shell[data-tone='night'] .daily-editorial { border: 0; border-radius: 6px; background: linear-gradient(95deg, #fffcf5 0 46%, #fffcf5b0 66%, #fffcf540), var(--landscape-image) center 62% / cover; box-shadow: 0 18px 38px #0b3a4538; }
+.app-shell[data-tone='night'] .daily-kicker { color: var(--sea); }
+.app-shell[data-tone='night'] .daily-copy h2 { color: var(--ink); font-weight: 800; }
+.app-shell[data-tone='night'] .daily-copy p { color: var(--muted); }
+.app-shell[data-tone='night'] .daily-actions .btn.primary { border-color: var(--brand); border-radius: 4px; color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='night'] .daily-actions :is(.btn:not(.primary),.stage-return) { border-color: var(--line); border-radius: 4px; color: var(--ink); background: var(--surface-1); }
+.app-shell[data-tone='night'] .daily-collage .collage-tilt img { border: 6px solid #fffefa; border-radius: 2px; box-shadow: 0 10px 22px #0b3a4545; }
+.app-shell[data-tone='night'] .daily-count { color: var(--brand); text-shadow: 0 2px 0 #fffefa; }
+.app-shell[data-tone='night'] .daily-spotlight-card { border: 0; border-radius: 6px; background: var(--surface-1); box-shadow: 0 8px 20px #0b3a4526; }
+.app-shell[data-tone='night'] .daily-spotlight-card.active { box-shadow: inset 3px 0 var(--brand), 0 8px 20px #0b3a4526; background: var(--surface-1); }
+.app-shell[data-tone='night'] .spotlight-rank { color: var(--brand); }
+.app-shell[data-tone='night'] .spotlight-copy small { color: var(--muted); }
+.app-shell[data-tone='night'] .spotlight-copy em { color: var(--sea); }
+.app-shell[data-tone='night'] .daily-loading { border-color: var(--line); color: var(--ink); background: var(--surface-1); }
+@media (min-width: 1081px) {
+  .app-shell[data-tone='night'] .workspace { grid-template-columns: minmax(250px, .76fr) minmax(520px, 1.9fr) minmax(270px, .8fr); gap: 20px; }
+  .app-shell[data-tone='night'] .now-card { rotate: -.5deg; }
+}
+@media (max-width: 760px) {
+  .app-shell[data-tone='night'] :is(.mobile-nav,.mobile-mini-player) { border: 0; border-radius: 8px; background: var(--surface-1); box-shadow: 0 8px 24px #0b3a4540; }
+  .app-shell[data-tone='night'] .mobile-nav button.active { color: var(--brand-ink); background: var(--ink); }
+}
+@media (prefers-reduced-motion: reduce) { .app-shell[data-tone='night'] .lyrics-effects { animation: none !important; } }
+
+
+/* ─── Twilight Garden: a picture book. Ink-blue pages, lantern gold, an arched window. ─── */
+
+
+
+:where(.app-shell,.tone-panel)[data-tone='burgundy'] {
+  --brand: #ffc978; --brand-bright: #ffe0ad; --brand-ink: #2b1b0c; --petal: #f2b6cd;
+  --text: #efe7da; --text-strong: #fff8ea; --muted: #bdb6cf; --quiet: #9d97b5;
+  --surface-0: #12142e; --surface-1: #181a38; --surface-2: #212348; --surface-3: #2d2e5a;
+  --panel-a: #181a38; --panel-b: #12142e; --control-bg: #242650; --input-bg: #0f1128; --hover-bg: #ffc97814;
+  --line: #e9d9b82b; --line-strong: #ffc97870; --danger: #ffb3a8; --scene-theme-accent: #ffc978; --scene-theme-glow: #f2b6cd; --radius-panel: 18px;
+  --book-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', STSong, SimSun, Georgia, serif;
+}
+.app-shell[data-tone='burgundy'] { background: linear-gradient(#10123066, #1a153a55), var(--garden-image) center 65% / cover fixed; }
+.app-shell[data-tone='burgundy'] .topbar.panel, .app-shell[data-tone='burgundy'] .workspace > section:is(.search-panel,.playlist-panel) { border: 1px solid var(--line-strong); border-radius: 18px; background: #12142ef2; box-shadow: 0 18px 40px #07081a80; outline: 1px solid var(--line); outline-offset: -6px; backdrop-filter: none; }
+.app-shell[data-tone='burgundy'] :is(.search-panel,.playlist-panel)::before { display: none; }
+.app-shell[data-tone='burgundy'] .logo-ring { background: linear-gradient(145deg, #ffe0ad, #d9963f); box-shadow: 0 0 28px #ffc97866; }
+.app-shell[data-tone='burgundy'] .brand-kicker { color: var(--brand); letter-spacing: .28em; }
+.app-shell[data-tone='burgundy'] .brand h1 { font-family: var(--book-serif); font-weight: 400; letter-spacing: .02em; }
+.app-shell[data-tone='burgundy'] .language { background: var(--input-bg); }
+.app-shell[data-tone='burgundy'] .language button.active { color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='burgundy'] :is(.tone-trigger,.profile-button) { border-color: var(--line-strong); background: var(--surface-1); box-shadow: none; }
+.app-shell[data-tone='burgundy'] .profile-button > span { color: var(--brand-ink); background: var(--brand); box-shadow: none; }
+.app-shell[data-tone='burgundy'] .panel-heading h2 { font-family: var(--book-serif); font-size: 15px; font-weight: 400; letter-spacing: .06em; }
+.app-shell[data-tone='burgundy'] .panel-heading h2 > .ui-icon { color: var(--brand); background: none; }
+.app-shell[data-tone='burgundy'] .panel-heading small { border-color: var(--line); color: var(--muted); background: none; }
+.app-shell[data-tone='burgundy'] :is(.search-box,.playlist-search) { border: 0; border-bottom: 1px solid var(--line-strong); border-radius: 0; background: none; box-shadow: none; }
+.app-shell[data-tone='burgundy'] .search-box > button { border-radius: 999px; color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='burgundy'] .search-box > .ui-icon { color: var(--brand); }
+.app-shell[data-tone='burgundy'] .source-grid label { background: none; }
+.app-shell[data-tone='burgundy'] .track-row { border-bottom: 1px solid var(--line); border-radius: 0; }
+.app-shell[data-tone='burgundy'] .track-row:hover { background: var(--hover-bg); }
+.app-shell[data-tone='burgundy'] .track-row.active { border-radius: 10px; background: linear-gradient(90deg, #ffc97829, #ffc97800); box-shadow: inset 2px 0 var(--brand); }
+.app-shell[data-tone='burgundy'] .track-row.active .track-copy strong { color: var(--brand-bright); }
+.app-shell[data-tone='burgundy'] .track-source { border-color: var(--line-strong); color: var(--brand); background: none; font-size: 10px; }
+.app-shell[data-tone='burgundy'] .playlist-panel .tabs { border-color: var(--line); background: none; box-shadow: none; }
+.app-shell[data-tone='burgundy'] .playlist-panel .tabs button.active { color: var(--brand-ink); background: var(--brand); box-shadow: 0 0 18px #ffc97840; }
+
+/* The arched window: the illustration is the room, not a backdrop to cover */
+
+
+.app-shell[data-tone='burgundy'] .workspace > section.player-panel { border: 1px solid var(--line-strong); background: #12142e; box-shadow: 0 0 0 5px #12142e, 0 0 0 6px var(--line-strong), 0 22px 46px #07081a90; }
+.app-shell[data-tone='burgundy'] .garden-scene { background-position: center 72%; }
+.app-shell[data-tone='burgundy'] .garden-shade { background: linear-gradient(#0f112c40, transparent 30%, #0f112ce0 78%); }
+.app-shell[data-tone='burgundy'] .garden-stars { position: absolute; inset: 0 0 45%; opacity: .8; background-image: radial-gradient(circle, #fff3d6 0 1px, transparent 1.6px), radial-gradient(circle, #ffd9e6 0 1px, transparent 1.6px); background-size: 137px 101px, 223px 149px; background-position: 19px 33px, 87px 11px; mask-image: linear-gradient(#000, transparent); }
+.app-shell[data-tone='burgundy'] .garden-scene[data-motion='true'] .garden-stars { animation: garden-twinkle 7s ease-in-out infinite alternate; }
+@keyframes garden-twinkle { from { opacity: .45; } to { opacity: .95; } }
+.app-shell[data-tone='burgundy'] .garden-fireflies { inset: 30% 4% 4%; opacity: 1; background: radial-gradient(circle at 12% 70%, #ffe2a6 0 2px, #ffc97855 3px, transparent 9px), radial-gradient(circle at 86% 42%, #ffe2a6 0 2px, #ffc97855 3px, transparent 9px), radial-gradient(circle at 64% 84%, #ffe2a6 0 1.5px, #ffc97855 3px, transparent 8px), radial-gradient(circle at 31% 36%, #ffe2a6 0 1.5px, #ffc97855 3px, transparent 8px), radial-gradient(circle at 47% 58%, #ffe2a6 0 1px, transparent 6px), radial-gradient(circle at 75% 20%, #ffe2a6 0 1px, transparent 6px); }
+.app-shell[data-tone='burgundy'] .player-heading h2 { color: var(--text-strong); }
+.app-shell[data-tone='burgundy'] .player-heading small { border: 0; color: var(--brand-bright); }
+.app-shell[data-tone='burgundy'] .now-card { border: 0; border-radius: 0; background: none; box-shadow: none; }
+.app-shell[data-tone='burgundy'] .record-tilt { border: 0; border-radius: 50%; background: none; box-shadow: none; }
+.app-shell[data-tone='burgundy'] .record { width: 92%; box-shadow: 0 0 0 1px #ffe0ad80, 0 0 0 7px #ffc97814, 0 0 42px #ffc97866; }
+.app-shell[data-tone='burgundy'] .record img { opacity: 1; }
+.app-shell[data-tone='burgundy'] .record-center { box-shadow: none; }
+.app-shell[data-tone='burgundy'] .now-kicker { color: var(--brand); letter-spacing: .28em; }
+.app-shell[data-tone='burgundy'] .track-hero h3 { color: var(--text-strong); font-family: var(--book-serif); font-weight: 400; letter-spacing: .01em; text-shadow: 0 2px 16px #0f112c; }
+.app-shell[data-tone='burgundy'] .track-hero p { color: #e4dcee; text-shadow: 0 1px 8px #0f112c; }
+.app-shell[data-tone='burgundy'] .progress-row { color: #e4dcee; }
+.app-shell[data-tone='burgundy'] .player-range { --range-empty: #fff8ea38; }
+.app-shell[data-tone='burgundy'] .transport { border: 0; background: none; box-shadow: none; }
+.app-shell[data-tone='burgundy'] .transport > button:not(.mobile-volume-toggle):not(.play-main) { border: 1px solid #ffe0ad59; border-radius: 50%; color: var(--text-strong); background: #12142e99; }
+.app-shell[data-tone='burgundy'] .transport > .play-main { width: 54px; height: 54px; border: 0; border-radius: 50%; color: var(--brand-ink); background: radial-gradient(circle at 42% 36%, #ffe9c2, #ffc978 62%, #e8a24c); box-shadow: 0 0 30px #ffc97880; }
+.app-shell[data-tone='burgundy'] .hero-actions button { border-color: #ffe0ad59; border-radius: 50%; color: var(--text-strong); background: #12142e99; box-shadow: none; }
+.app-shell[data-tone='burgundy'] .hero-actions button.active { color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='burgundy'] .hero-actions span { border-color: #ffe0ad40; color: #e4dcee; background: #12142e80; }
+.app-shell[data-tone='burgundy'] .lyrics { border: 0; border-radius: 0; background: none; box-shadow: none; }
+.app-shell[data-tone='burgundy'] .lyric-line { color: #f3ecdfb8; text-shadow: 0 1px 8px #0f112c; }
+.app-shell[data-tone='burgundy'] .lyric-line.active { color: #ffe0ad; transform: none; background: none; font-family: var(--book-serif); font-size: 21px; font-weight: 400; text-shadow: 0 0 22px #ffc97899, 0 1px 8px #0f112c; }
+.app-shell[data-tone='burgundy'] .lyric-line time { color: var(--brand); font-size: 11px; }
+.app-shell[data-tone='burgundy'] .empty-lyrics { color: var(--text); text-shadow: 0 1px 8px #0f112c; }
+
+/* Daily: the opening spread */
+
+
+.app-shell[data-tone='burgundy'] .daily-editorial { border: 1px solid var(--line-strong); border-radius: 18px; background: linear-gradient(90deg, #12142ef2 0 40%, #12142e80 70%, #12142e33), var(--garden-image) center 68% / cover; }
+.app-shell[data-tone='burgundy'] .daily-editorial > .grainient { display: none; }
+.app-shell[data-tone='burgundy'] .daily-kicker { color: var(--brand); letter-spacing: .24em; }
+.app-shell[data-tone='burgundy'] .daily-copy h2 { font-family: var(--book-serif); font-weight: 400; letter-spacing: -.01em; text-shadow: none; }
+.app-shell[data-tone='burgundy'] .daily-copy p { color: var(--muted); }
+.app-shell[data-tone='burgundy'] .daily-actions .btn.primary { border-color: var(--brand); color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='burgundy'] .daily-collage .collage-tilt img { border: 1px solid #ffe0ad80; box-shadow: 0 14px 30px #07081a90; }
+.app-shell[data-tone='burgundy'] .daily-count { color: var(--brand); font-family: var(--book-serif); font-weight: 400; text-shadow: 0 0 26px #ffc97880; }
+.app-shell[data-tone='burgundy'] .daily-spotlight-card { border-color: var(--line); background: #12142ee0; }
+.app-shell[data-tone='burgundy'] .daily-spotlight-card.active { border-color: var(--line-strong); background: #ffc97814; }
+.app-shell[data-tone='burgundy'] .spotlight-rank { color: var(--brand); font-family: var(--book-serif); font-size: 13px; }
+.app-shell[data-tone='burgundy'] .spotlight-copy em { color: var(--petal); }
+.app-shell[data-tone='burgundy'] .daily-loading { color: var(--brand-bright); background: #12142ee0; }
+@media (min-width: 1081px) {
+  .app-shell[data-tone='burgundy'] .workspace { grid-template-columns: minmax(250px, .74fr) minmax(540px, 1.9fr) minmax(270px, .78fr); gap: 16px; }
+}
+@media (min-width: 1081px) and (min-height: 760px) {
+  .app-shell[data-tone='burgundy'] .stage-mode-player .now-card { position: relative; min-height: 0; margin-top: 2px; padding: 0 8px; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 8px; text-align: center; }
+  .app-shell[data-tone='burgundy'] .stage-mode-player .record-wrap { width: 124px; }
+  .app-shell[data-tone='burgundy'] .stage-mode-player .track-hero { width: min(100%, 460px); }
+  .app-shell[data-tone='burgundy'] .stage-mode-player .track-hero p { margin-bottom: 12px; }
+  .app-shell[data-tone='burgundy'] .stage-mode-player .transport { flex-wrap: nowrap; justify-content: center; padding-block: 2px; }
+  .app-shell[data-tone='burgundy'] .stage-mode-player .transport .volume { flex-basis: auto; margin-left: 10px; }
+  .app-shell[data-tone='burgundy'] .stage-mode-player .hero-actions { position: absolute; right: 4px; bottom: 6px; padding-top: 0; }
+}
+@media (min-width: 1081px) and (min-height: 760px) and (max-height: 880px) {
+  .app-shell[data-tone='burgundy'] .stage-mode-player .record-wrap { width: 92px; }
+  .app-shell[data-tone='burgundy'] .stage-mode-player .now-kicker { display: none; }
+  .app-shell[data-tone='burgundy'] .stage-mode-player .track-hero p { margin: 4px 0 6px; }
+}
+@media (max-width: 760px) {
+  .app-shell[data-tone='burgundy'] :is(.mobile-nav,.mobile-mini-player) { border-color: var(--line-strong); background: #12142ef5; }
+  .app-shell[data-tone='burgundy'] .mobile-nav button.active { color: var(--brand); background: var(--hover-bg); }
+}
+@media (prefers-reduced-motion: reduce) { .app-shell[data-tone='burgundy'] .garden-scene .garden-stars { animation: none !important; } }

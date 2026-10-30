@@ -1,8 +1,9 @@
 import type { Db } from './db.js';
 import { getCached, setCached, upsertTrack } from './db.js';
 import { SOURCES, type ImportedPlaylist, type MusicSource, type ResolvedTrack, type Track } from '../shared/types.js';
-import { canonicalTrackKey, hasCompatibleTrackDuration, isDerivativeTrackVersion, stableMetadataId } from '../shared/trackIdentity.js';
+import { canonicalTrackKey, hasCompatibleTrackDuration, isDerivativeTrackVersion, searchRelevance, stableMetadataId } from '../shared/trackIdentity.js';
 import { withSourceHealth } from './sourceHealth.js';
+import { abortable } from '../shared/asyncControl.js';
 import { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
 import { resolveExactWithGoMusicApi, resolveWithGoMusicApi, searchWithGoMusicApi } from './goMusicApi.js';
 import { positiveEnvInt } from './rateLimit.js';
@@ -60,7 +61,8 @@ function qqTrackFromItem(item: any, keyword?: string): Track | null {
 }
 
 export function parseQqSearchResponse(value: unknown, keyword = '', limit = 30): Track[] {
-  const j = asObject(value); const list = Array.isArray(j.data?.song?.list) ? j.data.song.list : [];
+  const j = asObject(value); const song = j.req?.data?.body?.song ?? j.data?.song;
+  const list = Array.isArray(song?.list) ? song.list : [];
   return list.slice(0, Math.min(30, Math.max(1, limit)))
     .map((item: any) => qqTrackFromItem(item, keyword))
     .filter((item: Track | null): item is Track => Boolean(item));
@@ -84,7 +86,8 @@ function decodeHtml(value: string): string {
 
 function legacyKuwoValue(object: string, key: string): string {
   const match = object.match(new RegExp(`['"]${key}['"]\\s*:\\s*'((?:\\\\.|[^'])*)'`, 'i'));
-  return decodeHtml((match?.[1] || '').replace(/\\'/g, "'").replace(/\\\\/g, '\\')).trim();
+  return decodeHtml((match?.[1] || '').replace(/\\'/g, "'").replace(/\\\\/g, '\\'))
+    .replace(/\\+u([0-9a-f]{4})/gi, (_, code: string) => String.fromCharCode(Number.parseInt(code, 16))).trim();
 }
 
 export function parseLegacyKuwoSearch(raw: string): Array<{ id: string; title: string; artist: string; album: string; duration: number }> {
@@ -121,19 +124,23 @@ export function parseLegacyKuwoSearch(raw: string): Array<{ id: string; title: s
 async function fetchWithTimeout(url: string, init: RequestInit = {}, attempts = 2): Promise<Response> {
   let last: unknown;
   for (let attempt = 0; attempt < attempts; attempt++) {
+    init.signal?.throwIfAborted();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 12_000);
     try {
       const response = await fetch(url, {
-        ...init, signal: controller.signal,
+        ...init, signal: init.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal,
         headers: { 'user-agent': UA, accept: 'application/json,text/plain,*/*', ...init.headers }
       });
       if (response.ok || (init.redirect === 'manual' && response.status >= 300 && response.status < 400)) return response;
       last = new Error(`${response.status} ${response.statusText}`);
       if (![429, 500, 502, 503, 504].includes(response.status)) break;
-    } catch (error) { last = error; }
+    } catch (error) { if (init.signal?.aborted) throw error; last = error; }
     finally { clearTimeout(timer); }
-    if (attempt + 1 < attempts) await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
+    if (attempt + 1 < attempts) await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, 350 * (attempt + 1));
+      init.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal?.reason); }, { once: true });
+    });
   }
   throw new SourceError('SOURCE_UNAVAILABLE', `音乐源请求失败：${last instanceof Error ? last.message : String(last)}`);
 }
@@ -238,13 +245,15 @@ export async function resolvePlaylistInput(input: string, explicitSource?: Music
   }
 }
 
-async function searchSourceRaw(source: MusicSource, query: string, limit = 10): Promise<Track[]> {
+async function searchSourceRaw(source: MusicSource, query: string, limit = 10, signal?: AbortSignal): Promise<Track[]> {
+  signal?.throwIfAborted();
   const q = query.trim(); if (!q) return [];
   const size = Math.min(Math.max(limit, 1), 30);
   if (source === 'migu') {
     const backup = await searchWithGoMusicApi(q, { sources: ['migu'], limit: size });
+    signal?.throwIfAborted();
     if (backup.length) return backup.map(item => ({ ...item, keyword: q }));
-    const j = await fetchJson(`https://api.xcvts.cn/api/music/migu?gm=${encodeURIComponent(q)}&n=&num=${size}&type=json`);
+    const j = await fetchJson(`https://api.xcvts.cn/api/music/migu?gm=${encodeURIComponent(q)}&n=&num=${size}&type=json`, { signal });
     const list = Array.isArray(j.data) ? j.data : [];
     return list.slice(0, size).map((item: any, index: number) => {
       const title = first(item.title, item.songName); const artist = first(item.singer, item.artist);
@@ -254,48 +263,67 @@ async function searchSourceRaw(source: MusicSource, query: string, limit = 10): 
     });
   }
   if (source === 'netease') {
-    const j = await fetchJson(`https://api.vkeys.cn/v2/music/netease?word=${encodeURIComponent(q)}&page=1&num=${size}`);
+    const j = await fetchJson(`https://api.vkeys.cn/v2/music/netease?word=${encodeURIComponent(q)}&page=1&num=${size}`, { signal });
     return (Array.isArray(j.data) ? j.data : []).map((item: any) => track('netease', item.id, {
       title: first(item.song, item.name), artist: first(item.singer, artists(item.artists)), album: first(item.album), coverUrl: absolute(first(item.cover)), keyword: q
     }));
   }
   if (source === 'qq') {
+    let answer: any = null;
+    try {
+      answer = await fetchJson('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+        method: 'POST', signal, headers: { 'content-type': 'application/json', referer: 'https://y.qq.com/' },
+        body: JSON.stringify({ comm: { ct: '19', cv: '1859', uin: '0' }, req: {
+          method: 'DoSearchForQQMusicDesktop', module: 'music.search.SearchCgiService', param: { grp: 1, num_per_page: size, page_num: 1, query: q, search_type: 0 } } })
+      });
+    } catch { signal?.throwIfAborted(); }
+    // QQ answers anonymous searches only some of the time. A refusal is final: we
+    // report the source as unavailable rather than disguise the request or retry.
+    if (answer) {
+      if (answer.req?.code === 0) return parseQqSearchResponse(answer, q, size);
+      throw new SourceError('SOURCE_RESTRICTED', 'QQ 音乐暂时限制了匿名搜索。');
+    }
     try {
       const params = new URLSearchParams({ p: '1', n: String(size), w: q, format: 'json', utf8: '1' });
-      const j = await fetchJson(`https://c.y.qq.com/soso/fcgi-bin/client_search_cp?${params}`, { headers: { referer: 'https://y.qq.com/' } });
+      const j = await fetchJson(`https://c.y.qq.com/soso/fcgi-bin/client_search_cp?${params}`, { headers: { referer: 'https://y.qq.com/' }, signal });
       const normalized = parseQqSearchResponse(j, q, size);
       if (normalized.length) return normalized;
-    } catch { /* Keep the legacy public metadata endpoint as a last-resort search path. */ }
-    const j = await fetchJson(`https://tang.api.s01s.cn/music_open_api.php?msg=${encodeURIComponent(q)}&type=json`);
+    } catch { signal?.throwIfAborted(); /* Keep the legacy public metadata endpoint as a last-resort search path. */ }
+    const j = await fetchJson(`https://tang.api.s01s.cn/music_open_api.php?msg=${encodeURIComponent(q)}&type=json`, { signal });
     const list = Array.isArray(j) ? j : Array.isArray(j.data) ? j.data : [];
     return list.slice(0, size).map((item: any) => track('qq', first(item.song_mid, item.mid), {
       title: first(item.song_title, item.title, item.name), artist: first(item.singer_name, item.singer), duration: durationMs(item.interval), keyword: q
     })).filter((item: Track) => item.sourceTrackId);
   }
   const params = new URLSearchParams({ all: q, ft: 'music', itemset: 'web_2013', client: 'kt', pn: '0', rn: String(size), rformat: 'json', encoding: 'utf8' });
-  const response = await fetchWithTimeout(`https://search.kuwo.cn/r.s?${params}`, {}, 1);
+  const response = await fetchWithTimeout(`https://search.kuwo.cn/r.s?${params}`, { signal }, 1);
   const list = parseLegacyKuwoSearch(await readLimitedText(response));
   if (!list.length) throw new SourceError('INVALID_SOURCE_RESPONSE', '酷我没有返回可识别的搜索结果。');
   return list.map(item => track('kuwo', item.id, { ...item, keyword: q }));
 }
 
-export async function searchSource(source: MusicSource, query: string, limit = 10, db?: Db): Promise<Track[]> {
-  return withSourceHealth(db, source, 'search', () => searchSourceRaw(source, query, limit));
+export async function searchSource(source: MusicSource, query: string, limit = 10, db?: Db, signal?: AbortSignal): Promise<Track[]> {
+  return withSourceHealth(db, source, 'search', () => searchSourceRaw(source, query, limit, signal));
 }
 
+const SEARCH_SOURCE_BUDGET_MS = 6_000;
 export async function searchAll(db: Db, query: string, sources: MusicSource[], limit: number) {
   const orderedSources = [...sources];
   const key = `search:${[...orderedSources].sort().join(',')}:${limit}:${query.toLowerCase()}`;
   const cached = getCached<{ tracks: Track[]; errors: Record<string, string> }>(db, key);
   if (cached) return cached;
-  const settled = await Promise.allSettled(orderedSources.map(source => searchSource(source, query, limit, db)));
+  // One hung provider must not hold the whole result list; a timeout still counts against its health.
+  const settled = await Promise.allSettled(orderedSources.map(source => {
+    const budget = AbortSignal.timeout(SEARCH_SOURCE_BUDGET_MS);
+    return abortable(searchSource(source, query, limit, db, budget), budget);
+  }));
   const tracks: Track[] = []; const errors: Record<string, string> = {};
   settled.forEach((result, index) => {
     const source = orderedSources[index];
     if (result.status === 'fulfilled') tracks.push(...result.value.map((item, i) => ({ ...item, displayIndex: item.displayIndex || i + 1 })));
     else errors[source] = result.reason instanceof Error ? result.reason.message : String(result.reason);
   });
-  tracks.sort((a, b) => (a.displayIndex || 0) - (b.displayIndex || 0) || orderedSources.indexOf(a.source) - orderedSources.indexOf(b.source));
+  tracks.sort((a, b) => searchRelevance(a, query) - searchRelevance(b, query) || (a.displayIndex || 0) - (b.displayIndex || 0) || orderedSources.indexOf(a.source) - orderedSources.indexOf(b.source));
   const value = { tracks, errors }; setCached(db, key, value, 5 * 60_000); return value;
 }
 

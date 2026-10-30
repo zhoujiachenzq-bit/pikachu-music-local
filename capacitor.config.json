@@ -1,0 +1,7 @@
+{
+  "appId": "cn.zqmusic.musichouse",
+  "appName": "音乐小屋",
+  "webDir": "dist/client",
+  "server": { "url": "https://zqmusic.cn", "cleartext": false },
+  "android": { "allowMixedContent": false }
+}
