@@ -2,5 +2,8 @@
   "appId": "cn.zqmusic.musichouse",
   "appName": "音乐小屋",
   "webDir": "dist/client",
-  "android": { "allowMixedContent": true }
+  "android": { "allowMixedContent": true },
+  "plugins": {
+    "StatusBar": { "overlaysWebView": false, "backgroundColor": "#fff8e8", "style": "LIGHT" }
+  }
 }
