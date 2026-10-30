@@ -12,7 +12,7 @@
   .app-shell[data-tone='burgundy'] { --m-bg: #12142e; --m-raised: #1c1e41; --m-sunken: #0d0f24; --m-ink: #f3ecdf; --m-muted: #bdb6cf; --m-accent: #ffc978; --m-on-accent: #2b1b0c; --m-line: #e9d9b81f; }
 
   /* Everything decorative goes: the structure carries the identity now. */
-  .app-shell[data-tone]::before, .app-shell[data-tone]::after, .app-shell .particle-field, .app-shell .illustrated-landscape, .app-shell .room-landscape, .app-shell .room-stage, .app-shell .immersive-backdrop, .app-shell .grainient, .app-shell .vinyl-grainient, .app-shell .vinyl-metal-stamp, .app-shell .panel::after, .app-shell .topbar::before, .app-shell .lyrics-effects { display: none !important; }
+  .app-shell[data-tone]::before, .app-shell[data-tone]::after, .app-shell .particle-field, .app-shell .illustrated-landscape, .app-shell .room-landscape, .app-shell .immersive-backdrop, .app-shell .grainient, .app-shell .vinyl-grainient, .app-shell .vinyl-metal-stamp, .app-shell .panel::after, .app-shell .topbar::before, .app-shell .lyrics-effects { display: none !important; }
   .app-shell, .app-shell * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
   .app-shell[data-tone] { padding: 0; color: var(--m-ink); background: var(--m-bg); }
   .app-shell[data-tone] .topbar.panel { height: calc(var(--m-header) + var(--m-safe-top)); margin: 0; padding: var(--m-safe-top) 12px 0; border: 0; border-bottom: 1px solid var(--m-line); border-image: none; border-radius: 0; background: var(--m-raised); box-shadow: none; outline: 0; }
@@ -158,6 +158,57 @@
   .app-shell[data-tone] .mini-toggle { color: var(--m-on-accent); background: var(--m-accent); box-shadow: none; }
   .app-shell[data-tone].has-mobile-mini .workspace > section[data-mobile-active='true'] { padding-bottom: 68px; }
 
+  /* Rhythm: one reading size per role, generous targets, a single curve. */
+  .app-shell[data-tone] .panel-heading h2 { font-size: 15px; font-weight: 800; letter-spacing: 0; }
+  .app-shell[data-tone] .language { gap: 0; padding: 0; background: none; }
+  .app-shell[data-tone] .language button { min-width: 26px; padding-inline: 4px; background: none; font-weight: 500; }
+  .app-shell[data-tone] .language button.active { color: var(--m-ink); background: none; font-weight: 800; }
+  .app-shell[data-tone] .search-box { min-height: 48px; margin-top: 8px; border-radius: 12px; }
+  .app-shell[data-tone] .search-box > button { min-height: 40px; border-radius: 9px; font-weight: 700; }
+  .app-shell[data-tone] .source-grid label { border-radius: 999px; font-weight: 600; }
+  .app-shell[data-tone] .track-row { min-height: 62px; margin-inline: 0; padding-inline: 2px; border-bottom: 1px solid var(--m-line); border-radius: 0; }
+  .app-shell[data-tone] .track-row.active { padding-inline: 8px; border-bottom-color: transparent; border-radius: 10px; }
+  .app-shell[data-tone] .track-source { width: 40px; height: 40px; border-radius: 10px; font-weight: 700; }
+  .app-shell[data-tone] .playlist-panel .tabs { border-radius: 10px; }
+  .app-shell[data-tone] .playlist-panel .tabs button { border-radius: 8px; font-weight: 600; }
+  .app-shell[data-tone] .daily-editorial, .app-shell[data-tone] .daily-editorial.has-grainient { padding: 18px; border-radius: 14px; }
+  .app-shell[data-tone] .daily-copy h2 { font-size: 24px; font-weight: 800; }
+  .app-shell[data-tone] .daily-actions .btn { min-height: 42px; border-radius: 10px; font-weight: 700; }
+
+  .app-shell[data-tone] .track-row.active .track-copy strong { text-shadow: none; animation: none; }
+  .app-shell[data-tone] .track-row.active .track-copy small { color: var(--m-muted); text-shadow: none; }
+
+  /* Console: the sleeve leads, the heart lives beside the title */
+  .app-shell[data-tone] .now-card { display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; justify-items: center; gap: 20px; }
+  .app-shell[data-tone] .record-wrap { width: min(78vw, 40dvh); }
+  .app-shell[data-tone] .record-tilt, .app-shell[data-tone] .record { border-radius: 16px; }
+  .app-shell[data-tone] .record-center { width: 46%; aspect-ratio: 1; background: url('/pikachu.gif') center / contain no-repeat; }
+  .app-shell[data-tone] .track-hero { grid-area: 2 / 1; min-width: 0; }
+  .app-shell[data-tone] .track-hero h3 { overflow: hidden; padding-right: 48px; font-size: 24px; font-weight: 800; text-overflow: ellipsis; }
+  .app-shell[data-tone] .track-hero p { overflow: hidden; margin-bottom: 14px; padding-right: 48px; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell[data-tone] .now-card .hero-actions { z-index: 2; grid-area: 2 / 1; justify-self: end; align-self: start; }
+  .app-shell[data-tone] .now-card .hero-actions button { color: var(--m-muted); background: none; }
+  .app-shell[data-tone] .now-card .hero-actions button.active { color: var(--m-accent); background: none; }
+  .app-shell[data-tone] .now-card .hero-actions button .ui-icon { width: 24px; height: 24px; }
+  .app-shell[data-tone] .transport { margin-top: 12px; gap: 28px; }
+  .app-shell[data-tone] .transport > button:not(.mobile-volume-toggle) .ui-icon { width: 24px; height: 24px; }
+  .app-shell[data-tone] .transport > .play-main { width: 64px; height: 64px; }
+  .app-shell[data-tone] .transport > .play-main .ui-icon { width: 28px; height: 28px; }
+  .lyrics-peek i { width: 40px; }
+  .lyrics-peek span { font-weight: 500; }
+  .app-shell[data-tone] :is(.transport button,.mobile-nav button,.btn,.search-box > button,.mini-toggle):active { scale: .96; }
+  .app-shell[data-tone] :is(.transport button,.mobile-nav button,.btn,.search-box > button,.mini-toggle) { transition: scale .12s ease; }
+
+  /* Only the page behind everything is gone. The landscape themes keep their
+     picture on the console and behind the lyrics. */
+  .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy']) .workspace > section.panel.player-panel:not([data-mobile-section='daily']) { background: transparent !important; }
+  .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy']) .workspace .player-panel .room-stage { position: absolute; display: block; inset: 0 !important; }
+  .app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.lyrics,.lyrics.sheet-open) { background: linear-gradient(#fffdf5bc,#fffdf5bc), var(--landscape-image) center 65% / cover no-repeat; }
+  .app-shell[data-tone='burgundy'] :is(.lyrics,.lyrics.sheet-open) { background: linear-gradient(#34305488,#34305488), var(--garden-image) center 72% / cover no-repeat; }
+  .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy']) .lyrics-page-bar { background: none; }
+  .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy']) .track-hero { padding: 14px 16px; border-radius: 14px; background: var(--m-raised); }
+  .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy']) .now-card .hero-actions { margin: 10px 8px 0 0; }
+
   /* Papercut keeps its handwork on the phone: flat colour, ink edges and hard
      offset shadows, like sheets cut out and laid on a paper-grain table. */
   .app-shell[data-tone='paper'] { --m-accent: #f24b2a; --m-ink-line: #17130d; --m-blue: #1768ff; --m-yellow: #ffd84d; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .22 0 0 0 0 .12 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E"), #f5ecd8; }
@@ -171,6 +222,10 @@
   .app-shell[data-tone='paper'] .logo-ring { border: 2px solid var(--m-ink-line); box-shadow: 2px 2px 0 var(--m-blue); }
   .app-shell[data-tone='paper'] .language { border: 1.5px solid var(--m-ink-line); border-radius: 2px; background: var(--m-raised); }
   .app-shell[data-tone='paper'] .language button { border-radius: 1px; }
+  .app-shell[data-tone='paper'] .language button.active { color: var(--m-on-accent); background: var(--m-accent); }
+  .app-shell[data-tone='paper'] :is(.record-tilt,.record) { border-radius: 2px; }
+  .app-shell[data-tone='paper'] .now-card .hero-actions button { border: 0; color: var(--m-ink); background: none; box-shadow: none; }
+  .app-shell[data-tone='paper'] .now-card .hero-actions button.active { color: var(--m-accent); }
   .app-shell[data-tone='paper'] .tone-trigger { border: 1.5px solid var(--m-ink-line); box-shadow: 2px 2px 0 var(--m-ink-line); }
   .app-shell[data-tone='paper'] .search-box { border: 2px solid var(--m-ink-line); border-radius: 2px; background: var(--m-raised); box-shadow: 4px 4px 0 var(--m-accent); }
   .app-shell[data-tone='paper'] .search-box > button { border: 1.5px solid var(--m-ink-line); border-radius: 2px; }

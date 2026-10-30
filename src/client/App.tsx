@@ -10,7 +10,7 @@ import { estimateUntimedLyricTime, findActiveLyric, findUntimedLyricStart, lyric
 import { installMediaSessionControls, syncMediaSession, updateMediaMetadata } from './mediaSession';
 import { ListeningTracker, type ListeningContext } from './listeningTracker';
 import { PlaybackCache } from './playerCache';
-import { phoneApp, searchSources } from './phone';
+import { phoneApp, searchSources, tintStatusBar } from './phone';
 import { PlaybackQueue } from './playerQueue';
 import { playbackCandidates } from './playbackRoutes';
 import { rangeProgress } from './rangeControl';
@@ -217,6 +217,7 @@ export default function App() {
     if (toneMidpointTimer.current !== null) window.clearTimeout(toneMidpointTimer.current);
     if (toneFinishTimer.current !== null) window.clearTimeout(toneFinishTimer.current);
   }, []);
+  useEffect(() => { tintStatusBar(); }, [previewTone, visualPreferences.theme, user?.id]);
   useEffect(() => { document.title = user ? `${user.username}的音乐小屋` : '音乐小屋'; }, [user]);
   useEffect(() => { if (user && !volumeDragging.current) setVolumeDraft(user.volume); }, [user?.volume]);
   useEffect(() => () => { if (volumeSaveTimer.current !== null) window.clearTimeout(volumeSaveTimer.current); }, []);

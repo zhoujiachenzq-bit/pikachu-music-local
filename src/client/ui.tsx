@@ -5,6 +5,7 @@ import { TiltSurface } from './interactionEffects';
 import type { ToneThemeId } from './visualTheme';
 import type { MusicSource, RecommendedTrack, Track } from '../shared/types';
 import type { MobileSection } from './visualState';
+import { phoneApp } from './phone';
 
 export type IconName = 'add' | 'collapse' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'volume' | 'warning';
 
@@ -88,7 +89,7 @@ export function DailyStage(props: DailyStageProps) {
       <Grainient tone={props.theme} motionEnabled={props.motionEnabled} active={props.visible} className="daily-grainient"/>
       <div className="daily-copy">
         <span className="daily-kicker">DAILY ROTATION · {date}</span>
-        <h2>{zh ? `${username}，今天听点不一样的` : `A different rotation for ${username}`}</h2>
+        <h2>{phoneApp ? (zh ? '今天听点不一样的' : 'A different rotation today') : zh ? `${username}，今天听点不一样的` : `A different rotation for ${username}`}</h2>
         <p>{tracks.length ? (zh ? `${tracks.length} 首熟悉与探索交错的歌曲，为今天重新排序。` : `${tracks.length} familiar and exploratory tracks, reordered for today.`) : message || (zh ? '正在准备今天的声音…' : 'Preparing today’s sound…')}</p>
         <div className="daily-actions">
           <button className="btn primary" disabled={!tracks.length || loading} onClick={props.onPlayAll}><Icon name="play" size={15}/>{zh ? '播放全部' : 'Play all'}</button>
