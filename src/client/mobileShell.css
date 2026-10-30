@@ -158,6 +158,53 @@
   .app-shell[data-tone] .mini-toggle { color: var(--m-on-accent); background: var(--m-accent); box-shadow: none; }
   .app-shell[data-tone].has-mobile-mini .workspace > section[data-mobile-active='true'] { padding-bottom: 68px; }
 
+  /* Papercut keeps its handwork on the phone: flat colour, ink edges and hard
+     offset shadows, like sheets cut out and laid on a paper-grain table. */
+  .app-shell[data-tone='paper'] { --m-accent: #f24b2a; --m-ink-line: #17130d; --m-blue: #1768ff; --m-yellow: #ffd84d; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .22 0 0 0 0 .12 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E"), #f5ecd8; }
+  .app-shell[data-tone='paper'][data-tone]::before { display: block !important; position: fixed; inset: auto -26vw 10dvh auto; width: 62vw; aspect-ratio: 1; border-radius: 50%; opacity: .9; background: var(--m-accent); mix-blend-mode: multiply; }
+  .app-shell[data-tone='paper'][data-tone]::after { display: block !important; position: fixed; inset: 8dvh auto auto 78%; width: 11vw; height: 70dvh; opacity: .7; background: var(--m-blue); mix-blend-mode: multiply; transform: rotate(13deg); }
+  .app-shell[data-tone='paper'] .workspace > section.panel { background: transparent; }
+  .app-shell[data-tone='paper'] .workspace > section.panel.player-panel { background: transparent !important; }
+  .app-shell[data-tone='paper'] .topbar.panel { border-bottom: 2px solid var(--m-ink-line); background: linear-gradient(90deg, var(--m-accent) 0 7px, var(--m-yellow) 7px 11px, transparent 11px), var(--m-raised); }
+  .app-shell[data-tone='paper'] .brand h1, .app-shell[data-tone='paper'] .panel-heading h2 { font-weight: 800; letter-spacing: -.03em; }
+  .app-shell[data-tone='paper'] .logo-ring, .app-shell[data-tone='paper'] .logo-ring img { border-radius: 2px; }
+  .app-shell[data-tone='paper'] .logo-ring { border: 2px solid var(--m-ink-line); box-shadow: 2px 2px 0 var(--m-blue); }
+  .app-shell[data-tone='paper'] .language { border: 1.5px solid var(--m-ink-line); border-radius: 2px; background: var(--m-raised); }
+  .app-shell[data-tone='paper'] .language button { border-radius: 1px; }
+  .app-shell[data-tone='paper'] .tone-trigger { border: 1.5px solid var(--m-ink-line); box-shadow: 2px 2px 0 var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .search-box { border: 2px solid var(--m-ink-line); border-radius: 2px; background: var(--m-raised); box-shadow: 4px 4px 0 var(--m-accent); }
+  .app-shell[data-tone='paper'] .search-box > button { border: 1.5px solid var(--m-ink-line); border-radius: 2px; }
+  .app-shell[data-tone='paper'] .source-grid label { border: 1.5px solid var(--m-ink-line); border-radius: 2px; color: var(--m-ink); background: var(--m-raised); }
+  .app-shell[data-tone='paper'] .source-grid label.checked { background: var(--m-yellow); box-shadow: 2px 2px 0 var(--m-ink-line); }
+  .app-shell[data-tone='paper'] :is(.load-row select,.load-row .btn,.daily-tools select,.playlist-toolbar button,.icon-upload,.play-modes button) { border: 1.5px solid var(--m-ink-line); border-radius: 2px; color: var(--m-ink); background: var(--m-raised); }
+  .app-shell[data-tone='paper'] .track-row { margin: 0 0 7px; padding-inline: 8px; border: 1.5px solid var(--m-ink-line); border-radius: 2px; background: var(--m-raised); box-shadow: 3px 3px 0 var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .track-row.active { background: var(--m-yellow); box-shadow: 3px 3px 0 var(--m-accent); }
+  .app-shell[data-tone='paper'] .track-row.active .track-copy strong { color: var(--m-ink); }
+  .app-shell[data-tone='paper'] .track-source { border: 1.5px solid var(--m-ink-line); border-radius: 2px; color: var(--m-ink); background: var(--m-bg); }
+  .app-shell[data-tone='paper'] .track-copy strong { font-weight: 700; }
+  .app-shell[data-tone='paper'] .playlist-panel .tabs { border: 2px solid var(--m-ink-line); border-radius: 2px; background: var(--m-raised); box-shadow: 3px 3px 0 var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .playlist-panel .tabs button { border-radius: 1px; color: var(--m-ink); }
+  .app-shell[data-tone='paper'] .playlist-panel .tabs button.active { background: var(--m-yellow); }
+  .app-shell[data-tone='paper'] .daily-editorial, .app-shell[data-tone='paper'] .daily-editorial.has-grainient { margin: 0 6px 14px 0; padding: 16px 16px 16px 58px; border: 2px solid var(--m-ink-line); border-radius: 2px; background: linear-gradient(108deg, var(--m-accent) 0 11%, var(--m-yellow) 11% 13%, var(--m-raised) 13%); box-shadow: 6px 6px 0 var(--m-blue); }
+  .app-shell[data-tone='paper'] .daily-copy h2 { font-weight: 800; letter-spacing: -.03em; }
+  .app-shell[data-tone='paper'] .daily-actions .btn { border: 1.5px solid var(--m-ink-line); border-radius: 2px; background: var(--m-raised); }
+  .app-shell[data-tone='paper'] .daily-actions .btn.primary { background: var(--m-accent); box-shadow: 3px 3px 0 var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .daily-loading { border: 1.5px solid var(--m-ink-line); border-radius: 2px; }
+  .app-shell[data-tone='paper'] .record-wrap { rotate: -1.6deg; }
+  .app-shell[data-tone='paper'] .record-tilt { border: 2px solid var(--m-ink-line); border-radius: 2px; box-shadow: 8px 8px 0 var(--m-blue); }
+  .app-shell[data-tone='paper'] .record { border-radius: 1px; }
+  .app-shell[data-tone='paper'] .track-hero h3 { font-weight: 800; letter-spacing: -.03em; }
+  .app-shell[data-tone='paper'] .transport > .play-main { border: 2px solid var(--m-ink-line); box-shadow: 4px 4px 0 var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .hero-actions button { border: 1.5px solid var(--m-ink-line); color: var(--m-ink); background: var(--m-raised); box-shadow: 2px 2px 0 var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .hero-actions button.active { background: var(--m-accent); }
+  .app-shell[data-tone='paper'] .lyrics { border-top: 2px solid var(--m-ink-line); border-radius: 0; box-shadow: none; }
+  .app-shell[data-tone='paper'] .lyric-line.active > span { justify-self: center; background: linear-gradient(transparent 62%, var(--m-yellow) 62%); }
+  .app-shell[data-tone='paper'] .mobile-nav { border-top: 2px solid var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .mobile-nav button { color: var(--m-ink); }
+  .app-shell[data-tone='paper'] .mobile-nav button.active > span { border: 1.5px solid var(--m-ink-line); border-radius: 2px; box-shadow: 2px 2px 0 var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .mobile-mini-player { border-top: 2px solid var(--m-ink-line); }
+  .app-shell[data-tone='paper'] .mini-track > img, .app-shell[data-tone='paper'] .mini-track > span:first-child { border: 1.5px solid var(--m-ink-line); border-radius: 2px; }
+
   /* Overlays stay solid too */
   .tone-panel, .tone-group-heading { backdrop-filter: none !important; }
   .tone-panel { border-radius: 12px; background: var(--surface-1); }

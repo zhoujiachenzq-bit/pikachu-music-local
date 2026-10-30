@@ -1,0 +1,51 @@
+name: Android smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose APK is tested
+        required: true
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download the released APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ inputs.tag }}" --repo "$GITHUB_REPOSITORY" --pattern '*.apk' --output app.apk
+
+      - name: Launch twice on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install app.apk
+            adb shell am start -n cn.zqmusic.musichouse/.MainActivity
+            sleep 45
+            adb exec-out screencap -p > first-launch.png
+            adb shell am force-stop cn.zqmusic.musichouse
+            adb shell am start -n cn.zqmusic.musichouse/.MainActivity
+            sleep 45
+            adb exec-out screencap -p > second-launch.png
+            adb logcat -d > logcat.txt
+            adb shell pidof cn.zqmusic.musichouse
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-smoke
+          path: |
+            *.png
+            logcat.txt

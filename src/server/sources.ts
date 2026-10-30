@@ -157,7 +157,9 @@ export async function readLimitedText(response: Response, maxBytes = positiveEnv
       if (total > maxBytes) { await reader.cancel().catch(() => undefined); throw new SourceError('SOURCE_RESPONSE_TOO_LARGE', '音乐源返回的数据超过安全大小限制。'); }
       chunks.push(value);
     }
-    return Buffer.concat(chunks, total).toString('utf8');
+    const merged = new Uint8Array(total); let offset = 0;
+    for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.byteLength; }
+    return new TextDecoder().decode(merged);
   };
   try {
     return await Promise.race([readAll(), new Promise<string>((_resolve, reject) => {

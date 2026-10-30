@@ -2,11 +2,11 @@
 
 一个可在本机运行或用容器部署的全栈音乐播放器。界面参考原“皮卡丘的音乐站”，增加本地账户、SQLite 持久化、收藏、自建歌单、四源公开歌单导入、手动同步和 JSON 备份恢复。
 
-当前稳定版本：`v0.6.0`。这一版专注音乐本身：移除了智能助手，重做霓虹游戏厅、夏日海岸和暮光花园三个主题，手机端改为连续的实色界面，并提供上滑进入的纯净歌词页和 Android 安装包。
+当前稳定版本：`v0.6.1`。这一版让 Android 安装包脱离服务器，装上即用，并恢复手机端的剪纸主题、换用新图标。
 
 ## Android 安装包
 
-每个版本的 [Release](https://github.com/zhoujiachenzq-bit/pikachu-music-local/releases) 都附带 `music-house-<版本>.apk`，在手机上下载后允许安装即可。安装包由 GitHub Actions 构建，内容是 https://zqmusic.cn 的外壳，因此界面版本取决于服务器当前部署的版本，账户和歌单与网页端一致。
+每个版本的 [Release](https://github.com/zhoujiachenzq-bit/pikachu-music-local/releases) 都附带 `music-house-<版本>.apk`，在手机上下载后允许安装即可。App 内置完整的音乐服务，不需要服务器或电脑，也不用注册；收藏、歌单和播放记录只保存在这台手机上，卸载 App 后会清除。手机版只显示网易云和酷我两个音源，因为 QQ 和咪咕缺少备用音源时不稳定。
 
 ## 启动
 
