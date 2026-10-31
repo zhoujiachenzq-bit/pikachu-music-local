@@ -251,10 +251,12 @@ async function searchSourceRaw(source: MusicSource, query: string, limit = 10, s
   signal?.throwIfAborted();
   const q = query.trim(); if (!q) return [];
   const size = Math.min(Math.max(limit, 1), 30);
-  if (source === 'migu') {
-    const backup = await searchWithGoMusicApi(q, { sources: ['migu'], limit: size });
+  if (source !== 'netease') {
+    const backup = await searchWithGoMusicApi(q, { sources: [source], limit: size });
     signal?.throwIfAborted();
     if (backup.length) return backup.map(item => ({ ...item, keyword: q }));
+  }
+  if (source === 'migu') {
     const j = await fetchJson(`https://api.xcvts.cn/api/music/migu?gm=${encodeURIComponent(q)}&n=&num=${size}&type=json`, { signal });
     const list = Array.isArray(j.data) ? j.data : [];
     return list.slice(0, size).map((item: any, index: number) => {

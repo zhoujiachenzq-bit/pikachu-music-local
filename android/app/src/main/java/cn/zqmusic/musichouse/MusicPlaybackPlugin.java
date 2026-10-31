@@ -31,6 +31,13 @@ public class MusicPlaybackPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void localMusicApi(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("available", LocalMusicApi.available(getContext()));
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void update(PluginCall call) {
         String title = call.getString("title", "");
         String artist = call.getString("artist", "");

@@ -4,8 +4,10 @@ import { SOURCES, type MusicSource } from '../shared/types';
 
 export const phoneApp = Capacitor.isNativePlatform();
 
-// Without the go-music-api service only these two give playable audio reliably.
-export const searchSources: readonly MusicSource[] = phoneApp ? ['netease', 'kuwo'] : SOURCES;
+// Phones without the bundled go-music-api build only get reliable audio from these two.
+let localMusicApiReady = false;
+export function markLocalMusicApiReady() { localMusicApiReady = true; }
+export const searchSources = (): readonly MusicSource[] => !phoneApp || localMusicApiReady ? SOURCES : ['netease', 'kuwo'];
 
 // The system bar continues the app header, whichever theme is showing.
 export function tintStatusBar() {
@@ -20,6 +22,7 @@ export function tintStatusBar() {
 
 export type PhonePlaybackAction = 'play' | 'pause' | 'next' | 'previous';
 interface MusicPlaybackPlugin {
+  localMusicApi(): Promise<{ available: boolean }>;
   update(options: { title: string; artist: string; playing: boolean }): Promise<void>;
   stop(): Promise<void>;
   addListener(event: 'action', listener: (data: { action: PhonePlaybackAction }) => void): Promise<{ remove: () => Promise<void> }>;
@@ -31,6 +34,8 @@ export function syncPhonePlayback(track: { title: string; artist: string } | nul
   if (!phoneApp) return;
   void (track ? MusicPlayback.update({ title: track.title, artist: track.artist, playing }) : MusicPlayback.stop()).catch(() => undefined);
 }
+
+export const localMusicApiAvailable = () => MusicPlayback.localMusicApi().then(result => result.available).catch(() => false);
 
 export function onPhonePlaybackAction(handler: (action: PhonePlaybackAction) => void) {
   if (!phoneApp) return () => undefined;

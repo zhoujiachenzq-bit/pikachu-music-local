@@ -136,6 +136,8 @@ export async function searchWithGoMusicApi(query: string, options: SearchOptions
 }
 
 function mediaPath(track: Track) {
+  // The phone's audio element reaches the local service itself; there is no server route to relay through.
+  if (process.env.GO_MUSIC_API_DIRECT_MEDIA) return String(goMusicApiStreamUrl({ source: track.source, id: track.sourceTrackId, name: track.title, artist: track.artist, duration: track.duration > 0 ? track.duration / 1000 : undefined }));
   const params = new URLSearchParams({ source: track.source, id: track.sourceTrackId, name: track.title, artist: track.artist });
   if (track.duration > 0) params.set('duration', String(Math.round(track.duration / 1000)));
   return `/api/backup-media?${params}`;

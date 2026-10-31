@@ -1,4 +1,5 @@
 import { CapacitorHttp } from '@capacitor/core';
+import { localMusicApiAvailable, markLocalMusicApiReady } from '../client/phone';
 import { createNativeFetch } from './nativeFetch';
 import type { PhoneApp } from './shims/fastify';
 import type { NativeResponse } from './nativeFetch';
@@ -6,6 +7,8 @@ import type { NativeResponse } from './nativeFetch';
 // One person on one phone: the server's abuse limits would only get in the way.
 const UNLIMITED = ['RATE_SEARCH_USER_MINUTE', 'RATE_SEARCH_IP_MINUTE', 'RATE_RESOLVE_USER_MINUTE', 'RATE_RESOLVE_IP_MINUTE', 'RATE_IMPORT_USER_DAILY', 'RATE_IMPORT_IP_DAILY', 'RATE_LISTENING_USER_MINUTE'];
 const LOCAL_USER_CREATED_AT = '2000-01-01T00:00:00.000Z';
+const LOCAL_MUSIC_API = 'http://127.0.0.1:8080';
+const LOCAL_MUSIC_API_WAIT_MS = 4000;
 
 function installAbortSignalAny() {
   const signalType = AbortSignal as { any?: typeof AbortSignal.any };
@@ -37,8 +40,23 @@ class ImportEvents {
   close() { window.clearInterval(this.timer); }
 }
 
+const nativeFetch = createNativeFetch(options => CapacitorHttp.request(options) as Promise<NativeResponse>);
+
+// The bundled service takes a moment to listen after the app starts.
+async function connectLocalMusicApi(env: Record<string, string>) {
+  if (!await localMusicApiAvailable()) return;
+  const deadline = Date.now() + LOCAL_MUSIC_API_WAIT_MS;
+  while (Date.now() < deadline) {
+    try {
+      await nativeFetch(`${LOCAL_MUSIC_API}/swagger/index.html`);
+      env.GO_MUSIC_API_URL = LOCAL_MUSIC_API; env.GO_MUSIC_API_DIRECT_MEDIA = '1';
+      markLocalMusicApiReady();
+      return;
+    } catch { await new Promise(resolve => setTimeout(resolve, 150)); }
+  }
+}
+
 function installFetch(app: PhoneApp) {
-  const nativeFetch = createNativeFetch(options => CapacitorHttp.request(options) as Promise<NativeResponse>);
   const webFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -52,6 +70,7 @@ export async function startPhoneBackend() {
   const env: Record<string, string> = { ...Object.fromEntries(UNLIMITED.map(name => [name, '1000000'])), RECOMMENDATION_SKIP_PREFLIGHT: '1' };
   Object.assign(globalThis, { process: { env } });
   installAbortSignalAny();
+  await connectLocalMusicApi(env);
   const { openPhoneDatabase } = await import('./shims/sqlite');
   await openPhoneDatabase();
   const [{ createDatabase }, { createApp }, { createSession, createUserId }] = await Promise.all([

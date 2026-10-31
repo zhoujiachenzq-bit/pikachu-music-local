@@ -44,7 +44,19 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          packages: platform-tools platforms;android-35 build-tools;35.0.0 ndk;27.2.12479018
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.26.5
+          cache: false
+
+      - name: Build the local music service
+        env:
+          NDK_VERSION: 27.2.12479018
+        # Only test builds carry the emulator's ABI; phones need arm64 alone.
+        run: bash .github/build-go-music-api.sh arm64-v8a ${{ startsWith(env.RELEASE_TAG, 'v') && '' || 'x86_64' }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

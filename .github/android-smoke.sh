@@ -69,11 +69,29 @@ adb shell input text jay
 adb shell input keyevent 66
 sleep 12
 shot search-results
+adb forward tcp:18080 tcp:8080
+for source in qq migu kuwo; do
+  echo "=== service $source" >> keepalive.txt
+  curl -s --max-time 12 "http://127.0.0.1:18080/api/v1/music/search?q=jay&type=song&sources=$source" | head -c 400 >> keepalive.txt
+  echo >> keepalive.txt
+done
 # The keyboard stays open, so the first result row sits at a fixed spot.
 adb shell input tap 150 262
 sleep 25
 shot playing
 state before-screen-off
+# Plays a QQ or Migu result too: with the other two sources off, they are all that is left.
+tap '网易云'
+sleep 1
+tap '酷我'
+sleep 1
+tap '搜索'
+sleep 10
+shot search-qq-migu
+adb shell input tap 150 300
+sleep 20
+shot playing-qq-migu
+state qq-migu-playing
 
 adb shell dumpsys battery unplug
 adb shell input keyevent 223

@@ -3,6 +3,11 @@ apply plugin: 'com.android.application'
 android {
     namespace "cn.zqmusic.musichouse"
     compileSdk rootProject.ext.compileSdkVersion
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
     defaultConfig {
         applicationId "cn.zqmusic.musichouse"
         minSdkVersion rootProject.ext.minSdkVersion
