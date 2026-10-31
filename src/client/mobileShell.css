@@ -118,14 +118,15 @@
   .app-shell[data-tone] .hero-actions span { display: none; }
 
   /* The lyrics page rests under the console and rises over everything */
-  .app-shell[data-tone] .lyrics { --sheet-rest: calc(100dvh - var(--m-nav) - var(--m-safe-bottom) - var(--m-peek)); position: fixed; z-index: 40; left: 0; right: 0; top: 0; height: 100dvh; min-height: 0; margin: 0; flex: none; overflow: hidden; border: 0; border-radius: 12px 12px 0 0; background: var(--m-raised); box-shadow: 0 -1px 0 var(--m-line); transform: translateY(calc(var(--sheet-rest) + var(--sheet-drag, 0px))); transition: transform .32s cubic-bezier(.2,.8,.2,1), border-radius .32s ease; }
+  .app-shell[data-tone] .lyrics { --sheet-rest: calc(100dvh - var(--m-nav) - var(--m-safe-bottom) - var(--m-peek)); position: fixed; z-index: 40; inset: 0; height: auto; min-height: 0; margin: 0; flex: none; overflow: hidden; border: 0; border-radius: 12px 12px 0 0; background: var(--m-raised); box-shadow: 0 -1px 0 var(--m-line); transform: translateY(calc(var(--sheet-rest) + var(--sheet-drag, 0px))); transition: transform .32s cubic-bezier(.2,.8,.2,1), border-radius .32s ease; }
   .app-shell[data-tone] .lyrics.is-dragging { transition: none; }
   .app-shell[data-tone] .lyrics.sheet-open { border-radius: 0; background: var(--m-bg); transform: translateY(var(--sheet-drag, 0px)); }
   .lyrics-peek { position: absolute; z-index: 3; inset: 0 0 auto; height: var(--m-peek); padding: 8px 20px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; border: 0; color: var(--m-ink); background: none; cursor: pointer; font: inherit; }
   .lyrics-peek i { width: 36px; height: 4px; border-radius: 2px; background: var(--m-line); }
   .lyrics-peek span { max-width: 100%; overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
   .lyrics.sheet-open .lyrics-peek { display: none; }
-  .app-shell[data-tone] .lyrics-scroll { top: calc(var(--m-safe-top) + 60px); padding-inline: 20px; visibility: hidden; }
+  /* Spans the whole sheet so the active line sits at the true middle of the screen; lines fade out under the title. */
+  .app-shell[data-tone] .lyrics-scroll { inset: 0; height: auto; padding-inline: 20px; visibility: hidden; -webkit-mask-image: linear-gradient(transparent calc(var(--m-safe-top) + 52px), #000 calc(var(--m-safe-top) + 100px), #000 calc(100% - 72px), transparent); mask-image: linear-gradient(transparent calc(var(--m-safe-top) + 52px), #000 calc(var(--m-safe-top) + 100px), #000 calc(100% - 72px), transparent); }
   .app-shell[data-tone] .lyrics.sheet-open .lyrics-scroll, .app-shell[data-tone] .lyrics.is-dragging .lyrics-scroll { visibility: visible; }
   .lyrics-page-bar { position: absolute; z-index: 3; inset: 0 0 auto; padding: var(--m-safe-top) 8px 0; height: calc(var(--m-safe-top) + 60px); align-items: center; gap: 4px; background: var(--m-bg); touch-action: none; }
   .lyrics.sheet-open .lyrics-page-bar { display: flex; }
@@ -134,7 +135,7 @@
   .lyrics-page-bar strong, .lyrics-page-bar small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lyrics-page-bar strong { color: var(--m-ink); font-size: 15px; }
   .lyrics-page-bar small { color: var(--m-muted); font-size: 12px; }
-  .app-shell[data-tone] .lyric-line { margin: 2px 0; padding: 10px 0; grid-template-columns: minmax(0,1fr); color: var(--m-muted); background: none; font-family: inherit; font-size: 19px; font-weight: 600; line-height: 1.45; text-shadow: none; transform: none; }
+  .app-shell[data-tone] .lyric-line { margin: 2px 0; padding: 10px 0; grid-template-columns: minmax(0,1fr); transition: color .2s ease; color: var(--m-muted); background: none; font-family: inherit; font-size: 19px; font-weight: 600; line-height: 1.45; text-shadow: none; transform: none; }
   .app-shell[data-tone] .lyric-line > span { grid-column: 1; }
   .app-shell[data-tone] .lyric-line time { display: none; }
   .app-shell[data-tone] .lyric-line.active { color: var(--m-ink); background: none; font-family: inherit; font-size: 23px; font-weight: 700; text-shadow: none; transform: none; }
@@ -144,7 +145,8 @@
 
   /* Navigation sits on the edge; the current track is attached straight above it */
   .app-shell[data-tone] .mobile-nav { left: 0; right: 0; bottom: 0; height: calc(var(--m-nav) + var(--m-safe-bottom)); padding: 4px 8px var(--m-safe-bottom); grid-template-columns: repeat(4, 1fr); border: 0; border-top: 1px solid var(--m-line); border-radius: 0; background: var(--m-raised); box-shadow: none; transition: transform .28s ease; }
-  .app-shell.lyrics-sheet-open[data-tone] .mobile-nav { transform: translateY(110%); }
+  .app-shell.lyrics-sheet-open[data-tone] .mobile-nav { transform: translateY(110%); visibility: hidden; transition: transform .28s ease, visibility 0s .28s; }
+  .app-shell.lyrics-sheet-open[data-tone] .mobile-mini-player { visibility: hidden; }
   .app-shell[data-tone] .mobile-nav button { min-width: 0; color: var(--m-muted); background: none; }
   .app-shell[data-tone] .mobile-nav button > span { width: 52px; height: 26px; display: grid; place-items: center; border-radius: 13px; }
   .app-shell[data-tone] .mobile-nav button small { font-size: 11px; }
