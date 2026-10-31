@@ -8,19 +8,36 @@ shot() { adb exec-out screencap -p > "$1.png"; }
 
 # Taps the first on-screen node whose text or class matches; WebView nodes appear in the dump.
 tap() {
-  adb shell uiautomator dump /sdcard/ui.xml > /dev/null
-  adb pull /sdcard/ui.xml ui.xml > /dev/null
-  python3 - "$1" <<'PY' | xargs -r adb shell input tap
+  # uiautomator sometimes dies on a busy WebView, so a failed look is retried.
+  for attempt in 1 2 3 4 5 6; do
+    rm -f ui.xml
+    adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+    adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
+    point=$(python3 - "$1" <<'PY'
 import re, sys
 import xml.etree.ElementTree as ET
 pattern = re.compile(sys.argv[1])
-for node in ET.parse('ui.xml').iter('node'):
+try:
+    nodes = list(ET.parse('ui.xml').iter('node'))
+except Exception:
+    nodes = []
+for node in nodes:
     label = node.get('text') or node.get('content-desc') or ''
     if pattern.fullmatch(label) or pattern.fullmatch(node.get('class') or ''):
         left, top, right, bottom = map(int, re.findall(r'\d+', node.get('bounds')))
         print((left + right) // 2, (top + bottom) // 2)
         break
 PY
+    )
+    if [ -n "$point" ]; then
+      echo "tap '$1' at $point (attempt $attempt)" | tee -a keepalive.txt
+      adb shell input tap $point
+      return 0
+    fi
+    sleep 4
+  done
+  echo "tap '$1' FOUND NOTHING" | tee -a keepalive.txt
+  return 1
 }
 
 state() {
@@ -28,9 +45,9 @@ state() {
     echo "=== $1 $(date +%T)"
     adb shell dumpsys power | grep -E 'mWakefulness=|musichouse' || true
     adb shell dumpsys deviceidle | grep -E 'mState=' || true
-    adb shell dumpsys activity services "$pkg" | grep -E 'ServiceRecord|isForeground' || true
-    adb shell dumpsys media_session | grep -E 'MusicHouse|state=PlaybackState' || true
-    adb shell dumpsys audio | grep -E 'usage=USAGE_MEDIA.*|state:(started|paused|idle)' | tail -n 6 || true
+    adb shell dumpsys activity services "$pkg" | grep -E 'ServiceRecord.*PlaybackService|isForeground=' || true
+    adb shell dumpsys media_session | grep -A12 'MusicHouse' | grep -E 'MusicHouse|active=|state=PlaybackState|metadata' || true
+    adb shell dumpsys audio | grep 'AudioPlaybackConfiguration' | grep -E 'state:started' || echo 'no started player'
   } | tee -a keepalive.txt
 }
 
