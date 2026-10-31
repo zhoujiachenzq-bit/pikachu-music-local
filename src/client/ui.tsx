@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import { CaretDown, SpeakerHigh, Plus, UploadSimple, X, Prohibit, DownloadSimple, Headphones, Heart, ArrowSquareIn, Playlist, Waveform, MusicNotes, SkipForward, Palette, Pause, Play, SkipBack, Repeat, RepeatOnce, MagnifyingGlass, Shuffle, Sparkle, ArrowsClockwise, Warning } from '@phosphor-icons/react';
+import { CaretDown, SpeakerHigh, Plus, UploadSimple, X, Prohibit, DownloadSimple, Headphones, Heart, ArrowSquareIn, Playlist, Waveform, MusicNotes, SkipForward, Palette, Pause, Play, SkipBack, Repeat, RepeatOnce, MagnifyingGlass, Shuffle, Sparkle, ArrowsClockwise, Warning, MoonStars } from '@phosphor-icons/react';
 import { Grainient } from './Grainient';
 import { TiltSurface } from './interactionEffects';
 import type { ToneThemeId } from './visualTheme';
@@ -7,7 +7,7 @@ import type { MusicSource, RecommendedTrack, Track } from '../shared/types';
 import type { MobileSection } from './visualState';
 import { phoneApp } from './phone';
 
-export type IconName = 'add' | 'collapse' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'volume' | 'warning';
+export type IconName = 'add' | 'collapse' | 'backup' | 'close' | 'dislike' | 'download' | 'headphones' | 'heart' | 'import' | 'library' | 'motion' | 'music' | 'next' | 'palette' | 'pause' | 'play' | 'previous' | 'repeat' | 'repeatOne' | 'restore' | 'search' | 'shuffle' | 'sparkles' | 'sync' | 'timer' | 'volume' | 'warning';
 
 const iconComponents = {
   add: Plus, collapse: CaretDown, backup: UploadSimple, close: X, dislike: Prohibit,
@@ -16,7 +16,7 @@ const iconComponents = {
   music: MusicNotes, next: SkipForward, palette: Palette, pause: Pause, play: Play,
   previous: SkipBack, repeat: Repeat, repeatOne: RepeatOnce, restore: DownloadSimple,
   search: MagnifyingGlass,
-  shuffle: Shuffle, sparkles: Sparkle, sync: ArrowsClockwise,
+  shuffle: Shuffle, sparkles: Sparkle, sync: ArrowsClockwise, timer: MoonStars,
   volume: SpeakerHigh, warning: Warning,
 } as const;
 

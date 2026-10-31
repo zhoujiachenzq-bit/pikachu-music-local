@@ -83,16 +83,17 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
 
-      - name: Attach APK to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          apk="music-house-${RELEASE_TAG}.apk"
-          cp android/app/build/outputs/apk/release/app-release.apk "$apk"
-          gh release upload "$RELEASE_TAG" "$apk" --clobber
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "music-house-${RELEASE_TAG}.apk"
 
       - name: Keep the APK with this run
         uses: actions/upload-artifact@v4
         with:
           name: music-house-apk
           path: music-house-*.apk
+
+      - name: Attach APK to the release
+        if: startsWith(env.RELEASE_TAG, 'v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" "music-house-${RELEASE_TAG}.apk" --clobber

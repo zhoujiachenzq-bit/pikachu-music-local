@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { SOURCES, type MusicSource } from '../shared/types';
 
@@ -16,4 +16,24 @@ export function tintStatusBar() {
   const lightBackground = red * .299 + green * .587 + blue * .114 > 140;
   void StatusBar.setBackgroundColor({ color }).catch(() => undefined);
   void StatusBar.setStyle({ style: lightBackground ? Style.Light : Style.Dark }).catch(() => undefined);
+}
+
+export type PhonePlaybackAction = 'play' | 'pause' | 'next' | 'previous';
+interface MusicPlaybackPlugin {
+  update(options: { title: string; artist: string; playing: boolean }): Promise<void>;
+  stop(): Promise<void>;
+  addListener(event: 'action', listener: (data: { action: PhonePlaybackAction }) => void): Promise<{ remove: () => Promise<void> }>;
+}
+const MusicPlayback = registerPlugin<MusicPlaybackPlugin>('MusicPlayback');
+
+// The Android service keeps playback alive with the screen off and shows lock-screen controls.
+export function syncPhonePlayback(track: { title: string; artist: string } | null, playing: boolean) {
+  if (!phoneApp) return;
+  void (track ? MusicPlayback.update({ title: track.title, artist: track.artist, playing }) : MusicPlayback.stop()).catch(() => undefined);
+}
+
+export function onPhonePlaybackAction(handler: (action: PhonePlaybackAction) => void) {
+  if (!phoneApp) return () => undefined;
+  const listening = MusicPlayback.addListener('action', data => handler(data.action));
+  return () => { void listening.then(listener => listener.remove()).catch(() => undefined); };
 }

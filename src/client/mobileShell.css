@@ -13,7 +13,8 @@
 
   /* Everything decorative goes: the structure carries the identity now. */
   .app-shell[data-tone]::before, .app-shell[data-tone]::after, .app-shell .particle-field, .app-shell .illustrated-landscape, .app-shell .room-landscape, .app-shell .immersive-backdrop, .app-shell .grainient, .app-shell .vinyl-grainient, .app-shell .vinyl-metal-stamp, .app-shell .panel::after, .app-shell .topbar::before, .app-shell .lyrics-effects { display: none !important; }
-  .app-shell, .app-shell * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+  /* Unprefixed only: with both spellings the minifier keeps just the -webkit one. */
+  .app-shell, .app-shell * { backdrop-filter: none !important; }
   .app-shell[data-tone] { padding: 0; color: var(--m-ink); background: var(--m-bg); }
   .app-shell[data-tone] .topbar.panel { height: calc(var(--m-header) + var(--m-safe-top)); margin: 0; padding: var(--m-safe-top) 12px 0; border: 0; border-bottom: 1px solid var(--m-line); border-image: none; border-radius: 0; background: var(--m-raised); box-shadow: none; outline: 0; }
   .app-shell[data-tone] .logo-ring { width: 34px; height: 34px; padding: 2px; border-radius: 50%; background: var(--m-sunken); box-shadow: none; }
@@ -178,15 +179,19 @@
   .app-shell[data-tone] .track-row.active .track-copy strong { text-shadow: none; animation: none; }
   .app-shell[data-tone] .track-row.active .track-copy small { color: var(--m-muted); text-shadow: none; }
 
+  /* The lyrics page of the first three themes has the depth scene, so the motion switch does something here too. */
+  .app-shell[data-tone] .lyrics .immersive-backdrop { display: block !important; position: absolute; inset: 0; border-radius: 0; }
+  .app-shell:is([data-tone='paper'],[data-tone='arcade'],[data-tone='cobalt']) .lyrics-page-bar { background: none; }
+
   /* Console: the sleeve leads, the heart lives beside the title */
   .app-shell[data-tone] .now-card { display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; justify-items: center; gap: 20px; }
   .app-shell[data-tone] .record-wrap { width: min(78vw, 40dvh); }
   .app-shell[data-tone] .record-tilt, .app-shell[data-tone] .record { border-radius: 16px; }
   .app-shell[data-tone] .record-center { width: 46%; aspect-ratio: 1; background: url('/pikachu.gif') center / contain no-repeat; }
   .app-shell[data-tone] .track-hero { grid-area: 2 / 1; min-width: 0; }
-  .app-shell[data-tone] .track-hero h3 { overflow: hidden; padding-right: 48px; font-size: 24px; font-weight: 800; text-overflow: ellipsis; }
-  .app-shell[data-tone] .track-hero p { overflow: hidden; margin-bottom: 14px; padding-right: 48px; text-overflow: ellipsis; white-space: nowrap; }
-  .app-shell[data-tone] .now-card .hero-actions { z-index: 2; grid-area: 2 / 1; justify-self: end; align-self: start; }
+  .app-shell[data-tone] .track-hero h3 { overflow: hidden; padding-right: 88px; font-size: 24px; font-weight: 800; text-overflow: ellipsis; }
+  .app-shell[data-tone] .track-hero p { overflow: hidden; margin-bottom: 14px; padding-right: 88px; text-overflow: ellipsis; white-space: nowrap; }
+  .app-shell[data-tone] .now-card .hero-actions { z-index: 2; grid-area: 2 / 1; justify-self: end; align-self: start; gap: 4px; }
   .app-shell[data-tone] .now-card .hero-actions button { color: var(--m-muted); background: none; }
   .app-shell[data-tone] .now-card .hero-actions button.active { color: var(--m-accent); background: none; }
   .app-shell[data-tone] .now-card .hero-actions button .ui-icon { width: 24px; height: 24px; }

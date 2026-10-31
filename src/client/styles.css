@@ -401,6 +401,10 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
 @keyframes fade-in { from { opacity: 0; } }
 .modal-card { width: min(430px, 100%); max-height: calc(100vh - 40px); padding: 19px; overflow-y: auto; border: 1px solid var(--line-strong); border-radius: 21px; background: linear-gradient(145deg, #161a23, #080a0f); box-shadow: 0 34px 100px #000; }
 .modal-card.wide { width: min(570px, 100%); }
+.sleep-timer { display: grid; gap: 12px; }
+.sleep-timer p { margin: 0; color: var(--muted); font-size: 14px; }
+.sleep-timer strong { color: var(--text-strong); font-size: 20px; font-variant-numeric: tabular-nums; }
+.sleep-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
 .modal-card header { margin-bottom: 17px; display: flex; align-items: center; justify-content: space-between; }
 .modal-card h2 { margin: 0; font-size: 20px; letter-spacing: -.035em; }
 .modal-card header > button { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: rgba(0,0,0,.24); cursor: pointer; }

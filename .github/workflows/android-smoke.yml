@@ -5,41 +5,44 @@ on:
     inputs:
       tag:
         description: Release tag whose APK is tested
-        required: true
+        required: false
+      apk_run:
+        description: Android APK run whose artifact is tested instead
+        required: false
 
 jobs:
   emulator:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Download the released APK
+      - name: Download the APK
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download "${{ inputs.tag }}" --repo "$GITHUB_REPOSITORY" --pattern '*.apk' --output app.apk
+        run: |
+          if [ -n "${{ inputs.apk_run }}" ]; then
+            gh run download "${{ inputs.apk_run }}" --repo "$GITHUB_REPOSITORY" --name music-house-apk
+            mv music-house-*.apk app.apk
+          else
+            gh release download "${{ inputs.tag }}" --repo "$GITHUB_REPOSITORY" --pattern '*.apk' --output app.apk
+          fi
 
-      - name: Launch twice on an emulator
+      - name: Launch, play and turn the screen off
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: |
-            adb install app.apk
-            adb shell am start -n cn.zqmusic.musichouse/.MainActivity
-            sleep 45
-            adb exec-out screencap -p > first-launch.png
-            adb shell am force-stop cn.zqmusic.musichouse
-            adb shell am start -n cn.zqmusic.musichouse/.MainActivity
-            sleep 45
-            adb exec-out screencap -p > second-launch.png
-            adb logcat -d > logcat.txt
-            adb shell pidof cn.zqmusic.musichouse
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim
+          script: bash .github/android-smoke.sh
 
       - name: Keep the evidence
         if: always()
@@ -48,4 +51,6 @@ jobs:
           name: android-smoke
           path: |
             *.png
+            keepalive.txt
+            ui.xml
             logcat.txt
