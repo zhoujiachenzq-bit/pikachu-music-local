@@ -2,11 +2,11 @@
 
 一个可在本机运行或用容器部署的全栈音乐播放器。界面参考原“皮卡丘的音乐站”，增加本地账户、SQLite 持久化、收藏、自建歌单、四源公开歌单导入、手动同步和 JSON 备份恢复。
 
-当前稳定版本：`v0.6.5`。Android 安装包装上即用，不需要服务器；这一版打磨了手机端界面，并恢复风景主题的画面。
+当前稳定版本：`v0.6.6`。Android 安装包内置 go-music-api，手机上直接提供网易云、QQ、咪咕和酷我四个音源，不需要服务器或电脑。
 
 ## Android 安装包
 
-每个版本的 [Release](https://github.com/zhoujiachenzq-bit/pikachu-music-local/releases) 都附带 `music-house-<版本>.apk`，在手机上下载后允许安装即可。App 内置完整的音乐服务，不需要服务器或电脑，也不用注册；收藏、歌单和播放记录只保存在这台手机上，卸载 App 后会清除。手机版只显示网易云和酷我两个音源，因为 QQ 和咪咕缺少备用音源时不稳定。
+每个版本的 [Release](https://github.com/zhoujiachenzq-bit/pikachu-music-local/releases) 都附带 `music-house-<版本>.apk`，在手机上下载后允许安装即可。App 内置完整的音乐服务，不需要服务器或电脑，也不用注册；收藏、歌单和播放记录只保存在这台手机上，卸载 App 后会清除。64 位手机内置 go-music-api，可用四个音源；32 位手机只有网易云和酷我。
 
 ## 启动
 
@@ -118,4 +118,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-go-music-api.ps1
 
 脚本会校验 Go 官方压缩包的 SHA-256，固定检出 `go-music-api v1.0.1`，并将其修改为只监听 `127.0.0.1:8080` 后在 `data/tools/` 下本地编译。之后桌面快捷方式、`run-start.ps1` 和 `run-dev.ps1` 会自动启动并配置备用服务。
 
-其他运行环境可设置 `GO_MUSIC_API_URL=http://受信任的内部服务:8080`；不要把原版 `go-music-api` 的 8080 端口直接暴露到公网。该第三方项目采用 AGPL-3.0，独立部署和修改时需遵守其许可证。
+其他运行环境可设置 `GO_MUSIC_API_URL=http://受信任的内部服务:8080`；不要把原版 `go-music-api` 的 8080 端口直接暴露到公网。该第三方项目采用 AGPL-3.0，独立部署和修改时需遵守其许可证。Android 安装包内含它的编译版本，仅把监听地址改为 127.0.0.1，源码见 https://github.com/guohuiyuan/go-music-api（v1.0.1），改动见 `.github/build-go-music-api.sh`。

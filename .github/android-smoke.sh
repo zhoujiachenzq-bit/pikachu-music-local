@@ -76,7 +76,7 @@ for source in qq migu kuwo; do
   echo >> keepalive.txt
 done
 # The keyboard stays open, so the first result row sits at a fixed spot.
-adb shell input tap 150 262
+adb shell input tap 150 300
 sleep 25
 shot playing
 state before-screen-off

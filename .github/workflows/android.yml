@@ -56,7 +56,7 @@ jobs:
         env:
           NDK_VERSION: 27.2.12479018
         # Only test builds carry the emulator's ABI; phones need arm64 alone.
-        run: bash .github/build-go-music-api.sh arm64-v8a ${{ startsWith(env.RELEASE_TAG, 'v') && '' || 'x86_64' }}
+        run: bash .github/build-go-music-api.sh arm64-v8a ${{ !startsWith(env.RELEASE_TAG, 'v') && 'x86_64' || '' }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
