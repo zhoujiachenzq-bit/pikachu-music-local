@@ -49,7 +49,7 @@ function installFetch(app: PhoneApp) {
 }
 
 export async function startPhoneBackend() {
-  const env: Record<string, string> = Object.fromEntries(UNLIMITED.map(name => [name, '1000000']));
+  const env: Record<string, string> = { ...Object.fromEntries(UNLIMITED.map(name => [name, '1000000'])), RECOMMENDATION_SKIP_PREFLIGHT: '1' };
   Object.assign(globalThis, { process: { env } });
   installAbortSignalAny();
   const { openPhoneDatabase } = await import('./shims/sqlite');

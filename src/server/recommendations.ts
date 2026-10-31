@@ -143,7 +143,8 @@ export async function generateDailyRecommendation(db: Db, userId: string, date: 
     const queries = [...topArtists, ...Array.from({ length: local.length ? 3 : 5 }, (_, index) => broad[(daySeed + index * 2) % broad.length])];
     const deps = dependencies || {
       discover: async (query: string) => (await searchAll(db, query, [...SOURCES], 12)).tracks,
-      preflight: async (track: Track) => { await resolveTrackWithFallback(track, db); return true; }
+      // The phone skips this check: resolving 30 songs one by one kept the list empty for minutes.
+      preflight: async (track: Track) => { if (process.env.RECOMMENDATION_SKIP_PREFLIGHT) return true; await resolveTrackWithFallback(track, db); return true; }
     };
     const discoverConcurrency = positiveEnvInt('RECOMMENDATION_DISCOVERY_CONCURRENCY', 2, 1, 4);
     const preflightConcurrency = positiveEnvInt('RECOMMENDATION_PREFLIGHT_CONCURRENCY', 2, 1, 3);

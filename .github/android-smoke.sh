@@ -47,6 +47,7 @@ state() {
     adb shell dumpsys deviceidle | grep -E 'mState=' || true
     adb shell dumpsys activity services "$pkg" | grep -E 'ServiceRecord.*PlaybackService|isForeground=' || true
     adb shell dumpsys media_session | grep -A12 'MusicHouse' | grep -E 'MusicHouse|active=|state=PlaybackState|metadata' || true
+    adb shell dumpsys notification --noredact | grep -E 'pkg=cn.zqmusic' | head -n 2 || true
     adb shell dumpsys audio | grep 'AudioPlaybackConfiguration' | grep -E 'state:started' || echo 'no started player'
   } | tee -a keepalive.txt
 }
@@ -68,8 +69,9 @@ adb shell input text jay
 adb shell input keyevent 66
 sleep 12
 shot search-results
-tap '[网酷]'
-sleep 20
+# The keyboard stays open, so the first result row sits at a fixed spot.
+adb shell input tap 150 262
+sleep 25
 shot playing
 state before-screen-off
 
