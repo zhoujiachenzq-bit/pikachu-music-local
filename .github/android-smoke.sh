@@ -135,7 +135,30 @@ sleep 15
 tap '播放'
 sleep 3
 shot playing
-wait_playing
+if ! wait_playing; then
+  # Search success does not imply entitlement or a matching public original.
+  # Exercise the independent background/audio path with an explicitly selected
+  # CC catalogue sample; never count it as successful QQ-original playback.
+  echo 'QQ sample unavailable here; selecting a separate Jamendo background-test sample.' | tee -a keepalive.txt
+  tap '搜索'
+  tap 'QQ'
+  tap 'Jamendo'
+  tap 'android\.widget\.EditText'
+  adb shell input keyevent 123
+  for letter in 1 2 3; do adb shell input keyevent 67; done
+  adb shell input text piano
+  adb shell input keyevent 66
+  sleep 10
+  adb shell input keyevent 4
+  sleep 2
+  shot jamendo-search
+  tap 'J piano arenal .*'
+  sleep 15
+  tap '播放'
+  sleep 3
+  wait_playing
+  shot jamendo-playing
+fi
 state before-screen-off
 
 # Back on the home page must leave the app running in the background.

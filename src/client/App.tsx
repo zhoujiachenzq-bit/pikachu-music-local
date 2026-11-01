@@ -167,7 +167,7 @@ export default function App() {
   useFadeContent(stageSurfaceRef, `${stageMode}:${mobileSection}:${user?.id || ''}`, motionActive, true);
   const [createOpen, setCreateOpen] = useState(false); const [newName, setNewName] = useState(''); const [importOpen, setImportOpen] = useState(false); const [importSource, setImportSource] = useState<MusicSource>('netease'); const [importInput, setImportInput] = useState(''); const [importJob, setImportJob] = useState<ImportJob | null>(null); const [accountOpen, setAccountOpen] = useState(false); const [addTrack, setAddTrack] = useState<Track | null>(null);
   const [platformOpen, setPlatformOpen] = useState(false);
-  const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const recoveringTrackId = useRef<string | null>(null); const importStream = useRef<EventSource | null>(null); const importReconnectTimer = useRef<number | null>(null); const dailyPollTimer = useRef<number | null>(null); const handledDailyRefresh = useRef(0); const queueContext = useRef<ListeningContext>({ type: 'unknown' }); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const resolveBackoffUntil = useRef(0); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
+  const audio = useRef<HTMLAudioElement>(null); const lyricBox = useRef<HTMLDivElement>(null); const draggedTrack = useRef<string | null>(null); const activeRequest = useRef(0); const requestedTrack = useRef<Track | null>(null); const committedTrackId = useRef<string | null>(null); const recoveringTrackId = useRef<string | null>(null); const importStream = useRef<EventSource | null>(null); const importReconnectTimer = useRef<number | null>(null); const dailyPollTimer = useRef<number | null>(null); const handledDailyRefresh = useRef(0); const queueContext = useRef<ListeningContext>({ type: 'unknown' }); const playbackCache = useMemo(() => new PlaybackCache(window.localStorage), []); const playbackQueue = useRef(new PlaybackQueue()); const resolveRequests = useRef(new Map<string, Promise<ResolvedTrack>>()); const warmedAudio = useRef(new Map<string, { element: HTMLAudioElement; url: string; usedAt: number }>()); const timedLyricLookups = useRef(new Set<string>()); const pendingLyricSeek = useRef<number | null>(null); const pendingLyricLine = useRef<number | null>(null); const lyricSeekTimer = useRef<number | null>(null); const lyricSeekSequence = useRef(0);
   const toneMidpointTimer = useRef<number | null>(null); const toneFinishTimer = useRef<number | null>(null); const seekDragging = useRef(false); const volumeDragging = useRef(false); const volumeSaveTimer = useRef<number | null>(null);
   const listeningTracker = useMemo(() => new ListeningTracker(payload => {
     void fetch('/api/listening-sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => undefined);
@@ -379,24 +379,15 @@ export default function App() {
   const queue = useMemo(() => tab === 'daily' ? dailyTracks : tab === 'favorites' ? favorites : tab === 'playlists' && selectedPlaylist ? selectedPlaylist.tracks.filter(item => !item.excluded) : results, [tab, dailyTracks, favorites, selectedPlaylist, results]);
   const resolveTrack = useCallback((item: Track, refresh = false) => {
     const normalized = normalizeTrack(item); const requestKey = refresh ? `${normalized.id}:refresh` : normalized.id;
-    if (Date.now() < resolveBackoffUntil.current) return Promise.reject(new ApiError('RESOLVE_BACKOFF', '播放地址请求过于频繁，请稍候再试。', undefined, 429));
     if (!refresh) { const cached = playbackCache.getResolved(normalized.id); if (cached) return Promise.resolve(cached); }
     else playbackCache.forgetResolved(normalized.id);
     const active = resolveRequests.current.get(requestKey); if (active) return active;
     const request = api<{ track: ResolvedTrack }>(`/api/tracks/${encodeURIComponent(normalized.id)}/resolve`, json('POST', { track: normalized, refresh }))
-      .then(data => { resolveBackoffUntil.current = 0; const next = playbackCache.withRememberedLyric({ ...data.track, id: normalized.id }); playbackCache.rememberResolved(next); return next; })
-      .catch(error => {
-        if (error instanceof ApiError && error.status === 429) {
-          const retryAfter = Number((error.details as { retryAfterSeconds?: unknown } | undefined)?.retryAfterSeconds || 30);
-          resolveBackoffUntil.current = Date.now() + Math.min(120, Math.max(1, retryAfter)) * 1000;
-        }
-        throw error;
-      })
+      .then(data => { const next = playbackCache.withRememberedLyric({ ...data.track, id: normalized.id }); playbackCache.rememberResolved(next); return next; })
       .finally(() => { if (resolveRequests.current.get(requestKey) === request) resolveRequests.current.delete(requestKey); });
     resolveRequests.current.set(requestKey, request); return request;
   }, [playbackCache]);
   const warmTrack = useCallback(async (item: Track) => {
-    if (Date.now() < resolveBackoffUntil.current) return;
     const normalized = normalizeTrack(item); const existing = warmedAudio.current.get(normalized.id);
     if (existing) { existing.usedAt = Date.now(); return; }
     if (resolveRequests.current.size >= 2 && !resolveRequests.current.has(normalized.id)) return;
@@ -473,7 +464,6 @@ export default function App() {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const next = playbackQueue.current.move(direction, user?.playMode || 'list'); if (!next) return false;
       if (await playTrack(next)) return true;
-      if (Date.now() < resolveBackoffUntil.current) return false;
       playbackQueue.current.drop(next.id);
     }
     return false;

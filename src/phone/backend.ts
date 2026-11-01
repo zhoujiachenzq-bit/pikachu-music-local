@@ -4,8 +4,6 @@ import { createNativeFetch } from './nativeFetch';
 import type { PhoneApp } from './shims/fastify';
 import type { NativeResponse } from './nativeFetch';
 
-// One person on one phone: the server's abuse limits would only get in the way.
-const UNLIMITED = ['RATE_SEARCH_USER_MINUTE', 'RATE_SEARCH_IP_MINUTE', 'RATE_RESOLVE_USER_MINUTE', 'RATE_RESOLVE_IP_MINUTE', 'RATE_IMPORT_USER_DAILY', 'RATE_IMPORT_IP_DAILY', 'RATE_LISTENING_USER_MINUTE'];
 const LOCAL_USER_CREATED_AT = '2000-01-01T00:00:00.000Z';
 const LOCAL_MUSIC_API = 'http://127.0.0.1:8080';
 const LOCAL_MUSIC_API_WAIT_MS = 4000;
@@ -67,7 +65,7 @@ function installFetch(app: PhoneApp) {
 }
 
 export async function startPhoneBackend() {
-  const env: Record<string, string> = { ...Object.fromEntries(UNLIMITED.map(name => [name, '1000000'])), RECOMMENDATION_SKIP_PREFLIGHT: '1' };
+  const env: Record<string, string> = { RECOMMENDATION_SKIP_PREFLIGHT: '1' };
   Object.assign(globalThis, { process: { env } });
   installAbortSignalAny();
   await connectLocalMusicApi(env);

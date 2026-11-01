@@ -123,12 +123,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
 
   const limits = {
     registrationIp: positiveEnvInt('RATE_REGISTER_IP_DAILY', 3), registrationGlobal: positiveEnvInt('RATE_REGISTER_GLOBAL_HOURLY', 20),
-    loginAccount: positiveEnvInt('RATE_LOGIN_ACCOUNT_15M', 5), loginIp: positiveEnvInt('RATE_LOGIN_IP_15M', 30),
-    searchUser: positiveEnvInt('RATE_SEARCH_USER_MINUTE', 30), searchIp: positiveEnvInt('RATE_SEARCH_IP_MINUTE', 120),
-    resolveUser: positiveEnvInt('RATE_RESOLVE_USER_MINUTE', 20), resolveIp: positiveEnvInt('RATE_RESOLVE_IP_MINUTE', 80),
-    importUser: positiveEnvInt('RATE_IMPORT_USER_DAILY', 10), importIp: positiveEnvInt('RATE_IMPORT_IP_DAILY', 30),
-    recommendationUser: positiveEnvInt('RATE_RECOMMENDATION_USER_DAILY', 5), listeningUser: positiveEnvInt('RATE_LISTENING_USER_MINUTE', 120),
-    backupUser: positiveEnvInt('RATE_BACKUP_USER_HOURLY', 10)
+    loginAccount: positiveEnvInt('RATE_LOGIN_ACCOUNT_15M', 5), loginIp: positiveEnvInt('RATE_LOGIN_IP_15M', 30)
   };
   const limited = (reply: FastifyReply, rules: RateLimitRule[], message: string, code = 'RATE_LIMITED') => {
     const result = consumeRateLimits(db, rules); applyRateLimitHeaders(reply, result);
@@ -141,11 +136,7 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   const limitImportRequest = (user: { id: string; createdAt: string }, request: FastifyRequest, reply: FastifyReply) => {
     const active = Number((db.prepare("SELECT COUNT(*) count FROM import_jobs WHERE user_id=? AND status IN ('queued','running')").get(user.id) as { count: number }).count);
     if (active >= 1) { reply.code(409).send(apiError('IMPORT_IN_PROGRESS', '当前已有导入或同步任务，请等待它完成。')); return true; }
-    const accountAge = Date.now() - Date.parse(user.createdAt); const userLimit = accountAge < DAY ? Math.min(3, limits.importUser) : limits.importUser;
-    return limited(reply, [
-      { scope: 'import:user', identifier: user.id, limit: userLimit, windowMs: DAY },
-      { scope: 'import:ip', identifier: request.ip, limit: limits.importIp, windowMs: DAY }
-    ], '歌单导入或同步过于频繁。');
+    return false;
   };
 
   app.addHook('onRequest', async (request, reply) => {
@@ -256,10 +247,6 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.get('/api/search', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
     const query = z.object({ q: z.string().trim().min(1).max(100), sources: z.string().optional(), limit: z.coerce.number().int().min(1).max(30).default(10) }).parse(request.query);
-    if (limited(reply, [
-      { scope: 'search:user', identifier: user.id, limit: limits.searchUser, windowMs: MINUTE },
-      { scope: 'search:ip', identifier: request.ip, limit: limits.searchIp, windowMs: MINUTE }
-    ], '搜索过于频繁。')) return;
     const sources = (query.sources?.split(',').filter(v => SOURCES.includes(v as MusicSource)) || [...SEARCH_SOURCES]) as MusicSource[];
     return searchAll(db, query.q, sources.length ? sources : [...SEARCH_SOURCES], query.limit);
   });
@@ -267,10 +254,6 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
   app.post('/api/tracks/:id/resolve', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
     const params = z.object({ id: z.string() }).parse(request.params); const body = z.object({ track: trackSchema.optional(), refresh: z.boolean().default(false) }).parse(request.body || {});
-    if (limited(reply, [
-      { scope: 'resolve:user', identifier: user.id, limit: limits.resolveUser, windowMs: MINUTE },
-      { scope: 'resolve:ip', identifier: request.ip, limit: limits.resolveIp, windowMs: MINUTE }
-    ], '播放地址解析过于频繁。')) return;
     let input: Track | null = body.track ? { ...body.track, id: body.track.id || `${body.track.source}:${body.track.sourceTrackId}`, coverUrl: body.track.coverUrl || null, sourceUrl: body.track.sourceUrl || null } : null;
     if (input) input = upsertTrack(db, input);
     if (!input) { const row = db.prepare('SELECT * FROM tracks WHERE id=?').get(params.id) as Record<string, unknown> | undefined; if (row) input = rowToTrack(row); }
@@ -332,7 +315,6 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
       actualSource: sourceSchema.nullable().optional(), startedAt: z.string().datetime(), playedMs: z.number().int().min(0).max(31 * 24 * 60 * 60_000),
       durationMs: z.number().int().min(0).max(24 * 60 * 60_000), completed: z.boolean().default(false), skipped: z.boolean().default(false), errorCode: z.string().max(100).nullable().optional()
     }).parse(request.body);
-    if (limited(reply, [{ scope: 'listening:user', identifier: user.id, limit: limits.listeningUser, windowMs: MINUTE }], '播放记录提交过于频繁。')) return;
     if (!db.prepare('SELECT 1 FROM tracks WHERE id=?').get(body.trackId)) return reply.code(404).send(apiError('TRACK_NOT_FOUND', '歌曲不存在。'));
     const stamp = new Date().toISOString();
     db.prepare(`INSERT INTO listening_sessions(id,user_id,track_id,context_type,context_id,actual_source,started_at,updated_at,played_ms,duration_ms,completed,skipped,error_code)
@@ -367,7 +349,6 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     const { date, regenerate } = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), regenerate: z.coerce.boolean().default(false) }).parse(request.query);
     const existing = getDailyRecommendation(db, user.id, date);
     if (!existing || existing.status === 'failed' || regenerate) {
-      if (limited(reply, [{ scope: 'recommendation:user', identifier: user.id, limit: limits.recommendationUser, windowMs: DAY }], '每日推荐重新生成过于频繁。')) return;
       startDailyGeneration(db, user.id, date);
     }
     const daily = getDailyRecommendation(db, user.id, date);
@@ -474,7 +455,6 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
 
   app.get('/api/backup/export', async (request, reply) => {
     const user = requireUser(db, request, reply); if (!user) return;
-    if (limited(reply, [{ scope: 'backup:user', identifier: user.id, limit: limits.backupUser, windowMs: HOUR }], '备份操作过于频繁。')) return;
     const playlists = listPlaylists(db, user.id).map(item => getPlaylist(db, user.id, item.id));
     const listeningSessions = (db.prepare(`SELECT ls.*,t.source,t.source_track_id,t.title,t.artist,t.album,t.duration,t.cover_url,t.source_url,t.keyword,t.display_index,t.quality,t.canonical_key
       FROM listening_sessions ls JOIN tracks t ON t.id=ls.track_id WHERE ls.user_id=? ORDER BY ls.started_at`).all(user.id) as Record<string, unknown>[]).map(row => ({
@@ -490,7 +470,6 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     const user = requireUser(db, request, reply); if (!user) return;
     const body = z.object({ mode: z.enum(['preview', 'merge']).default('preview'), data: backupSchema }).parse(request.body);
     if (body.mode === 'preview') return { preview: { favorites: body.data.favorites.length, playlists: body.data.playlists.length, tracks: body.data.playlists.reduce((sum, p) => sum + (Array.isArray(p?.tracks) ? p.tracks.length : 0), 0) } };
-    if (limited(reply, [{ scope: 'backup:user', identifier: user.id, limit: limits.backupUser, windowMs: HOUR }], '备份操作过于频繁。')) return;
     const currentPlaylistCount = Number((db.prepare('SELECT COUNT(*) count FROM playlists WHERE user_id=?').get(user.id) as { count: number }).count);
     let newPlaylistCount = 0;
     for (const raw of body.data.playlists) {

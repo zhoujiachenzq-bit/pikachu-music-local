@@ -1,12 +1,32 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { createDatabase, type Db } from './db.js';
+import { createDatabase, setCached, type Db } from './db.js';
+import { consumeRateLimits } from './rateLimit.js';
 import { createApp, trustProxyFromEnv } from './app.js';
 import { MediaTicketStore } from './mediaProxy.js';
 
 describe('local API integration', () => {
   let app: FastifyInstance | undefined; let db: Db | undefined;
   afterEach(async () => { if (app) await app.close(); if (db) db.close(); app = undefined; db = undefined; });
+
+  it('keeps personal music operations unlimited even with exhausted legacy quota buckets', async () => {
+    db = createDatabase(':memory:'); app = await createApp({ db, logger: false });
+    const registered = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'Personal', password: 'Local-only-2026' } });
+    const cookie = registered.headers['set-cookie']!.split(';')[0]; const id = registered.json().user.id;
+    const sample = { id: 'qq:personal', source: 'qq', sourceTrackId: 'personal', title: 'test', artist: 'artist', album: '', duration: 200000, coverUrl: null, sourceUrl: null };
+    for (const scope of ['search:user', 'resolve:user', 'backup:user']) consumeRateLimits(db, [{ scope, identifier: id, limit: 1, windowMs: 86400000 }]);
+    for (const scope of ['search:ip', 'resolve:ip']) consumeRateLimits(db, [{ scope, identifier: '127.0.0.1', limit: 1, windowMs: 86400000 }]);
+    db.prepare('UPDATE rate_limits SET count=1000000').run();
+    setCached(db, 'search:v2:qq:5:test', { tracks: [sample], errors: {} }, 300000);
+    setCached(db, 'resolve:v4:qq:personal', { ...sample, audioUrl: 'https://test.example/audio.mp3', actualSource: 'qq', fallback: false, lyric: null }, 300000);
+    for (let i = 0; i < 25; i++) {
+      const search = await app.inject({ url: '/api/search?q=test&sources=qq&limit=5', headers: { cookie } });
+      expect(search.statusCode).toBe(200); expect(search.headers['retry-after']).toBeUndefined();
+      const resolve = await app.inject({ method: 'POST', url: '/api/tracks/qq%3Apersonal/resolve', headers: { cookie }, payload: { track: sample } });
+      expect(resolve.statusCode).toBe(200); expect(resolve.json().track.title).toBe('test');
+    }
+    expect((await app.inject({ url: '/api/backup/export', headers: { cookie } })).statusCode).toBe(200);
+  });
 
   it('persists data per account and exports a credential-free backup', async () => {
     db = createDatabase(':memory:'); app = await createApp({ db, logger: false }); await app.ready();
