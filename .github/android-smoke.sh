@@ -79,7 +79,9 @@ for source in qq migu kuwo; do
 done
 # The keyboard stays open, so the first result row sits at a fixed spot.
 adb shell input tap 150 300
-sleep 25
+sleep 3
+shot first-tap
+sleep 22
 shot playing
 state before-screen-off
 # Plays a QQ or Migu result too: with the other two sources off, they are all that is left.
@@ -90,8 +92,16 @@ sleep 1
 tap '搜索'
 sleep 10
 shot search-qq-migu
+adb shell input keyevent 4
+sleep 1
 adb shell input tap 150 300
-sleep 20
+sleep 3
+shot qq-first-row
+sleep 7
+adb shell input tap 150 365
+sleep 3
+shot qq-second-row
+sleep 17
 shot playing-qq-migu
 state qq-migu-playing
 
