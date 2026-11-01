@@ -1,13 +1,13 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { SOURCES, type MusicSource } from '../shared/types';
+import { SEARCH_SOURCES, type MusicSource } from '../shared/types';
 
 export const phoneApp = Capacitor.isNativePlatform();
 
 // Phones without the bundled go-music-api build only get reliable audio from these two.
 let localMusicApiReady = false;
 export function markLocalMusicApiReady() { localMusicApiReady = true; }
-export const searchSources = (): readonly MusicSource[] => !phoneApp || localMusicApiReady ? SOURCES : ['netease', 'kuwo'];
+export const searchSources = (): readonly MusicSource[] => !phoneApp || localMusicApiReady ? SEARCH_SOURCES : ['netease', 'kuwo'];
 
 // The system bar continues the app header, whichever theme is showing.
 export function tintStatusBar() {

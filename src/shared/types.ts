@@ -1,5 +1,13 @@
-export const SOURCES = ['migu', 'netease', 'qq', 'kuwo'] as const;
+export const SOURCES = ['migu', 'netease', 'qq', 'kuwo', 'kugou', 'qianqian', 'soda', 'fivesing', 'jamendo', 'joox', 'bilibili'] as const;
 export type MusicSource = (typeof SOURCES)[number];
+export const CORE_SOURCES: MusicSource[] = ['migu', 'netease', 'qq', 'kuwo'];
+export const SEARCH_SOURCES = SOURCES.filter(source => source !== 'soda');
+export const SOURCE_NAMES: Record<MusicSource, string> = { migu: '咪咕', netease: '网易云', qq: 'QQ', kuwo: '酷我', kugou: '酷狗', qianqian: '千千', soda: '汽水', fivesing: '5sing', jamendo: 'Jamendo', joox: 'JOOX', bilibili: '哔哩哔哩' };
+export const SOURCE_PAGE_HOSTS: Record<MusicSource, string[]> = {
+  migu: ['music.migu.cn', 'm.music.migu.cn'], netease: ['music.163.com', '163cn.tv'], qq: ['y.qq.com', 'i.y.qq.com', 'c.y.qq.com', 'c6.y.qq.com'], kuwo: ['kuwo.cn'],
+  kugou: ['kugou.com'], qianqian: ['taihe.com', 'music.91q.com', 'music.baidu.com'], soda: ['qishui.douyin.com', 'music.douyin.com'],
+  fivesing: ['5sing.kugou.com', '5sing.com'], jamendo: ['jamendo.com'], joox: ['joox.com'], bilibili: ['bilibili.com', 'b23.tv']
+};
 
 export interface Track {
   id: string;

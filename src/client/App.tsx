@@ -32,7 +32,7 @@ const DEPTH_LYRIC_TONES: readonly string[] = ['paper', 'arcade', 'cobalt'];
 const copy = {
   zh: {
     shortcuts: '快捷键：Space 播放/暂停 · ←/→ 跳转 · ↑/↓ 音量 · N/P 切歌 · F 收藏',
-    searchTitle: '歌曲搜索', supports: '支持咪咕 / 网易云 / QQ / 酷我', placeholder: '输入歌名 / 歌手，回车搜索…', search: '搜索', each: '每个源加载', more: '加载更多',
+    searchTitle: '歌曲搜索', supports: '多平台音源 · 按需选择', placeholder: '输入歌名 / 歌手，回车搜索…', search: '搜索', each: '每个源加载', more: '加载更多',
     idle: '尚未搜索，试试输入“林俊杰”？', now: '正在播放', lyricFx: '点击歌词定位 · 炫酷霓虹', pick: '搜索并播放一首歌吧！', noTrack: '暂未选择歌曲',
     playlist: '播放列表', daily: '每日推荐', results: '搜索结果', favorites: '我的收藏', custom: '自建歌单', newList: '新建歌单', import: '导入歌单', backup: '备份', sync: '同步',
     emptyLyrics: '暂无歌词，试着播放一首支持歌词的歌曲。', swipeForLyrics: '上滑查看歌词', closeLyrics: '收起歌词', empty: '这里还没有歌曲。', login: '登录', register: '注册', username: '用户名', password: '密码',

@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import type { MusicSource, PlaylistDetail, PlaylistSummary, Track, User } from '../shared/types.js';
+import { SOURCES } from '../shared/types.js';
 import { canonicalTrackKey } from '../shared/trackIdentity.js';
 
 export type Db = DatabaseSync;
@@ -184,6 +185,7 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
       applied_at TEXT NOT NULL
     );
   `);
+  expandMusicSourceConstraints(db);
   const trackColumns = new Set((db.prepare('PRAGMA table_info(tracks)').all() as Array<{ name: string }>).map(column => column.name));
   if (!trackColumns.has('keyword')) db.exec('ALTER TABLE tracks ADD COLUMN keyword TEXT');
   if (!trackColumns.has('display_index')) db.exec('ALTER TABLE tracks ADD COLUMN display_index INTEGER');
@@ -205,6 +207,32 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
   db.prepare('DELETE FROM rate_limits WHERE reset_at <= ?').run(now());
   db.prepare("UPDATE recommendation_runs SET status='failed',message='服务重启，可重新生成',updated_at=? WHERE status IN ('queued','running')").run(now());
   return db;
+}
+
+// SQLite cannot ALTER a CHECK constraint. Rebuild only the affected tables,
+// retaining every column, index, trigger and foreign-key target name.
+export function expandMusicSourceConstraints(db: Db) {
+  const oldList = "'migu','netease','qq','kuwo'";
+  const sourceList = SOURCES.map(source => `'${source}'`).join(',');
+  const tables = db.prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name IN ('tracks','playlists','listening_sessions','source_health')").all() as Array<{ name: string; sql: string }>;
+  const affected = tables.filter(table => table.sql.includes(oldList));
+  if (!affected.length) return;
+  db.exec('PRAGMA foreign_keys=OFF');
+  try {
+    transaction(db, () => {
+      for (const table of affected) {
+        const saved = db.prepare("SELECT sql FROM sqlite_master WHERE tbl_name=? AND type IN ('index','trigger') AND sql IS NOT NULL").all(table.name) as Array<{ sql: string }>;
+        const temporary = `${table.name}_expanded_sources`;
+        const definition = table.sql.replace(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["`]?\w+["`]?/i, `CREATE TABLE "${temporary}"`).split(oldList).join(sourceList);
+        db.exec(definition);
+        db.exec(`INSERT INTO "${temporary}" SELECT * FROM "${table.name}"`);
+        db.exec(`DROP TABLE "${table.name}"`);
+        db.exec(`ALTER TABLE "${temporary}" RENAME TO "${table.name}"`);
+        for (const item of saved) db.exec(item.sql);
+      }
+      if (db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('音源升级后的数据关联检查失败，已回滚。');
+    });
+  } finally { db.exec('PRAGMA foreign_keys=ON'); }
 }
 
 export function transaction<T>(db: Db, fn: () => T): T {

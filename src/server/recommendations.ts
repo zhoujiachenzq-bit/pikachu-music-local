@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { canonicalTrackKey, isDerivativeTrackVersion, normalizeTrackText, trackFamilyKey, trackVersionPreference } from '../shared/trackIdentity.js';
-import { SOURCES, type DailyRecommendation, type RecommendedTrack, type Track } from '../shared/types.js';
+import { SOURCES, SEARCH_SOURCES, type DailyRecommendation, type RecommendedTrack, type Track } from '../shared/types.js';
 import { rowToTrack, transaction, upsertTrack, type Db } from './db.js';
 import { listSourceHealth } from './sourceHealth.js';
 import { resolveTrackWithFallback, searchAll } from './sources.js';
@@ -142,7 +142,7 @@ export async function generateDailyRecommendation(db: Db, userId: string, date: 
     const broad = ['华语热歌', '流行音乐', '经典歌曲', '新歌推荐', '轻音乐', '摇滚', '民谣']; const daySeed = [...date].reduce((sum, char) => sum + char.charCodeAt(0), 0);
     const queries = [...topArtists, ...Array.from({ length: local.length ? 3 : 5 }, (_, index) => broad[(daySeed + index * 2) % broad.length])];
     const deps = dependencies || {
-      discover: async (query: string) => (await searchAll(db, query, [...SOURCES], 12)).tracks,
+      discover: async (query: string) => (await searchAll(db, query, [...SEARCH_SOURCES], 12)).tracks,
       // The phone skips this check: resolving 30 songs one by one kept the list empty for minutes.
       preflight: async (track: Track) => { if (process.env.RECOMMENDATION_SKIP_PREFLIGHT) return true; await resolveTrackWithFallback(track, db); return true; }
     };

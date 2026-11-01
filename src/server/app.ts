@@ -16,13 +16,13 @@ import { goMusicApiBaseUrl, openGoMusicApiStream } from './goMusicApi.js';
 import { MediaTicketStore, openMediaTicket } from './mediaProxy.js';
 import { applyRateLimitHeaders, clearRateLimit, consumeRateLimits, positiveEnvInt, type RateLimitRule } from './rateLimit.js';
 import { resetSourceHealthCircuits } from './sourceHealth.js';
-import { SOURCES, type MusicSource, type Track } from '../shared/types.js';
+import { SOURCES, SEARCH_SOURCES, SOURCE_PAGE_HOSTS, type MusicSource, type Track } from '../shared/types.js';
 
 const credentialsSchema = z.object({ username: z.string().trim().min(2).max(24).regex(/^[\p{L}\p{N}_.-]+$/u), password: z.string().min(8).max(72) });
 const registerSchema = credentialsSchema.extend({ inviteCode: z.string().max(128).optional() });
 const sourceSchema = z.enum(SOURCES);
 const webUrlSchema = z.string().url().refine(value => ['http:', 'https:'].includes(new URL(value).protocol), '只允许 HTTP/HTTPS 地址');
-const trackSourceHosts: Record<MusicSource, string[]> = { migu: ['music.migu.cn'], netease: ['music.163.com'], qq: ['y.qq.com', 'qq.com'], kuwo: ['kuwo.cn'] };
+const trackSourceHosts = SOURCE_PAGE_HOSTS;
 const trackSchema = z.object({
   id: z.string().optional(), source: sourceSchema, sourceTrackId: z.string().min(1), title: z.string().min(1).max(300),
   artist: z.string().max(300).default(''), album: z.string().max(300).default(''), duration: z.number().nonnegative().default(0),
@@ -242,8 +242,8 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
       { scope: 'search:user', identifier: user.id, limit: limits.searchUser, windowMs: MINUTE },
       { scope: 'search:ip', identifier: request.ip, limit: limits.searchIp, windowMs: MINUTE }
     ], '搜索过于频繁。')) return;
-    const sources = (query.sources?.split(',').filter(v => SOURCES.includes(v as MusicSource)) || [...SOURCES]) as MusicSource[];
-    return searchAll(db, query.q, sources.length ? sources : [...SOURCES], query.limit);
+    const sources = (query.sources?.split(',').filter(v => SOURCES.includes(v as MusicSource)) || [...SEARCH_SOURCES]) as MusicSource[];
+    return searchAll(db, query.q, sources.length ? sources : [...SEARCH_SOURCES], query.limit);
   });
 
   app.post('/api/tracks/:id/resolve', async (request, reply) => {

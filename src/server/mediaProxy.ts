@@ -15,7 +15,9 @@ const SOURCE_MEDIA_HOSTS: Record<MusicSource, string[]> = {
   migu: ['migu.cn', 'migumusic.com'],
   netease: ['music.126.net', 'music.163.com', '126.net'],
   qq: ['qqmusic.qq.com', 'y.qq.com', 'gtimg.cn'],
-  kuwo: ['kuwo.cn']
+  kuwo: ['kuwo.cn'],
+  kugou: ['kugou.com', 'kugou.com.cn'], qianqian: ['taihe.com', '91q.com', 'bdstatic.com'], soda: [],
+  fivesing: ['kugou.com', '5sing.com'], jamendo: ['jamendo.com', 'jamendo.net'], joox: ['joox.com', 'qq.com'], bilibili: ['bilivideo.com', 'bilivideo.cn', 'bilibili.com']
 };
 
 function allowedMediaUrl(value: string, source: MusicSource): string | null {

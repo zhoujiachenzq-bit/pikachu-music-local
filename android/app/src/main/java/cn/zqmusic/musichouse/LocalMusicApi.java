@@ -30,6 +30,9 @@ final class LocalMusicApi {
         try {
             Os.setenv("GIN_MODE", "release", true);
             Os.setenv("MUSIC_API_HOME", home, true);
+            // Android 14+ moved the system roots into the Conscrypt APEX. Go's
+            // Linux-style certificate lookup must see both old and new paths.
+            Os.setenv("SSL_CERT_DIR", "/apex/com.android.conscrypt/cacerts:/system/etc/security/cacerts", true);
             System.loadLibrary("gomusic");
             nativeStart();
         } catch (ErrnoException | UnsatisfiedLinkError error) {

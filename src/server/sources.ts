@@ -1,23 +1,18 @@
 import type { Db } from './db.js';
 import { getCached, setCached, upsertTrack } from './db.js';
-import { SOURCES, type ImportedPlaylist, type MusicSource, type ResolvedTrack, type Track } from '../shared/types.js';
+import { SOURCES, CORE_SOURCES, SOURCE_NAMES, SOURCE_PAGE_HOSTS, type ImportedPlaylist, type MusicSource, type ResolvedTrack, type Track } from '../shared/types.js';
 import { canonicalTrackKey, hasCompatibleTrackDuration, isDerivativeTrackVersion, searchRelevance, stableMetadataId } from '../shared/trackIdentity.js';
 import { withSourceHealth } from './sourceHealth.js';
 import { abortable } from '../shared/asyncControl.js';
 import { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
-import { explainEmptySearch, resolveExactWithGoMusicApi, resolveWithGoMusicApi, searchWithGoMusicApi } from './goMusicApi.js';
+import { explainEmptySearch, playlistWithGoMusicApi, resolveExactWithGoMusicApi, resolveWithGoMusicApi, searchWithGoMusicApi } from './goMusicApi.js';
 import { positiveEnvInt } from './rateLimit.js';
+import { searchGoMusicNative } from './goMusicSearch.js';
 
 export { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PikachuMusicLocal/1.0';
-const SOURCE_NAMES: Record<MusicSource, string> = { migu: '咪咕', netease: '网易云', qq: 'QQ', kuwo: '酷我' };
-const sourceHosts: Record<MusicSource, string[]> = {
-  migu: ['music.migu.cn', 'm.music.migu.cn'],
-  netease: ['music.163.com', '163cn.tv'],
-  qq: ['y.qq.com', 'i.y.qq.com', 'c.y.qq.com', 'c6.y.qq.com'],
-  kuwo: ['kuwo.cn', 'www.kuwo.cn']
-};
+const sourceHosts = SOURCE_PAGE_HOSTS;
 
 export class SourceError extends Error {
   constructor(public code: string, message: string, public details?: unknown) { super(message); }
@@ -203,6 +198,7 @@ export function sourceTrackUrl(source: MusicSource, id: string) {
 
 export function parsePlaylistInput(input: string, explicitSource?: MusicSource): { source: MusicSource; id: string } {
   const raw = input.trim();
+  if (explicitSource && !CORE_SOURCES.includes(explicitSource) && /^[\w|=-]{1,300}$/.test(raw)) return { source: explicitSource, id: raw };
   if (/^\d+$/.test(raw)) {
     if (!explicitSource) throw new SourceError('SOURCE_REQUIRED', '输入纯歌单 ID 时请选择音乐源。');
     return { source: explicitSource, id: raw };
@@ -211,10 +207,11 @@ export function parsePlaylistInput(input: string, explicitSource?: MusicSource):
   try { url = new URL(raw); } catch { throw new SourceError('INVALID_PLAYLIST_INPUT', '请输入公开歌单链接或数字 ID。'); }
   if (!['http:', 'https:'].includes(url.protocol)) throw new SourceError('UNSAFE_URL', '只允许 HTTP/HTTPS 公开歌单链接。');
   const host = url.hostname.toLowerCase();
-  const detected = SOURCES.find(source => sourceHosts[source].some(item => host === item || host.endsWith(`.${item}`)));
+  const detected = [...SOURCES].sort((a, b) => Math.max(...sourceHosts[b].map(item => item.length)) - Math.max(...sourceHosts[a].map(item => item.length)))
+    .find(source => sourceHosts[source].some(item => host === item || host.endsWith(`.${item}`)));
   const source = explicitSource || detected;
   if (!source || !sourceHosts[source].some(item => host === item || host.endsWith(`.${item}`))) {
-    throw new SourceError('UNSAFE_URL', '链接不属于咪咕、网易云、QQ 或酷我允许域名。');
+    throw new SourceError('UNSAFE_URL', '链接不属于支持的音乐平台允许域名。');
   }
   const candidates = [
     url.searchParams.get('id'), url.searchParams.get('pid'), url.searchParams.get('playlistId'), url.searchParams.get('musicListId'),
@@ -251,6 +248,21 @@ async function searchSourceRaw(source: MusicSource, query: string, limit = 10, s
   signal?.throwIfAborted();
   const q = query.trim(); if (!q) return [];
   const size = Math.min(Math.max(limit, 1), 30);
+  if (!CORE_SOURCES.includes(source)) {
+    if (source === 'soda') throw new SourceError('SEARCH_UNSUPPORTED', '汽水暂不提供单曲搜索，请使用公开链接导入。');
+    const tracks = await searchWithGoMusicApi(q, { sources: [source], limit: size });
+    signal?.throwIfAborted();
+    if (!tracks.length && !process.env.GO_MUSIC_API_URL) throw new SourceError('SOURCE_NOT_CONFIGURED', '此音源需要内置或已配置的 go-music-api。');
+    return tracks.map(track => ({ ...track, keyword: q }));
+  }
+  if (process.env.GO_MUSIC_API_DIRECT_MEDIA && (source === 'qq' || source === 'migu')) {
+    // Same upstream protocols, using Android networking instead of waiting for
+    // the embedded Go process's independent network stack before every search.
+    try {
+      const tracks = await searchGoMusicNative(source, q, size, signal);
+      if (tracks.length) return tracks;
+    } catch { signal?.throwIfAborted(); }
+  }
   if (source !== 'netease') {
     const backup = await searchWithGoMusicApi(q, { sources: [source], limit: size });
     signal?.throwIfAborted();
@@ -455,6 +467,12 @@ async function enrichTrackMetadata(input: Track): Promise<Track> {
 }
 
 async function resolveOriginalRaw(input: Track): Promise<ResolvedTrack> {
+  if (!CORE_SOURCES.includes(input.source)) {
+    if (input.source === 'soda') throw new SourceError('UNSUPPORTED_ENCRYPTED_MEDIA', '本站暂不支持汽水加密音频播放。');
+    const resolved = await resolveExactWithGoMusicApi(input);
+    if (resolved) return resolved;
+    throw new SourceError('UNPLAYABLE', `${SOURCE_NAMES[input.source]}未返回可验证的公开播放地址，资源可能需要平台授权。`);
+  }
   if (input.source === 'netease') {
     const [meta, lyricData] = await Promise.all([
       fetchJson(`https://api.qijieya.cn/meting/?type=song&id=${encodeURIComponent(input.sourceTrackId)}`),
@@ -546,9 +564,10 @@ export async function resolveTimedLyric(input: Track, db?: Db) {
     return result;
   }
 
-  const others = SOURCES.filter(source => source !== original.actualSource);
+  const others = CORE_SOURCES.filter(source => source !== original.actualSource);
   const settled = await Promise.allSettled(others.map(source => searchSource(source, `${input.title} ${input.artist}`, 5, db)));
-  const priority: Record<MusicSource, number> = { kuwo: 0, netease: 1, migu: 2, qq: 3 };
+  const priority = Object.fromEntries(SOURCES.map((source, index) => [source, index + 4])) as Record<MusicSource, number>;
+  Object.assign(priority, { kuwo: 0, netease: 1, migu: 2, qq: 3 });
   const ranked = settled.flatMap(result => result.status === 'fulfilled' ? result.value : [])
     .map(candidate => ({ candidate, score: matchScore(input, candidate) }))
     .filter(item => isSafeAutomaticMatch(input, item.candidate))
@@ -569,6 +588,7 @@ export async function resolveTimedLyric(input: Track, db?: Db) {
 }
 
 export async function resolveTrackWithFallback(input: Track, db?: Db, forceRefresh = false): Promise<ResolvedTrack> {
+  if (input.source === 'soda') throw new SourceError('UNSUPPORTED_ENCRYPTED_MEDIA', '本站暂不支持汽水加密音频播放。');
   const cacheKey = `resolve:v4:${input.source}:${input.sourceTrackId}`;
   const lyricCacheKey = `lyric:${input.source}:${input.sourceTrackId}`;
   const rememberedLyric = db ? getCached<{ lyric: string }>(db, lyricCacheKey)?.lyric || null : null;
@@ -593,7 +613,7 @@ export async function resolveTrackWithFallback(input: Track, db?: Db, forceRefre
   }
   if (!resolved) {
     try {
-      const others = SOURCES.filter(source => source !== prepared.source);
+      const others = CORE_SOURCES.filter(source => source !== prepared.source);
     const settled = await Promise.allSettled(others.map(source => searchSource(source, `${input.title} ${input.artist}`, 5, db)));
     const ranked = settled.flatMap(result => result.status === 'fulfilled' ? result.value : [])
       .map(candidate => ({ candidate, score: matchScore(prepared, candidate) }))
@@ -693,6 +713,7 @@ async function fetchMiguPlaylist(id: string, onProgress?: (processed: number, to
 
 export async function fetchPublicPlaylist(source: MusicSource, id: string, onProgress?: (processed: number, total: number) => void, db?: Db) {
   return withSourceHealth(db, source, 'playlist', async () => {
+    if (!CORE_SOURCES.includes(source)) return playlistWithGoMusicApi(source, id);
     if (source === 'netease') return fetchNeteasePlaylist(id);
     if (source === 'qq') return fetchQqPlaylist(id);
     if (source === 'kuwo') return fetchKuwoPlaylist(id);

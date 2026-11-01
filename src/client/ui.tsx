@@ -26,8 +26,9 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return <Glyph className="ui-icon" size={size} weight={solid ? 'fill' : 'duotone'} aria-hidden="true"/>;
 }
 
-export const sourceNames: Record<MusicSource, string> = { migu: '咪咕', netease: '网易云', qq: 'QQ', kuwo: '酷我' };
-export const sourceColors: Record<MusicSource, string> = { migu: '#ff9d2e', netease: '#ff4d65', qq: '#38d9f3', kuwo: '#d757ff' };
+export { SOURCE_NAMES as sourceNames } from '../shared/types';
+import { SOURCE_NAMES as sourceNames } from '../shared/types';
+export const sourceColors: Record<MusicSource, string> = { migu: '#ff9d2e', netease: '#ff4d65', qq: '#38d9f3', kuwo: '#d757ff', kugou: '#369cff', qianqian: '#e68f54', soda: '#ec6b78', fivesing: '#58b58d', jamendo: '#b67be5', joox: '#81ba54', bilibili: '#fb7299' };
 
 function formatDuration(value: number) {
   if (!Number.isFinite(value) || value <= 0) return '';

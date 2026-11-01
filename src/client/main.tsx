@@ -10,7 +10,7 @@ import './landscapeThemes.css';
 import './themeArtDirection.css';
 import './mobileShell.css';
 
-document.documentElement.dataset.visualRelease = '0.6.7';
+document.documentElement.dataset.visualRelease = '0.6.8';
 
 if (import.meta.env.PROD && !phoneApp && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

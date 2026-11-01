@@ -1,4 +1,4 @@
-import { SOURCES, type MusicSource, type ResolvedTrack, type Track } from '../shared/types.js';
+import { SOURCES, CORE_SOURCES, type ImportedPlaylist, type MusicSource, type ResolvedTrack, type Track } from '../shared/types.js';
 import { canonicalTrackKey } from '../shared/trackIdentity.js';
 import { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
 
@@ -150,6 +150,18 @@ export async function searchWithGoMusicApi(query: string, options: SearchOptions
   }).slice(0, limit);
 }
 
+export async function playlistWithGoMusicApi(source: MusicSource, id: string, options: GoMusicApiOptions = {}): Promise<ImportedPlaylist> {
+  const baseUrl = goMusicApiBaseUrl(options.baseUrl);
+  if (!baseUrl) throw new Error('此音源需要内置或已配置的 go-music-api。');
+  const url = new URL('/api/v1/playlist/detail', `${baseUrl}/`);
+  url.searchParams.set('source', source); url.searchParams.set('id', id);
+  const response = await fetchJson(url, options);
+  if (!response || response.code !== 200 || !Array.isArray(response.data)) throw new Error(string(response?.msg) || '平台未返回公开歌单，可能需要登录或不支持该功能。');
+  const tracks = response.data.flatMap(value => { const parsed = toTrack(object(value), source); return parsed ? [parsed] : []; }).slice(0, 2000);
+  if (!tracks.length) throw new Error('平台歌单为空或没有可识别的歌曲。');
+  return { source, sourcePlaylistId: id, title: `${source} · ${id}`, description: '', coverUrl: tracks[0].coverUrl, sourceUrl: '', tracks };
+}
+
 function mediaPath(track: Track) {
   // The phone's audio element reaches the local service itself; there is no server route to relay through.
   if (process.env.GO_MUSIC_API_DIRECT_MEDIA) return String(goMusicApiStreamUrl({ source: track.source, id: track.sourceTrackId, name: track.title, artist: track.artist, duration: track.duration > 0 ? track.duration / 1000 : undefined }));
@@ -198,6 +210,7 @@ async function lyricFor(track: Track, options: GoMusicApiOptions): Promise<strin
 }
 
 export async function resolveExactWithGoMusicApi(input: Track, options: GoMusicApiOptions = {}): Promise<ResolvedTrack | null> {
+  if (input.source === 'soda') return null;
   const baseUrl = goMusicApiBaseUrl(options.baseUrl);
   if (!baseUrl || unavailableUntil > Date.now()) return null;
   const inspect = new URL('/api/v1/music/inspect', `${baseUrl}/`);
@@ -218,7 +231,7 @@ export async function resolveExactWithGoMusicApi(input: Track, options: GoMusicA
 export async function resolveWithGoMusicApi(input: Track, options: ResolveOptions): Promise<ResolvedTrack | null> {
   const baseUrl = goMusicApiBaseUrl(options.baseUrl);
   if (!baseUrl || unavailableUntil > Date.now()) return null;
-  const targets = SOURCES.filter(source => source !== input.source);
+  const targets = CORE_SOURCES.filter(source => source !== input.source);
   const settled = await Promise.allSettled(targets.map(source => switchCandidate(input, source, { ...options, baseUrl })));
   const switched = settled.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : []);
   let searched: Track[] = [];

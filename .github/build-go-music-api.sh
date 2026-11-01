@@ -4,13 +4,15 @@
 # leaves the upstream source otherwise untouched.
 set -euo pipefail
 
-version=v1.0.1
-commit=3008180a96c30469bcc874b3aa1f2f60edcd622a
+commit=bacdfbe6cf6a5ba7331463d2039e3aac915c627f
 ndk="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin"
 source="$RUNNER_TEMP/go-music-api"
 libs="$GITHUB_WORKSPACE/android/app/src/main/jniLibs"
 
-git clone --depth 1 --branch "$version" https://github.com/guohuiyuan/go-music-api.git "$source"
+git init "$source"
+git -C "$source" remote add origin https://github.com/guohuiyuan/go-music-api.git
+git -C "$source" fetch --depth 1 origin "$commit"
+git -C "$source" checkout --detach FETCH_HEAD
 test "$(git -C "$source" rev-parse HEAD)" = "$commit"
 cp "$GITHUB_WORKSPACE/.github/go-music-api-android.go" "$source/android_entry.go"
 
