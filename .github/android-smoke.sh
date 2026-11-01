@@ -100,7 +100,7 @@ for source in qq migu kuwo; do
   curl -s --max-time 12 "http://127.0.0.1:18080/api/v1/music/search?q=jay&type=song&sources=$source" | head -c 400 >> keepalive.txt
   echo >> keepalive.txt
 done
-tap '(发如雪|晴天|七里香)'
+tap 'Q (发如雪|晴天|七里香) .*'
 sleep 15
 tap '播放'
 sleep 3
