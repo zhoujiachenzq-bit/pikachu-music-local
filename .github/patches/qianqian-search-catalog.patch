@@ -1,0 +1,13 @@
+diff --git a/qianqian/song.go b/qianqian/song.go
+--- a/qianqian/song.go
++++ b/qianqian/song.go
+@@ -58,9 +58,6 @@ func (q *Qianqian) Search(keyword string) ([]model.Song, error) {
+ 	var songs []model.Song
+ 	for _, item := range resp.Data.TypeTrack {
+-		if item.IsVip != 0 {
+-			continue
+-		}
+ 		size, bitrate := qianqianRateStats(item.RateFileInfo, item.Duration)
+ 
+ 		songs = append(songs, model.Song{
+ 			Source:   "qianqian",

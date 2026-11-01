@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { findAudioCandidates, hasTimedLyric, isAmbiguousFallback, isLikelyKuwoRestrictionAudio, isSafeAutomaticMatch, matchScore, metadataDurationEvidence, parseLegacyKuwoSearch, parsePlaylistInput, parseQqSearchResponse, readLimitedText, resolveTrackWithFallback, searchSource, SourceError } from './sources.js';
+import { findAudioCandidates, hasTimedLyric, isAmbiguousFallback, isLikelyKuwoRestrictionAudio, isSafeAutomaticMatch, matchScore, metadataDurationEvidence, parseLegacyKuwoSearch, parsePlaylistInput, parseQqSearchResponse, readLimitedText, resolveTrackWithFallback, searchAll, searchSource, SourceError } from './sources.js';
 import { createDatabase, setCached } from './db.js';
 import type { Track } from '../shared/types.js';
 
@@ -61,8 +61,40 @@ describe('QQ search response', () => {
     vi.stubGlobal('fetch', fetcher);
     try {
       await expect(searchSource('qq', '稻香', 5)).rejects.toMatchObject({ code: 'SOURCE_RESTRICTED' });
-      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher).toHaveBeenCalledTimes(2); // Public catalogue, then desktop endpoint; no retry after refusal.
     } finally { vi.unstubAllGlobals(); }
+  });
+});
+
+describe('QQ catalogue recovery', () => {
+  const song = { songmid: 'real-mid', songname: '晴天', singer: [{ name: '周杰伦' }], interval: 269, pay: { payplay: 1 } };
+  it('uses the public QQ catalogue before an older configured backup on desktop and phone', async () => {
+    vi.stubEnv('GO_MUSIC_API_URL', 'http://127.0.0.1:8080');
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ code: 0, data: { song: { list: [song] } } })));
+    vi.stubGlobal('fetch', fetcher);
+    try {
+      for (const direct of ['', '1']) {
+        vi.stubEnv('GO_MUSIC_API_DIRECT_MEDIA', direct);
+        expect(await searchSource('qq', '周杰伦', 10)).toMatchObject([{ sourceTrackId: 'real-mid', artist: '周杰伦' }]);
+      }
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(fetcher.mock.calls.every(call => String((call as unknown as [string])[0]).startsWith('https://c.y.qq.com/'))).toBe(true);
+    } finally { vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
+  });
+  it('does not keep a transient search failure or read the old empty-result cache after recovery', async () => {
+    const db = createDatabase(':memory:'); let recovered = false;
+    vi.stubEnv('GO_MUSIC_API_URL', ''); vi.stubEnv('GO_MUSIC_API_DIRECT_MEDIA', '');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(recovered
+      ? { code: 0, data: { song: { list: [song] } } }
+      : { code: 0, req: { code: 2001 } }))));
+    setCached(db, 'search:qq:10:周杰伦', { tracks: [], errors: { qq: 'old failure' } }, 300000);
+    try {
+      expect((await searchAll(db, '周杰伦', ['qq'], 10)).errors.qq).toBeTruthy();
+      recovered = true;
+      const result = await searchAll(db, '周杰伦', ['qq'], 10);
+      expect(result.errors).toEqual({});
+      expect(result.tracks).toMatchObject([{ title: '晴天', artist: '周杰伦' }]);
+    } finally { db.close(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
   });
 });
 

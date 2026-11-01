@@ -1,0 +1,37 @@
+diff --git a/handler/music.go b/handler/music.go
+--- a/handler/music.go
++++ b/handler/music.go
+@@ -525,7 +525,8 @@ func StreamMusic(c *gin.Context) {
+ 		return
+ 	}
+ 
+-	client := &http.Client{}
++	req = req.WithContext(c.Request.Context())
++	client := audioStreamClient
+ 	resp, err := client.Do(req)
+ 	if err != nil {
+ 		c.String(502, "Upstream stream error")
+@@ -531,6 +531,12 @@ func StreamMusic(c *gin.Context) {
+ 	}
+ 	defer resp.Body.Close()
+ 
++	audioBody, audioType, audioErr := prepareAudioStream(resp, c.GetHeader("Range"), source+":"+id)
++	if audioErr != nil {
++		c.String(502, "Upstream did not return valid audio")
++		return
++	}
++
+ 	for k, v := range resp.Header {
+ 		if k != "Transfer-Encoding" && k != "Date" && k != "Access-Control-Allow-Origin" {
+ 			c.Writer.Header()[k] = v
+@@ -539,8 +545,9 @@ func StreamMusic(c *gin.Context) {
+ 	}
+ 
+ 	setDownloadHeader(c, filename)
++	c.Header("Content-Type", audioType)
+ 	c.Status(resp.StatusCode)
+-	io.Copy(c.Writer, resp.Body)
++	io.Copy(c.Writer, audioBody)
+ }
+ 
+ // InspectMusic 探测音频大小与码率

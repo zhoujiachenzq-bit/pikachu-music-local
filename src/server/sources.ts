@@ -255,11 +255,13 @@ async function searchSourceRaw(source: MusicSource, query: string, limit = 10, s
     if (!tracks.length && !process.env.GO_MUSIC_API_URL) throw new SourceError('SOURCE_NOT_CONFIGURED', '此音源需要内置或已配置的 go-music-api。');
     return tracks.map(track => ({ ...track, keyword: q }));
   }
-  if (process.env.GO_MUSIC_API_DIRECT_MEDIA && (source === 'qq' || source === 'migu')) {
+  if (source === 'qq' || process.env.GO_MUSIC_API_DIRECT_MEDIA && source === 'migu') {
     // Same upstream protocols, using Android networking instead of waiting for
     // the embedded Go process's independent network stack before every search.
     try {
-      const tracks = await searchGoMusicNative(source, q, size, signal);
+      const directBudget = AbortSignal.timeout(2500);
+      const directSignal = signal ? AbortSignal.any([signal, directBudget]) : directBudget;
+      const tracks = await abortable(searchGoMusicNative(source, q, size, directSignal), directSignal);
       if (tracks.length) return tracks;
     } catch { signal?.throwIfAborted(); }
   }
@@ -327,7 +329,7 @@ export async function searchSource(source: MusicSource, query: string, limit = 1
 const SEARCH_SOURCE_BUDGET_MS = 6_000;
 export async function searchAll(db: Db, query: string, sources: MusicSource[], limit: number) {
   const orderedSources = [...sources];
-  const key = `search:${[...orderedSources].sort().join(',')}:${limit}:${query.toLowerCase()}`;
+  const key = `search:v2:${[...orderedSources].sort().join(',')}:${limit}:${query.toLowerCase()}`;
   const cached = getCached<{ tracks: Track[]; errors: Record<string, string> }>(db, key);
   if (cached) return cached;
   // One hung provider must not hold the whole result list; a timeout still counts against its health.
@@ -342,7 +344,10 @@ export async function searchAll(db: Db, query: string, sources: MusicSource[], l
     else errors[source] = result.reason instanceof Error ? result.reason.message : String(result.reason);
   });
   tracks.sort((a, b) => searchRelevance(a, query) - searchRelevance(b, query) || (a.displayIndex || 0) - (b.displayIndex || 0) || orderedSources.indexOf(a.source) - orderedSources.indexOf(b.source));
-  const value = { tracks, errors }; setCached(db, key, value, 5 * 60_000); return value;
+  const value = { tracks, errors };
+  // A transient failure must not hide a recovered provider for another five minutes.
+  if (!Object.keys(errors).length && tracks.length) setCached(db, key, value, 5 * 60_000);
+  return value;
 }
 
 function findAudio(value: unknown): string {

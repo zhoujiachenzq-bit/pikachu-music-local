@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app.js';
-import { createDatabase } from './db.js';
+import { createDatabase, upsertTrack } from './db.js';
 import { normalizePlatformResult, platformQuerySchema, queryPlatform } from './platformGateway.js';
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
@@ -8,6 +8,27 @@ const response = (data: unknown) => new Response(JSON.stringify({ code: 200, dat
 const song = { source: 'qq', id: 'real-mid', name: '歌曲', artist: '歌手', duration: 200, link: 'https://y.qq.com/n/ryqq/songDetail/real-mid' };
 
 describe('platform discovery', () => {
+  it('uses actual media for quality checks and never proxies a JSON 200 as audio', async () => {
+    vi.stubEnv('GO_MUSIC_API_URL', 'http://127.0.0.1:8080'); let valid = false;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      if (!valid) return new Response('{"error":"denied"}', { headers: { 'content-type': 'application/json' } });
+      const bytes = new Uint8Array(128); bytes.set([73, 68, 51]);
+      return new Response(bytes, { status: 206, headers: { 'content-type': 'text/html', 'content-range': 'bytes 0-127/5000000' } });
+    }));
+    const db = createDatabase(':memory:'); const app = await createApp({ db, logger: false });
+    try {
+      const registered = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { username: 'MediaProbeQA', password: 'Fixture-only-2026' } });
+      const cookie = registered.headers['set-cookie']!.split(';')[0];
+      upsertTrack(db, { id: 'qq:probe', source: 'qq', sourceTrackId: 'probe', title: '歌曲', artist: '歌手', album: '', duration: 200000, coverUrl: null, sourceUrl: null });
+      expect((await app.inject({ url: '/api/platform/inspect?id=qq%3Aprobe', headers: { cookie } })).json()).toMatchObject({ valid: false });
+      const streamUrl = '/api/backup-media?source=qq&id=probe&name=test&artist=test&duration=200';
+      expect((await app.inject({ url: streamUrl, headers: { cookie, range: 'bytes=0-4095' } })).statusCode).toBe(502);
+      valid = true;
+      expect((await app.inject({ url: '/api/platform/inspect?id=qq%3Aprobe', headers: { cookie } })).json()).toMatchObject({ valid: true, size: '4.8 MB', bitrate: '200 kbps' });
+      const audio = await app.inject({ url: streamUrl, headers: { cookie, range: 'bytes=0-4095' } });
+      expect(audio.statusCode).toBe(206); expect(audio.headers['content-type']).toBe('audio/mpeg'); expect([...audio.rawPayload.subarray(0, 3)]).toEqual([73, 68, 51]); expect(audio.rawPayload.length).toBe(128);
+    } finally { await app.close(); db.close(); }
+  });
   it('normalizes songs, album results and unsafe source links', () => {
     expect(normalizePlatformResult({ songs: [song, { ...song, id: 'other', link: 'https://example.test' }] }, 'qq', 'album').tracks)
       .toMatchObject([{ id: 'qq:real-mid', duration: 200000 }, { sourceUrl: null }]);

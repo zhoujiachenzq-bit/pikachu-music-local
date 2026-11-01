@@ -79,6 +79,15 @@ describe('native fetch', () => {
     expect((await fetchWith('', 204)('https://a.example/')).status).toBe(204);
   });
 
+  it('decodes native binary probes without corrupting audio or silently accepting JSON', async () => {
+    const seen: NativeRequest[] = [];
+    const response = await fetchWith(btoa(String.fromCharCode(73, 68, 51, 255, 0, 128)), 206, seen)('http://127.0.0.1:8080/api/v1/music/stream', { headers: { accept: 'application/octet-stream', range: 'bytes=0-4095' } });
+    expect(seen[0].responseType).toBe('arraybuffer');
+    expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([73, 68, 51, 255, 0, 128]);
+    const error = await fetchWith(btoa('{"code":"error"}'))('http://127.0.0.1:8080/api/v1/music/stream', { headers: { accept: 'application/octet-stream' } });
+    expect(await error.text()).toBe('{"code":"error"}');
+  });
+
   it('stops when the caller aborts', async () => {
     const controller = new AbortController();
     const pending = createNativeFetch(() => new Promise(() => undefined))('https://a.example/', { signal: controller.signal });

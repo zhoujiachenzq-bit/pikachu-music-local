@@ -1,7 +1,7 @@
 // Music sources allow neither browser CORS nor a custom Referer, so the phone sends
 // their requests through Android's HTTP stack instead of the WebView's.
 export interface NativeRequest {
-  url: string; method: string; headers: Record<string, string>; data?: unknown; responseType: 'text';
+  url: string; method: string; headers: Record<string, string>; data?: unknown; responseType: 'text' | 'arraybuffer';
   connectTimeout: number; readTimeout: number; disableRedirects: boolean;
 }
 export interface NativeResponse { status: number; url?: string; headers: Record<string, unknown>; data: unknown }
@@ -27,8 +27,9 @@ export function createNativeFetch(http: NativeHttp) {
   return async (url: string, init: RequestInit = {}): Promise<Response> => {
     init.signal?.throwIfAborted();
     const method = (init.method || 'GET').toUpperCase(); const headers = new Headers(init.headers);
+    const binary = headers.get('accept') === 'application/octet-stream';
     const pending = http({
-      url, method, headers: Object.fromEntries(headers), data: requestBody(init.body, headers.get('content-type')), responseType: 'text',
+      url, method, headers: Object.fromEntries(headers), data: requestBody(init.body, headers.get('content-type')), responseType: binary ? 'arraybuffer' : 'text',
       connectTimeout: TIMEOUT_MS, readTimeout: TIMEOUT_MS, disableRedirects: init.redirect === 'manual'
     });
     const aborted = new Promise<never>((_resolve, reject) => {
@@ -37,7 +38,9 @@ export function createNativeFetch(http: NativeHttp) {
     const answer = await Promise.race([pending, aborted]);
     const text = typeof answer.data === 'string' ? answer.data : answer.data == null ? '' : JSON.stringify(answer.data);
     const empty = method === 'HEAD' || NULL_BODY_STATUS.includes(answer.status);
-    const response = new Response(empty ? null : text, { status: answer.status, headers: responseHeaders(answer.headers) });
+    // Capacitor returns arraybuffer responses as base64; never decode audio as UTF-8.
+    const body = binary && !empty ? Uint8Array.from(atob(text), value => value.charCodeAt(0)) : text;
+    const response = new Response(empty ? null : body, { status: answer.status, headers: responseHeaders(answer.headers) });
     Object.defineProperty(response, 'url', { value: answer.url || url });
     return response;
   };

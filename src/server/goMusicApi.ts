@@ -1,6 +1,6 @@
 import { SOURCES, CORE_SOURCES, type ImportedPlaylist, type MusicSource, type ResolvedTrack, type Track } from '../shared/types.js';
 import { canonicalTrackKey } from '../shared/trackIdentity.js';
-import { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
+import { validatedAudioResponse } from './mediaValidation.js';
 
 type Fetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 type ScoredCandidate = { candidate: Track; score: number };
@@ -31,9 +31,8 @@ interface BackupMediaQuery {
 }
 
 const DEFAULT_TIMEOUT_MS = 7_000;
-let consecutiveFailures = 0;
-let unavailableUntil = 0;
 let lastFailure = '';
+const verifiedTypes = new Map<string, { type: string; expires: number }>();
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -85,14 +84,12 @@ async function fetchWithConnectTimeout(url: URL, init: RequestInit, fetcher: Fet
 async function fetchJson(url: URL, options: GoMusicApiOptions): Promise<Record<string, unknown> | null> {
   try {
     const response = await fetchWithConnectTimeout(url, { headers: { accept: 'application/json' } }, options.fetcher || fetch, timeoutMs(options.timeoutMs));
-    consecutiveFailures = 0; unavailableUntil = 0;
     if (!response.ok) return null;
     return object(await response.json());
   } catch (error) {
     lastFailure = error instanceof Error ? error.message : String(error);
-    consecutiveFailures += 1;
-    // A service inside the app is never far away, so it is not worth backing off from.
-    if (consecutiveFailures >= 2 && !process.env.GO_MUSIC_API_DIRECT_MEDIA) unavailableUntil = Date.now() + 60_000;
+    // Provider timeouts do not prove the shared service is down. Per-source
+    // health/cooldown is owned by sourceHealth, never by this shared client.
     return null;
   }
 }
@@ -107,15 +104,6 @@ export async function explainEmptySearch(source: MusicSource, keyword: string, o
   if (!report) return `内置音源服务连接失败：${lastFailure}`;
   const problem = [report.searchError, report.dnsError, report.httpError].find(Boolean);
   return problem ? `内置音源服务请求失败：${string(problem)}` : Number(report.songs) > 0 ? '内置音源服务有响应，但没有匹配这个关键词的歌曲。' : `内置音源服务没有返回结果（HTTP ${string(report.http) || '?'}）。`;
-}
-
-function parseSizeBytes(value: unknown): number {
-  if (typeof value === 'number') return value > 0 ? value : 0;
-  const match = string(value).match(/^([\d.]+)\s*(B|KB|MB|GB)$/i);
-  if (!match) return 0;
-  const amount = Number(match[1]);
-  const powers: Record<string, number> = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 };
-  return Number.isFinite(amount) ? amount * powers[match[2].toUpperCase()] : 0;
 }
 
 function toTrack(value: Record<string, unknown>, expectedSource: MusicSource): Track | null {
@@ -134,7 +122,7 @@ function toTrack(value: Record<string, unknown>, expectedSource: MusicSource): T
 export async function searchWithGoMusicApi(query: string, options: SearchOptions = {}): Promise<Track[]> {
   const baseUrl = goMusicApiBaseUrl(options.baseUrl);
   const keyword = query.trim();
-  if (!baseUrl || !keyword || unavailableUntil > Date.now()) return [];
+  if (!baseUrl || !keyword) return [];
   const sources = options.sources?.length ? options.sources.filter(source => SOURCES.includes(source)) : [...SOURCES];
   if (!sources.length) return [];
   const url = new URL('/api/v1/music/search', `${baseUrl}/`);
@@ -174,14 +162,7 @@ async function validateCandidate(input: Track, candidate: Track, options: Resolv
   const baseUrl = goMusicApiBaseUrl(options.baseUrl);
   if (!baseUrl) return null;
   if (!candidate || options.score(input, candidate) < .85 || options.eligible && !options.eligible(input, candidate)) return null;
-  const inspect = new URL('/api/v1/music/inspect', `${baseUrl}/`);
-  inspect.searchParams.set('source', candidate.source); inspect.searchParams.set('id', candidate.sourceTrackId);
-  inspect.searchParams.set('name', candidate.title); inspect.searchParams.set('artist', candidate.artist);
-  if (candidate.duration > 0) inspect.searchParams.set('duration', String(Math.round(candidate.duration / 1000)));
-  const probe = await fetchJson(inspect, options);
-  if (!probe || probe.valid !== true) return null;
-  const contentLength = parseSizeBytes(probe.size);
-  if (candidate.source === 'kuwo' && isLikelyKuwoRestrictionAudio(contentLength, candidate.duration || input.duration)) return null;
+  if (!await probeMedia(candidate, options)) return null;
   return candidate;
 }
 
@@ -212,15 +193,7 @@ async function lyricFor(track: Track, options: GoMusicApiOptions): Promise<strin
 export async function resolveExactWithGoMusicApi(input: Track, options: GoMusicApiOptions = {}): Promise<ResolvedTrack | null> {
   if (input.source === 'soda') return null;
   const baseUrl = goMusicApiBaseUrl(options.baseUrl);
-  if (!baseUrl || unavailableUntil > Date.now()) return null;
-  const inspect = new URL('/api/v1/music/inspect', `${baseUrl}/`);
-  inspect.searchParams.set('source', input.source); inspect.searchParams.set('id', input.sourceTrackId);
-  inspect.searchParams.set('name', input.title); inspect.searchParams.set('artist', input.artist);
-  if (input.duration > 0) inspect.searchParams.set('duration', String(Math.round(input.duration / 1000)));
-  const probe = await fetchJson(inspect, options);
-  if (!probe || probe.valid !== true) return null;
-  const contentLength = parseSizeBytes(probe.size);
-  if (input.source === 'kuwo' && isLikelyKuwoRestrictionAudio(contentLength, input.duration)) return null;
+  if (!baseUrl || !await probeMedia(input, options)) return null;
   const lyric = await lyricFor(input, { ...options, baseUrl });
   return {
     ...input, audioUrl: mediaPath(input), lyric, actualSource: input.source,
@@ -230,7 +203,7 @@ export async function resolveExactWithGoMusicApi(input: Track, options: GoMusicA
 
 export async function resolveWithGoMusicApi(input: Track, options: ResolveOptions): Promise<ResolvedTrack | null> {
   const baseUrl = goMusicApiBaseUrl(options.baseUrl);
-  if (!baseUrl || unavailableUntil > Date.now()) return null;
+  if (!baseUrl) return null;
   const targets = CORE_SOURCES.filter(source => source !== input.source);
   const settled = await Promise.allSettled(targets.map(source => switchCandidate(input, source, { ...options, baseUrl })));
   const switched = settled.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : []);
@@ -264,15 +237,41 @@ export function goMusicApiStreamUrl(query: BackupMediaQuery, baseUrl = goMusicAp
   return url;
 }
 
+async function probeMedia(track: Track, options: GoMusicApiOptions): Promise<boolean> {
+  return (await inspectGoMusicAudio(track, options)).valid;
+}
+
+export async function inspectGoMusicAudio(track: Track, options: GoMusicApiOptions = {}): Promise<{ valid: boolean; size: string; bitrate: string }> {
+  try {
+    const response = await openGoMusicApiStream({ source: track.source, id: track.sourceTrackId, name: track.title, artist: track.artist, duration: track.duration / 1000 || undefined }, 'bytes=0-4095', options);
+    const valid = Boolean(response && [200, 206].includes(response.status));
+    const range = response?.headers.get('content-range');
+    const size = Number(range?.match(/\/(\d+)$/)?.[1] ?? (response?.status === 200 ? response.headers.get('content-length') : 0));
+    await response?.body?.cancel().catch(() => undefined);
+    return { valid, size: valid && size > 0 ? `${(size / 1024 / 1024).toFixed(1)} MB` : '', bitrate: valid && size > 0 && track.duration > 0 ? `${Math.round(size * 8 / track.duration)} kbps` : '' };
+  } catch { return { valid: false, size: '', bitrate: '' }; }
+}
+
 export async function openGoMusicApiStream(query: BackupMediaQuery, range?: string, options: GoMusicApiOptions = {}) {
   const url = goMusicApiStreamUrl(query, goMusicApiBaseUrl(options.baseUrl));
   if (!url) return null;
   const fetcher = options.fetcher || fetch; const limit = timeoutMs(options.timeoutMs);
+  const typeKey = `${url.origin}|${query.source}|${query.id}`;
+  const cachedType = verifiedTypes.get(typeKey);
   let last: Response | null = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const response = await fetchWithConnectTimeout(url, { headers: range ? { range } : {} }, fetcher, limit);
-      if ([200, 206].includes(response.status) || ![404, 429].includes(response.status) && response.status < 500) return response;
+      const response = await fetchWithConnectTimeout(url, { headers: { accept: 'application/octet-stream', ...(range ? { range } : {}) } }, fetcher, limit);
+      if ([200, 206].includes(response.status)) {
+        const fromStart = response.status === 200 || !range || /^bytes=0-/.test(range);
+        const valid = await validatedAudioResponse(response, { fromStart, source: query.source, durationMs: (query.duration || 0) * 1000, timeoutMs: limit, trustedType: cachedType && cachedType.expires > Date.now() ? cachedType.type : undefined });
+        if (valid && fromStart) {
+          if (verifiedTypes.size >= 256) verifiedTypes.delete(verifiedTypes.keys().next().value!);
+          verifiedTypes.set(typeKey, { type: valid.headers.get('content-type')!, expires: Date.now() + 300000 });
+        }
+        return valid || new Response(null, { status: 502 });
+      }
+      if (![404, 429].includes(response.status) && response.status < 500) return response;
       await response.body?.cancel().catch(() => undefined); last = response;
     } catch (error) {
       if (attempt === 1) throw error;

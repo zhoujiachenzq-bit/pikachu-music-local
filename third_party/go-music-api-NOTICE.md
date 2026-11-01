@@ -19,6 +19,10 @@ It prefers standard MP3 for Migu. QQ search metadata is retained regardless of
 the payplay flag; the playback endpoint still decides account entitlement.
 The Android build applies .github/patches/qq-search-catalog.patch to the vendored
 music-lib search function, removing only its anonymous VIP search filter.
+The qianqian-search-catalog.patch likewise keeps paid catalogue metadata visible
+without changing playback entitlement. The go-music-audio-stream.patch and
+.github/go-music-api-media.go validate stream prefixes and normalize audio MIME;
+these files and their Go regression test are part of the corresponding source.
 It does not copy the IP spoofing headers or encrypted audio decryption code.
 
 Source labels describe integration support, not entitlement to every song.

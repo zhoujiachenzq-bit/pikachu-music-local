@@ -45,6 +45,7 @@ describe('extended source integration', () => {
       const url = new URL(request);
       if (url.pathname.endsWith('/search')) return new Response(JSON.stringify({ code: 200, data: { songs: [{ source, id: 'original-id', name: '歌曲', artist: '歌手', duration: 180 }] } }));
       if (url.pathname.endsWith('/inspect')) return new Response(JSON.stringify({ valid: true, size: '5 MB' }));
+      if (url.pathname.endsWith('/stream')) { const bytes = new Uint8Array(64); bytes.set([73, 68, 51]); return new Response(bytes, { status: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-63/5000000' } }); }
       return new Response(JSON.stringify({ data: { lyric: '[00:01]歌词' } }));
     };
     const tracks = await searchWithGoMusicApi('歌曲', { baseUrl: 'http://127.0.0.1:8080', sources: [source], fetcher });

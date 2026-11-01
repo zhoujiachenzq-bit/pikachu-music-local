@@ -17,10 +17,15 @@ test "$(git -C "$source" rev-parse HEAD)" = "$commit"
 cp "$GITHUB_WORKSPACE/.github/go-music-api-android.go" "$source/android_entry.go"
 
 cd "$source"
+cp "$GITHUB_WORKSPACE/.github/go-music-api-media.go" handler/audio_validation.go
+cp "$GITHUB_WORKSPACE/.github/go-music-api-media_test.go" handler/audio_validation_test.go
+git apply "$GITHUB_WORKSPACE/.github/patches/go-music-audio-stream.patch"
+go test ./handler
 go mod vendor
-# Patch only the pinned dependency's search filter. Playback authorization and
+# Patch the pinned dependency's catalogue filters. Playback authorization and
 # URL resolution remain upstream-controlled. A mismatched patch fails the build.
 git apply --directory=vendor/github.com/guohuiyuan/music-lib "$GITHUB_WORKSPACE/.github/patches/qq-search-catalog.patch"
+git apply --directory=vendor/github.com/guohuiyuan/music-lib "$GITHUB_WORKSPACE/.github/patches/qianqian-search-catalog.patch"
 for target in "$@"; do
   case "$target" in
     arm64-v8a) goarch=arm64; cc=aarch64-linux-android23-clang ;;

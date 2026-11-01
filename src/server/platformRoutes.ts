@@ -7,6 +7,7 @@ import { requireUser } from './auth.js';
 import { platformQuerySchema, platformRequest, queryPlatform, safePlatformImage } from './platformGateway.js';
 import { QR_SOURCES } from '../shared/platform.js';
 import type { Track } from '../shared/types.js';
+import { inspectGoMusicAudio } from './goMusicApi.js';
 
 export function registerPlatformRoutes(app: FastifyInstance, db: Db) {
   const previews = new Map<string, { userId: string; tracks: Track[]; expires: number; playlistId?: string }>();
@@ -39,13 +40,13 @@ export function registerPlatformRoutes(app: FastifyInstance, db: Db) {
     if (!row) return reply.code(404).send(fail('歌曲不存在，请重新打开列表。'));
     const track = rowToTrack(row);
     try {
+      if (kind === 'inspect') return await inspectGoMusicAudio(track);
       const result = await platformRequest(`music/${kind}`, { source: track.source, id: track.sourceTrackId, name: track.title, artist: track.artist, duration: String(track.duration / 1000) });
       if (kind === 'lyric') {
         const lyric = result.data?.lyric;
         if (typeof lyric !== 'string' || !lyric) throw new Error('该歌曲没有可导出的歌词。');
         return { lyric: lyric.slice(0, 200000) };
       }
-      return { valid: result.valid === true, size: String(result.size || ''), bitrate: String(result.bitrate || '') };
     } catch (error) { return reply.code(502).send(fail(error instanceof Error ? error.message : '平台暂不可用。')); }
   });
   app.post('/api/platform/save', async (request, reply) => {
