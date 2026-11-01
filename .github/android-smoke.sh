@@ -11,6 +11,7 @@ tap() {
   # uiautomator sometimes dies on a busy WebView, so a failed look is retried.
   for attempt in 1 2 3 4 5 6; do
     rm -f ui.xml
+    adb shell rm -f /sdcard/ui.xml > /dev/null 2>&1 || true
     adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1 || true
     adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1 || true
     point=$(python3 - "$1" <<'PY'
@@ -38,6 +39,17 @@ PY
   done
   echo "tap '$1' FOUND NOTHING" | tee -a keepalive.txt
   return 1
+}
+
+hide_keyboard() {
+  adb shell dumpsys input_method > input-method.txt
+  if grep -Eq 'mInputShown=true|isInputViewShown=true' input-method.txt; then
+    adb shell input keyevent 4
+  fi
+  # Back intentionally sends this app home if the IME already closed. Always
+  # bring the existing singleTask activity forward before inspecting controls.
+  adb shell am start -n "$pkg/.MainActivity" > /dev/null
+  sleep 2
 }
 
 state() {
@@ -119,8 +131,7 @@ sleep 1
 adb shell input text jay
 adb shell input keyevent 66
 sleep 10
-adb shell input keyevent 4
-sleep 2
+hide_keyboard
 # Filter using actual visible controls. Fixed coordinates hit source checkboxes
 # after the search layout grew, so the old script never started playback.
 for source in 咪咕 网易云 酷我 酷狗 千千 5sing Jamendo JOOX 哔哩哔哩; do
@@ -149,10 +160,9 @@ if ! wait_playing; then
   adb shell input text piano
   adb shell input keyevent 66
   sleep 10
-  adb shell input keyevent 4
-  sleep 2
+  hide_keyboard
   shot jamendo-search
-  tap 'J piano arenal .*'
+  tap 'J .+'
   sleep 15
   tap '播放'
   sleep 3
