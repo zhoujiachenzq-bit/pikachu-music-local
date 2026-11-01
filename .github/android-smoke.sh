@@ -73,7 +73,27 @@ wait_playing() {
   assert_playing
 }
 
-trap 'adb logcat -d > logcat.txt; shot final-state' EXIT
+finish() {
+  adb logcat -d > logcat.txt
+  shot final-state
+  # No login credentials are used in this emulator. Record only public metadata,
+  # response headers and a small prefix, never an upstream signed playback URL.
+  adb forward tcp:18080 tcp:8080 > /dev/null 2>&1 || true
+  for source in kuwo netease migu; do
+    echo "=== fallback diagnostic $source" | tee -a keepalive.txt
+    curl -s --max-time 12 --get 'http://127.0.0.1:18080/api/v1/music/switch' --data-urlencode 'name=发如雪' --data-urlencode 'artist=周杰伦' --data 'source=qq' --data "target=$source" --data 'duration=299' > "fallback-$source.json" || true
+    python3 - "$source" <<'PY' | tee -a keepalive.txt
+import json,sys
+try:
+    b=json.load(open('fallback-'+sys.argv[1]+'.json'))
+    d=b.get('data') or b
+    print(json.dumps({k:d.get(k) for k in ['code','source','id','name','artist','duration']},ensure_ascii=False))
+except Exception:
+    print('fallback diagnostic unavailable')
+PY
+  done
+}
+trap finish EXIT
 adb install -g app.apk
 adb shell am start -n "$pkg/.MainActivity"
 sleep 30
