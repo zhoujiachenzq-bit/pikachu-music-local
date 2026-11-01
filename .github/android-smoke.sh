@@ -72,6 +72,8 @@ shot search-results
 adb forward tcp:18080 tcp:8080
 for source in qq migu kuwo; do
   echo "=== service $source" >> keepalive.txt
+  curl -s --max-time 25 "http://127.0.0.1:18080/diag?source=$source" >> keepalive.txt
+  echo >> keepalive.txt
   curl -s --max-time 12 "http://127.0.0.1:18080/api/v1/music/search?q=jay&type=song&sources=$source" | head -c 400 >> keepalive.txt
   echo >> keepalive.txt
 done

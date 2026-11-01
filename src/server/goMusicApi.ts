@@ -33,6 +33,7 @@ interface BackupMediaQuery {
 const DEFAULT_TIMEOUT_MS = 7_000;
 let consecutiveFailures = 0;
 let unavailableUntil = 0;
+let lastFailure = '';
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -87,11 +88,25 @@ async function fetchJson(url: URL, options: GoMusicApiOptions): Promise<Record<s
     consecutiveFailures = 0; unavailableUntil = 0;
     if (!response.ok) return null;
     return object(await response.json());
-  } catch {
+  } catch (error) {
+    lastFailure = error instanceof Error ? error.message : String(error);
     consecutiveFailures += 1;
-    if (consecutiveFailures >= 2) unavailableUntil = Date.now() + 60_000;
+    // A service inside the app is never far away, so it is not worth backing off from.
+    if (consecutiveFailures >= 2 && !process.env.GO_MUSIC_API_DIRECT_MEDIA) unavailableUntil = Date.now() + 60_000;
     return null;
   }
+}
+
+// The search route answers 200 with no songs whatever failed, so the app asks directly.
+export async function explainEmptySearch(source: MusicSource, keyword: string, options: GoMusicApiOptions = {}): Promise<string> {
+  const baseUrl = goMusicApiBaseUrl(options.baseUrl);
+  if (!baseUrl) return '';
+  const url = new URL('/diag', `${baseUrl}/`);
+  url.searchParams.set('source', source); url.searchParams.set('q', keyword);
+  const report = await fetchJson(url, { ...options, timeoutMs: 15_000 });
+  if (!report) return `内置音源服务连接失败：${lastFailure}`;
+  const problem = [report.searchError, report.dnsError, report.httpError].find(Boolean);
+  return problem ? `内置音源服务请求失败：${string(problem)}` : Number(report.songs) > 0 ? '内置音源服务有响应，但没有匹配这个关键词的歌曲。' : `内置音源服务没有返回结果（HTTP ${string(report.http) || '?'}）。`;
 }
 
 function parseSizeBytes(value: unknown): number {

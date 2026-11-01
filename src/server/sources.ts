@@ -5,7 +5,7 @@ import { canonicalTrackKey, hasCompatibleTrackDuration, isDerivativeTrackVersion
 import { withSourceHealth } from './sourceHealth.js';
 import { abortable } from '../shared/asyncControl.js';
 import { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
-import { resolveExactWithGoMusicApi, resolveWithGoMusicApi, searchWithGoMusicApi } from './goMusicApi.js';
+import { explainEmptySearch, resolveExactWithGoMusicApi, resolveWithGoMusicApi, searchWithGoMusicApi } from './goMusicApi.js';
 import { positiveEnvInt } from './rateLimit.js';
 
 export { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
@@ -255,6 +255,8 @@ async function searchSourceRaw(source: MusicSource, query: string, limit = 10, s
     const backup = await searchWithGoMusicApi(q, { sources: [source], limit: size });
     signal?.throwIfAborted();
     if (backup.length) return backup.map(item => ({ ...item, keyword: q }));
+    // On the phone QQ and Migu have nothing else to fall back on, so say what went wrong.
+    if (process.env.GO_MUSIC_API_DIRECT_MEDIA && source !== 'kuwo') throw new SourceError('LOCAL_SOURCE_EMPTY', await explainEmptySearch(source, q));
   }
   if (source === 'migu') {
     const j = await fetchJson(`https://api.xcvts.cn/api/music/migu?gm=${encodeURIComponent(q)}&n=&num=${size}&type=json`, { signal });

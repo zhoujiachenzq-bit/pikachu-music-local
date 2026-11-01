@@ -118,4 +118,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-go-music-api.ps1
 
 脚本会校验 Go 官方压缩包的 SHA-256，固定检出 `go-music-api v1.0.1`，并将其修改为只监听 `127.0.0.1:8080` 后在 `data/tools/` 下本地编译。之后桌面快捷方式、`run-start.ps1` 和 `run-dev.ps1` 会自动启动并配置备用服务。
 
-其他运行环境可设置 `GO_MUSIC_API_URL=http://受信任的内部服务:8080`；不要把原版 `go-music-api` 的 8080 端口直接暴露到公网。该第三方项目采用 AGPL-3.0，独立部署和修改时需遵守其许可证。Android 安装包内含它的编译版本，仅把监听地址改为 127.0.0.1，源码见 https://github.com/guohuiyuan/go-music-api（v1.0.1），改动见 `.github/build-go-music-api.sh`。
+其他运行环境可设置 `GO_MUSIC_API_URL=http://受信任的内部服务:8080`；不要把原版 `go-music-api` 的 8080 端口直接暴露到公网。该第三方项目采用 AGPL-3.0，独立部署和修改时需遵守其许可证。Android 安装包内含它的编译版本，以库的形式运行在 App 进程内，只监听 127.0.0.1，并增加了自检接口，源码见 https://github.com/guohuiyuan/go-music-api（v1.0.1），改动见 `.github/build-go-music-api.sh` 和 `.github/go-music-api-android.go`。

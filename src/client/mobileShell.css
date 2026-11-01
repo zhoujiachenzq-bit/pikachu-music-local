@@ -45,6 +45,7 @@
   .app-shell[data-tone] .source-grid label { min-height: 32px; padding: 4px 10px; border: 0; border-radius: 16px; color: var(--m-muted); background: var(--m-sunken); font-family: inherit; font-size: 12px; }
   .app-shell[data-tone] .source-grid label.checked { color: var(--m-ink); background: color-mix(in srgb, var(--m-accent) 18%, var(--m-sunken)); }
   .app-shell[data-tone] .source-grid i { border-radius: 50%; box-shadow: none; }
+  .app-shell[data-tone] :is(.search-box,.source-grid,.load-row) { flex: none; }
   .app-shell[data-tone] .load-row { color: var(--m-muted); font-size: 12px; }
   .app-shell[data-tone] :is(.load-row select,.load-row .btn,.daily-tools select,.playlist-toolbar button,.icon-upload) { border: 0; border-radius: 6px; color: var(--m-ink); background: var(--m-sunken); box-shadow: none; font-family: inherit; }
   .app-shell[data-tone] .source-warning { border: 0; border-radius: 6px; color: var(--m-muted); background: var(--m-sunken); font-size: 12px; }
