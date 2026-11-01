@@ -92,18 +92,21 @@ sleep 1
 tap '搜索'
 sleep 10
 shot search-qq-migu
-adb shell input keyevent 4
-sleep 1
 adb shell input tap 150 300
-sleep 3
+sleep 4
 shot qq-first-row
-sleep 7
+sleep 8
 adb shell input tap 150 365
-sleep 3
+sleep 4
 shot qq-second-row
-sleep 17
+sleep 16
 shot playing-qq-migu
 state qq-migu-playing
+
+# Back on the home page must leave the app running in the background.
+adb shell input keyevent 4
+sleep 8
+state after-back
 
 adb shell dumpsys battery unplug
 adb shell input keyevent 223
