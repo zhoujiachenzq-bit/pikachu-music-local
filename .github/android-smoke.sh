@@ -83,11 +83,20 @@ finish() {
     echo "=== fallback diagnostic $source" | tee -a keepalive.txt
     curl -s --max-time 12 --get 'http://127.0.0.1:18080/api/v1/music/switch' --data-urlencode 'name=发如雪' --data-urlencode 'artist=周杰伦' --data 'source=qq' --data "target=$source" --data 'duration=299' > "fallback-$source.json" || true
     python3 - "$source" <<'PY' | tee -a keepalive.txt
-import json,sys
+import json,sys,urllib.parse,urllib.request,urllib.error
 try:
     b=json.load(open('fallback-'+sys.argv[1]+'.json'))
     d=b.get('data') or b
     print(json.dumps({k:d.get(k) for k in ['code','source','id','name','artist','duration']},ensure_ascii=False))
+    if d.get('id') and d.get('source'):
+        q=urllib.parse.urlencode({k:d.get(k,'') for k in ['source','id','name','artist','duration']})
+        req=urllib.request.Request('http://127.0.0.1:18080/api/v1/music/stream?'+q,headers={'Range':'bytes=0-4095'})
+        try:
+            with urllib.request.urlopen(req,timeout=8) as r:
+                sample=r.read(4096)
+                print(json.dumps({'source':d['source'],'status':r.status,'type':r.headers.get('Content-Type'),'range':r.headers.get('Content-Range'),'bytes':len(sample),'prefix':sample[:12].hex()}))
+        except Exception as e:
+            print(json.dumps({'source':d['source'],'probe_error':type(e).__name__,'status':getattr(e,'code',None)}))
 except Exception:
     print('fallback diagnostic unavailable')
 PY
