@@ -4,10 +4,13 @@ import { parseGoMusicSearch, searchGoMusicNative } from './goMusicSearch.js';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('upstream QQ and Migu search protocols on Android networking', () => {
-  it('preserves QQ immutable ids and duration and excludes anonymous VIP tracks', () => {
+  it('keeps QQ search metadata for paid and free tracks without claiming playability', () => {
     const song = { songmid: 'real-mid', songname: '晴天', interval: 269, singer: [{ name: '周杰伦' }], albumname: '叶惠美', albummid: 'album' };
     expect(parseGoMusicSearch('qq', { code: 0, data: { song: { list: [song, { ...song, songmid: 'paid', pay: { payplay: 1 } }] } } }, '晴天', 10))
-      .toMatchObject([{ id: 'qq:real-mid', title: '晴天', artist: '周杰伦', duration: 269000 }]);
+      .toMatchObject([
+        { id: 'qq:real-mid', title: '晴天', artist: '周杰伦', duration: 269000 },
+        { id: 'qq:paid', title: '晴天', artist: '周杰伦', duration: 269000 }
+      ]);
   });
   it('keeps the Migu content/resource/format tuple and does not invent duration', () => {
     const data = { code: '000000', songResultData: { result: [{ contentId: '123', copyrightId: 'different', name: '晴天', artists: [{ name: '歌手' }],

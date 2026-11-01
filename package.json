@@ -1,6 +1,6 @@
 {
   "name": "pikachu-music-local",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -23,6 +23,7 @@
     "@fontsource-variable/space-grotesk": "5.3.0",
     "@phosphor-icons/react": "2.1.10",
     "fastify": "^5.11.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "sql.js": "1.13.0",
@@ -33,6 +34,7 @@
     "@capacitor/android": "7.4.3",
     "@capacitor/cli": "7.4.3",
     "@types/node": "^26.1.2",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/three": "^0.185.4",

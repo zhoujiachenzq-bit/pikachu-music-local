@@ -7,6 +7,9 @@ export const phoneApp = Capacitor.isNativePlatform();
 // Phones without the bundled go-music-api build only get reliable audio from these two.
 let localMusicApiReady = false;
 export function markLocalMusicApiReady() { localMusicApiReady = true; }
+export function phoneCoverUrl(source: MusicSource, id: string): string | null {
+  return phoneApp && localMusicApiReady ? `http://127.0.0.1:8080/api/v1/music/cover?${new URLSearchParams({ source, id })}` : null;
+}
 export const searchSources = (): readonly MusicSource[] => !phoneApp || localMusicApiReady ? SEARCH_SOURCES : ['netease', 'kuwo'];
 
 // The system bar continues the app header, whichever theme is showing.

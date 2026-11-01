@@ -15,7 +15,10 @@ under the applicable AGPL terms.
 
 src/server/goMusicSearch.ts adapts the qq/song.go and migu/song.go search
 protocols and metadata conversion for Android's native HTTP implementation.
-It prefers standard MP3 for Migu and retains QQ's anonymous VIP filtering.
+It prefers standard MP3 for Migu. QQ search metadata is retained regardless of
+the payplay flag; the playback endpoint still decides account entitlement.
+The Android build applies .github/patches/qq-search-catalog.patch to the vendored
+music-lib search function, removing only its anonymous VIP search filter.
 It does not copy the IP spoofing headers or encrypted audio decryption code.
 
 Source labels describe integration support, not entitlement to every song.

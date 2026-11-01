@@ -1,0 +1,19 @@
+diff --git a/qq/song.go b/qq/song.go
+--- a/qq/song.go
++++ b/qq/song.go
+@@ -70,15 +70,8 @@ func (q *QQ) Search(keyword string) ([]model.Song, error) {
+ 		return nil, fmt.Errorf("qq json parse error: %w", err)
+ 	}
+ 
+-	isVip, _ := q.IsVipAccount()
+-
+ 	var songs []model.Song
+ 	for _, item := range resp.Data.Song.List {
+-		// Hide VIP-only songs for non-VIP accounts.
+-		if !isVip && item.Pay.PayPlay == 1 {
+-			continue
+-		}
+-
+ 		var artistNames []string
+ 		for _, s := range item.Singer {
+ 			artistNames = append(artistNames, s.Name)

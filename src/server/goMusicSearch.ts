@@ -22,8 +22,8 @@ export function parseGoMusicSearch(source: 'qq' | 'migu', value: unknown, keywor
   return items.flatMap(item => {
     let sourceTrackId: string; let title: string; let artist: string; let album: string; let duration: number; let coverUrl: string | null;
     if (source === 'qq') {
-      // Upstream anonymous search excludes VIP-only tracks. No entitlement bypass.
-      if (Number(item.pay?.payplay) === 1) return [];
+      // Search metadata remains visible regardless of payplay. Only the actual
+      // playback response determines whether this account can play the song.
       sourceTrackId = str(item.songmid); title = str(item.songname);
       artist = array(item.singer).map(singer => str(singer.name)).filter(Boolean).join('、');
       album = str(item.albumname); duration = Number(item.interval || 0) * 1000;

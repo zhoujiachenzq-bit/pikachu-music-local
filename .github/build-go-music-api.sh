@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cross-compiles go-music-api into the APK as a library the app loads in-process.
 # It adds an Android entry point, a loopback-only listener and a /diag route, and
-# leaves the upstream source otherwise untouched.
+# keeps search metadata independent of playback entitlement.
 set -euo pipefail
 
 commit=bacdfbe6cf6a5ba7331463d2039e3aac915c627f
@@ -17,6 +17,10 @@ test "$(git -C "$source" rev-parse HEAD)" = "$commit"
 cp "$GITHUB_WORKSPACE/.github/go-music-api-android.go" "$source/android_entry.go"
 
 cd "$source"
+go mod vendor
+# Patch only the pinned dependency's search filter. Playback authorization and
+# URL resolution remain upstream-controlled. A mismatched patch fails the build.
+git apply --directory=vendor/github.com/guohuiyuan/music-lib "$GITHUB_WORKSPACE/.github/patches/qq-search-catalog.patch"
 for target in "$@"; do
   case "$target" in
     arm64-v8a) goarch=arm64; cc=aarch64-linux-android23-clang ;;

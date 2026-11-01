@@ -47,12 +47,14 @@
   --pixel-frame: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3468' d='M8 0h8v4h4v4h4v8h-4v4h-4v4H8v-4H4v-4H0V8h4V4h4z'/%3E%3Cpath fill='%230f0d1c' d='M10 2h4v4h4v4h4v4h-4v4h-4v4h-4v-4H6v-4H2v-4h4V6h4z'/%3E%3C/svg%3E");
   --pixel-frame-lit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' shape-rendering='crispEdges'%3E%3Cpath fill='%2322e3ff' d='M8 0h8v4h4v4h4v8h-4v4h-4v4H8v-4H4v-4H0V8h4V4h4z'/%3E%3Cpath fill='%2308070f' d='M10 2h4v4h4v4h4v4h-4v4h-4v4h-4v-4H6v-4H2v-4h4V6h4z'/%3E%3C/svg%3E");
 }
-.app-shell[data-tone='arcade'] { background: #08070f; }
+.app-shell[data-tone='arcade'] { background:radial-gradient(ellipse at 4% 22%,#22e3ff12,transparent 42%),radial-gradient(ellipse at 96% 76%,#ff3d8b14,transparent 44%),#08070f; }
 .app-shell[data-tone='arcade']::before { opacity: .5; inset: 0; transform: none; mask-image: none; background-image: radial-gradient(#7e7ba8 1px, transparent 1.5px), radial-gradient(#22e3ff 1px, transparent 1.5px); background-size: 127px 113px, 211px 173px; background-position: 13px 29px, 71px 5px; }
 .app-shell[data-tone='arcade']::after { opacity: .5; mix-blend-mode: normal; background: repeating-linear-gradient(to bottom, transparent 0 3px, #0000001f 3px 4px); }
 .app-shell[data-tone='arcade'] .panel::after { display: none; }
 .app-shell[data-tone='arcade'] .topbar.panel, .app-shell[data-tone='arcade'] .workspace > section.panel { padding: 6px; border: 8px solid transparent; border-radius: 0; border-image: var(--pixel-frame) 8 fill / 8px stretch; background: none; box-shadow: none; backdrop-filter: none; }
 .app-shell[data-tone='arcade'] .workspace > section.player-panel { border-image-source: var(--pixel-frame-lit); }
+.app-shell[data-tone='arcade'] .workspace > section.panel::after { display:block; content:''; position:absolute; z-index:0; inset:8px; width:auto; height:auto; opacity:1; pointer-events:none; transform:none; animation:none; background:radial-gradient(ellipse at 0% 10%,#22e3ff0a,transparent 50%),radial-gradient(ellipse at 100% 94%,#ff3d8b0d,transparent 55%),repeating-linear-gradient(0deg,transparent 0 3px,#9c8cc905 3px 4px); }
+.app-shell[data-tone='arcade'] .search-mini-list { background:linear-gradient(155deg,#22e3ff08,transparent 45%,#ff3d8b09); }
 .app-shell[data-tone='arcade'] :is(.search-panel,.playlist-panel)::before { display: none; }
 
 /* The marquee: the one place allowed to glow. Bulbs chase only while motion is on. */
@@ -154,7 +156,7 @@
 /* Daily: tonight's top scores */
 
 
-.app-shell[data-tone='arcade'] .daily-editorial { border: 2px solid var(--coin); border-radius: 0; background: #0b0a15; box-shadow: none; }
+.app-shell[data-tone='arcade'] .daily-editorial { border: 2px solid var(--coin); border-radius: 0; background:linear-gradient(90deg,#22e3ff08 1px,transparent 1px) 0 0 / 32px 32px,linear-gradient(#ff3d8b06 1px,transparent 1px) 0 0 / 32px 32px,radial-gradient(ellipse at 88% 18%,#ff3d8b17,transparent 60%),linear-gradient(135deg,#0d1424,#121022 55%,#0b0a15); box-shadow: none; }
 .app-shell[data-tone='arcade'] .daily-editorial > .grainient { display: none; }
 .app-shell[data-tone='arcade'] .daily-copy h2 { color: var(--coin); font-family: var(--arcade-mono); font-weight: 700; letter-spacing: -.03em; text-transform: none; text-shadow: 2px 2px 0 #8f1650; }
 .app-shell[data-tone='arcade'] .daily-kicker { color: var(--beam); font-family: var(--arcade-mono); }
@@ -302,7 +304,7 @@
   --line: #e9d9b82b; --line-strong: #ffc97870; --danger: #ffb3a8; --scene-theme-accent: #ffc978; --scene-theme-glow: #f2b6cd; --radius-panel: 18px;
   --book-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', STSong, SimSun, Georgia, serif;
 }
-.app-shell[data-tone='burgundy'] { background: linear-gradient(#10123066, #1a153a55), var(--garden-image) center 65% / cover fixed; }
+.app-shell[data-tone='burgundy'] { background: var(--surface-0); }
 .app-shell[data-tone='burgundy'] .topbar.panel, .app-shell[data-tone='burgundy'] .workspace > section:is(.search-panel,.playlist-panel) { border: 1px solid var(--line-strong); border-radius: 18px; background: #12142ef2; box-shadow: 0 18px 40px #07081a80; outline: 1px solid var(--line); outline-offset: -6px; backdrop-filter: none; }
 .app-shell[data-tone='burgundy'] :is(.search-panel,.playlist-panel)::before { display: none; }
 .app-shell[data-tone='burgundy'] .logo-ring { background: linear-gradient(145deg, #ffe0ad, #d9963f); box-shadow: 0 0 28px #ffc97866; }
@@ -399,3 +401,19 @@
   .app-shell[data-tone='burgundy'] .mobile-nav button.active { color: var(--brand); background: var(--hover-bg); }
 }
 @media (prefers-reduced-motion: reduce) { .app-shell[data-tone='burgundy'] .garden-scene .garden-stars { animation: none !important; } }
+
+/* The three illustrated themes share the studio's paper-collage foundation.
+   Artwork belongs to the content stage, never the viewport under every panel. */
+@media (min-width:761px) {
+  .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy']) {
+    background:repeating-linear-gradient(0deg,color-mix(in srgb,var(--text),transparent 98%) 0 1px,transparent 1px 4px),linear-gradient(112deg,var(--surface-0) 0 68%,color-mix(in srgb,var(--brand),var(--surface-0) 91%) 68% 100%);
+  }
+  .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy'])::before {
+    content:''; display:block; position:absolute; z-index:0; inset:auto -9% -28% auto; width:46vw; height:auto; aspect-ratio:1; border:0; border-radius:50%;
+    background:var(--brand); opacity:.17; filter:none; transform:none; clip-path:none; mask-image:none; mix-blend-mode:normal; pointer-events:none;
+  }
+  .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy'])::after {
+    content:''; display:block; position:absolute; z-index:0; inset:7% auto auto 42%; width:9vw; height:92vh; padding:0; border:0; border-radius:0;
+    background:var(--scene-theme-glow); opacity:.23; filter:none; transform:rotate(13deg); clip-path:none; mask-image:none; mix-blend-mode:normal; pointer-events:none;
+  }
+}

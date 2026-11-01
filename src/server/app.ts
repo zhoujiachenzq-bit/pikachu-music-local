@@ -16,6 +16,7 @@ import { goMusicApiBaseUrl, openGoMusicApiStream } from './goMusicApi.js';
 import { MediaTicketStore, openMediaTicket } from './mediaProxy.js';
 import { applyRateLimitHeaders, clearRateLimit, consumeRateLimits, positiveEnvInt, type RateLimitRule } from './rateLimit.js';
 import { resetSourceHealthCircuits } from './sourceHealth.js';
+import { registerPlatformRoutes } from './platformRoutes.js';
 import { SOURCES, SEARCH_SOURCES, SOURCE_PAGE_HOSTS, type MusicSource, type Track } from '../shared/types.js';
 
 const credentialsSchema = z.object({ username: z.string().trim().min(2).max(24).regex(/^[\p{L}\p{N}_.-]+$/u), password: z.string().min(8).max(72) });
@@ -167,6 +168,23 @@ export async function createApp(options: AppOptions = {}): Promise<FastifyInstan
     return reply.code(status).send(apiError('INTERNAL_ERROR', status >= 500 ? '本地服务发生错误。' : safeError.message));
   });
 
+  registerPlatformRoutes(app, db);
+  app.get('/api/platform/cover', async (request, reply) => {
+    if (!requireUser(db, request, reply)) return;
+    const { id, download } = z.object({ id: z.string().max(700), download: z.string().optional() }).parse(request.query);
+    const row = db.prepare('SELECT * FROM tracks WHERE id=?').get(id) as Record<string, unknown> | undefined;
+    const base = goMusicApiBaseUrl();
+    if (!row || !base) return reply.code(404).send(apiError('COVER_NOT_FOUND', '封面不可用。'));
+    const url = new URL('/api/v1/music/cover', base); url.search = new URLSearchParams({ source: String(row.source), id: String(row.source_track_id) }).toString();
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || !/^image\/(jpeg|png|webp|gif)(;|$)/i.test(contentType) || !response.body) return reply.code(404).send(apiError('COVER_NOT_FOUND', '封面不可用。'));
+      reply.header('content-type', contentType); reply.header('cache-control', 'private, max-age=3600');
+      if (download) reply.header('content-disposition', 'attachment; filename="cover.jpg"');
+      return reply.send(Readable.fromWeb(response.body as never));
+    } catch { return reply.code(502).send(apiError('COVER_UNAVAILABLE', '平台封面暂不可用。')); }
+  });
   app.get('/api/health', async () => ({
     ok: true, service: 'pikachu-music-local', backupSourceConfigured: Boolean(goMusicApiBaseUrl()), time: new Date().toISOString()
   }));

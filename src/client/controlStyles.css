@@ -1,6 +1,15 @@
 
 /* Theme-aware controls. Phosphor supplies icons; these surfaces are original CSS. */
 
+.app-shell[data-tone] .search-panel > .platform-launch { display:flex; flex:none; align-items:center; gap:11px; width:100%; min-height:66px; margin:6px 0 8px; padding:11px 13px; border:1px solid var(--line); border-radius:12px; color:var(--text-strong); background:var(--input-bg); cursor:pointer; text-align:left; box-shadow:inset 0 1px color-mix(in srgb,var(--text-strong),transparent 95%); }
+.platform-launch-icon { display:grid; place-items:center; width:37px; height:37px; flex:none; border-radius:9px; color:var(--brand); background:color-mix(in srgb,var(--brand),transparent 89%); }
+.platform-launch-copy { display:grid; flex:1; min-width:0; gap:4px; }.platform-launch-copy strong { font-size:14px; font-weight:700; letter-spacing:-.025em; }.platform-launch-copy small { color:var(--muted); font-size:11px; line-height:1.4; }.platform-launch > .ui-icon { flex:none; color:var(--muted); }
+.app-shell[data-tone] .search-panel > .platform-launch:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+.app-shell[data-tone='paper'] .search-panel > .platform-launch { border:1.5px solid var(--text-strong); border-radius:3px; box-shadow:3px 3px 0 var(--text-strong); }.app-shell[data-tone='paper'] .platform-launch-icon { border-radius:3px; }
+.app-shell[data-tone='arcade'] .search-panel > .platform-launch { border-color:var(--beam); border-radius:0; background:var(--surface-1); }.app-shell[data-tone='arcade'] .platform-launch-icon { border-radius:0; color:var(--beam); }
+@media (hover:hover) { .app-shell[data-tone] .search-panel > .platform-launch:hover { border-color:var(--brand); background:color-mix(in srgb,var(--brand),var(--input-bg) 94%); } }
+@media(max-width:760px) { .app-shell[data-tone] .search-panel > .platform-launch { min-height:64px; padding:10px 12px; border-color:var(--m-line); background:var(--m-raised); color:var(--m-ink); box-shadow:none; }.app-shell[data-tone] .platform-launch-icon { color:var(--m-accent); background:var(--m-sunken); }.app-shell[data-tone] .platform-launch-copy small,.app-shell[data-tone] .platform-launch > .ui-icon { color:var(--m-muted); } }
+
 .app-shell .record-wrap, .app-shell .now-card:hover .record-wrap { position: relative; transform: none; }
 .record-tilt { width: 100%; height: 100%; display: grid; place-items: center; position: relative; border: 1px solid color-mix(in srgb,var(--brand),transparent 65%); border-radius: 16px; background: linear-gradient(135deg,color-mix(in srgb,var(--surface-2),var(--brand) 12%),var(--surface-0)); box-shadow: 0 5px 0 color-mix(in srgb,var(--surface-0),black 30%),0 16px 25px #0005,inset 0 1px #ffffff30; }
 .record-tilt .record { display: grid; }
