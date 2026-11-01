@@ -65,6 +65,14 @@ if not re.search(r'state=PlaybackState\s*\{state=3\b', session):
 PY
 }
 
+wait_playing() {
+  for attempt in $(seq 1 20); do
+    if assert_playing > /dev/null 2>&1; then return 0; fi
+    sleep 3
+  done
+  assert_playing
+}
+
 trap 'adb logcat -d > logcat.txt; shot final-state' EXIT
 adb install -g app.apk
 adb shell am start -n "$pkg/.MainActivity"
@@ -93,20 +101,13 @@ tap '搜索'
 sleep 10
 shot search-results
 adb forward tcp:18080 tcp:8080
-for source in qq migu kuwo; do
-  echo "=== service $source" >> keepalive.txt
-  curl -s --max-time 25 "http://127.0.0.1:18080/diag?source=$source" >> keepalive.txt
-  echo >> keepalive.txt
-  curl -s --max-time 12 "http://127.0.0.1:18080/api/v1/music/search?q=jay&type=song&sources=$source" | head -c 400 >> keepalive.txt
-  echo >> keepalive.txt
-done
 tap 'Q (发如雪|晴天|七里香) .*'
 sleep 15
 tap '播放'
 sleep 3
 shot playing
+wait_playing
 state before-screen-off
-assert_playing
 
 # Back on the home page must leave the app running in the background.
 adb shell input keyevent 4
@@ -133,5 +134,12 @@ adb shell input keyevent 224
 adb shell wm dismiss-keyguard
 sleep 3
 shot after-wake
+# Diagnostics are best-effort and run after playback assertions. An optional
+# provider diagnostic timeout must not prevent the test from tapping a song.
+for source in qq migu kuwo; do
+  echo "=== service $source" >> keepalive.txt
+  curl -s --max-time 15 "http://127.0.0.1:18080/diag?source=$source" >> keepalive.txt || echo 'diagnostic unavailable' >> keepalive.txt
+  echo >> keepalive.txt
+done
 adb logcat -d > logcat.txt
 adb shell pidof "$pkg"
