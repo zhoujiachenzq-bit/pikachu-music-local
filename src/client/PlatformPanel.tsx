@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { api, json } from './api';
-import { QR_SOURCES, type PlatformItem, type PlatformQr, type PlatformResult, type QrSource } from '../shared/platform';
+import { QR_SOURCES, PLATFORM_RECOMMEND_SOURCES, PLATFORM_CATEGORY_SOURCES, PLATFORM_PERSONAL_SOURCES, PLATFORM_ALBUM_SOURCES, type PlatformItem, type PlatformQr, type PlatformResult, type QrSource } from '../shared/platform';
 import { SOURCE_NAMES, SOURCES, type MusicSource, type Track } from '../shared/types';
 import './platformPanel.css';
 import { phoneCoverUrl } from './phone';
 import { Icon } from './ui';
 
 type Result = PlatformResult & { previewId?: string; localAccounts: boolean };
-export function PlatformPanel({ onPlay, onSaved, onClose }: { onPlay: (track: Track, queue: Track[]) => void; onSaved: () => void; onClose: () => void }) {
+export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPlay: (track: Track, queue: Track[]) => void; onSaved: () => void; onClose: () => void; initialItem?: PlatformItem }) {
   const [source, setSource] = useState<MusicSource>('netease'); const [type, setType] = useState('playlist'); const [query, setQuery] = useState('');
   const [result, setResult] = useState<Result | null>(null); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
   const [name, setName] = useState('发现的音乐'); const [qrSource, setQrSource] = useState<QrSource>('qq'); const [qr, setQr] = useState<PlatformQr | null>(null); const [qrImage, setQrImage] = useState('');
@@ -17,6 +17,7 @@ export function PlatformPanel({ onPlay, onSaved, onClose }: { onPlay: (track: Tr
   const [selected, setSelected] = useState<PlatformItem | null>(null);
   const [collection, setCollection] = useState<Result | null>(null);
   const dialog = useRef<HTMLElement>(null);
+  useEffect(() => { if (initialItem) void browse('detail', initialItem); }, []);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     dialog.current?.focus();
@@ -56,6 +57,10 @@ export function PlatformPanel({ onPlay, onSaved, onClose }: { onPlay: (track: Tr
   }, [qr]);
 
   const browse = async (mode: string, item?: PlatformItem, id?: string) => {
+    if (mode === 'search' && type === 'album' && !PLATFORM_ALBUM_SOURCES.includes(source)) { setNotice('此平台暂不支持专辑搜索，请切换音源。'); return; }
+    if (mode === 'recommend' && !PLATFORM_RECOMMEND_SOURCES.includes(source) || mode === 'categories' && !PLATFORM_CATEGORY_SOURCES.includes(source) || mode === 'personal' && !PLATFORM_PERSONAL_SOURCES.includes(source)) {
+      setNotice('此平台暂不支持该功能，请切换音源。'); return;
+    }
     setMode(mode);
     if (item) { setCollection(result); setSelected(item); } else setSelected(null);
     const sequence = ++generation.current; setBusy(true); setNotice(''); setResult(null);
@@ -64,6 +69,7 @@ export function PlatformPanel({ onPlay, onSaved, onClose }: { onPlay: (track: Tr
       const data = await api<Result>(`/api/platform/browse?${params}`);
       if (!mounted.current || generation.current !== sequence) return;
       setResult(data); setName((item?.name || query || '发现的音乐').slice(0, 60));
+      if (item && item.count > data.tracks.length) setNotice(`平台仅返回 ${data.tracks.length}/${item.count} 首；保存范围以当前列表为准。`);
       if (!data.tracks.length && !data.items.length && !data.categories.length) setNotice('平台未返回结果，可能不支持此功能或需要登录。');
     } catch { if (mounted.current && generation.current === sequence) setNotice(mode === 'personal' ? '暂时无法读取个人歌单，请确认平台账号已登录。' : '暂时没有找到内容，换个关键词或音源试试。'); }
     finally { if (mounted.current && generation.current === sequence) setBusy(false); }
@@ -93,10 +99,10 @@ export function PlatformPanel({ onPlay, onSaved, onClose }: { onPlay: (track: Tr
     <header className="platform-header"><div className="platform-heading"><span className="platform-heading-icon"><Icon name="library" size={25}/></span><h2 id="platform-title">发现音乐</h2></div><button className="platform-close" aria-label="关闭发现音乐" onClick={onClose}><Icon name="close" size={22}/></button></header>
     <div className="platform-body">
     <form onSubmit={event => { event.preventDefault(); void browse(/^https?:/.test(query.trim()) ? 'link' : 'search'); }}>
-      <div className="platform-controls"><div className="platform-type-switch" role="group" aria-label="搜索类型">{[['playlist', '歌单'], ['album', '专辑'], ['song', '歌曲']].map(([value, label]) => <button type="button" key={value} aria-pressed={type === value} className={type === value ? 'active' : ''} onClick={() => setType(value)}>{label}</button>)}</div><label className="platform-source"><span>音源</span><select aria-label="音乐平台" value={source} onChange={event => { generation.current++; setBusy(false); setSource(event.target.value as MusicSource); setResult(null); setSelected(null); setNotice(''); }}>{SOURCES.map(source => <option key={source} value={source}>{SOURCE_NAMES[source]}</option>)}</select></label></div>
+      <div className="platform-controls"><div className="platform-type-switch" role="group" aria-label="搜索类型">{[['playlist', '歌单'], ['album', '专辑'], ['song', '歌曲']].map(([value, label]) => <button type="button" key={value} disabled={value === 'album' && !PLATFORM_ALBUM_SOURCES.includes(source)} aria-pressed={type === value} className={type === value ? 'active' : ''} onClick={() => setType(value)}>{label}</button>)}</div><label className="platform-source"><span>音源</span><select aria-label="音乐平台" value={source} onChange={event => { generation.current++; setBusy(false); setSource(event.target.value as MusicSource); if (type === 'album' && !PLATFORM_ALBUM_SOURCES.includes(event.target.value as MusicSource)) setType('playlist'); setResult(null); setSelected(null); setNotice(''); }}>{SOURCES.map(source => <option key={source} value={source}>{SOURCE_NAMES[source]}</option>)}</select></label></div>
       <div className="platform-query"><Icon name="search" size={20}/><input aria-label="关键词或分享链接" value={query} onChange={event => setQuery(event.target.value)} placeholder="关键词或分享链接"/><button className="btn primary" disabled={busy || !query.trim()}>{busy ? '查找中' : '搜索'}</button></div>
     </form>
-    <nav className="platform-nav" aria-label="发现方式"><button className={mode === 'recommend' ? 'active' : ''} aria-pressed={mode === 'recommend'} disabled={busy} onClick={() => void browse('recommend')}><Icon name="sparkles" size={17}/>为你发现</button><button className={['categories', 'category'].includes(mode) ? 'active' : ''} aria-pressed={['categories', 'category'].includes(mode)} disabled={busy} onClick={() => void browse('categories')}><Icon name="library" size={17}/>分类浏览</button>{localAccounts && <button className={mode === 'personal' ? 'active' : ''} aria-pressed={mode === 'personal'} disabled={busy} onClick={() => void browse('personal')}><Icon name="heart" size={17}/>我的平台歌单</button>}</nav>
+    <nav className="platform-nav" aria-label="发现方式"><button className={mode === 'recommend' ? 'active' : ''} aria-pressed={mode === 'recommend'} disabled={busy || !PLATFORM_RECOMMEND_SOURCES.includes(source)} onClick={() => void browse('recommend')}><Icon name="sparkles" size={17}/>为你发现</button><button className={['categories', 'category'].includes(mode) ? 'active' : ''} aria-pressed={['categories', 'category'].includes(mode)} disabled={busy || !PLATFORM_CATEGORY_SOURCES.includes(source)} onClick={() => void browse('categories')}><Icon name="library" size={17}/>分类浏览</button>{localAccounts && <button className={mode === 'personal' ? 'active' : ''} aria-pressed={mode === 'personal'} disabled={busy || !PLATFORM_PERSONAL_SOURCES.includes(source)} onClick={() => void browse('personal')}><Icon name="heart" size={17}/>我的平台歌单</button>}</nav>
     {localAccounts && <details><summary>平台账号 · 仅保存在本机</summary><div className="platform-login"><select aria-label="登录平台" value={qrSource} onChange={event => { setQr(null); setQrSource(event.target.value as QrSource); }}>{QR_SOURCES.map(source => <option key={source} value={source}>{source === 'qq_wx' ? 'QQ 微信登录' : SOURCE_NAMES[source]}</option>)}</select><button className="btn ghost" disabled={busy} onClick={() => void login()}>获取登录码</button><button className="btn ghost" disabled={busy} onClick={async () => { try { await api('/api/platform/logout', json('POST', { source: qrSource })); setQr(null); setNotice('已退出该平台账号。'); } catch (error) { setNotice(error instanceof Error ? error.message : '退出失败'); } }}>退出平台</button></div>{qr && <div className="platform-qr">{qrImage && <img src={qrImage} alt="平台登录二维码"/>}<p>用平台 App 扫码并确认。也可用另一台设备扫描本屏。</p>{qr.url && <a href={qr.url} target="_blank" rel="noreferrer">打开官方登录链接</a>}<button className="btn ghost" onClick={() => setQr(null)}>取消等待</button></div>}</details>}
     {(busy || notice) && <p className="platform-notice" role="status">{busy ? '加载中…' : notice}</p>}
     {busy && !result && <div className="platform-skeleton" aria-hidden="true">{[0,1,2,3].map(item => <div key={item}><span/><i/><i/></div>)}</div>}

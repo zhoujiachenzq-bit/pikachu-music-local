@@ -55,6 +55,8 @@ export interface PlaylistDetail extends PlaylistSummary {
 }
 
 export interface ImportedPlaylist {
+  totalTracks?: number;
+  warnings?: string[];
   source: MusicSource;
   sourcePlaylistId: string;
   title: string;

@@ -25,12 +25,14 @@ export function tintStatusBar() {
 
 export type PhonePlaybackAction = 'play' | 'pause' | 'next' | 'previous';
 interface MusicPlaybackPlugin {
+  saveBackup(options: { data: string }): Promise<{ saved: boolean }>;
   localMusicApi(): Promise<{ available: boolean }>;
   update(options: { title: string; artist: string; playing: boolean }): Promise<void>;
   stop(): Promise<void>;
   addListener(event: 'action', listener: (data: { action: PhonePlaybackAction }) => void): Promise<{ remove: () => Promise<void> }>;
 }
 const MusicPlayback = registerPlugin<MusicPlaybackPlugin>('MusicPlayback');
+export const savePhoneBackup = (data: string) => MusicPlayback.saveBackup({ data });
 
 // The Android service keeps playback alive with the screen off and shows lock-screen controls.
 export function syncPhonePlayback(track: { title: string; artist: string } | null, playing: boolean) {

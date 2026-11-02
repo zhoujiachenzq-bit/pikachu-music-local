@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { CaretDown, SpeakerHigh, Plus, UploadSimple, X, Prohibit, DownloadSimple, Headphones, Heart, ArrowSquareIn, Playlist, Waveform, MusicNotes, SkipForward, Palette, Pause, Play, SkipBack, Repeat, RepeatOnce, MagnifyingGlass, Shuffle, Sparkle, ArrowsClockwise, Warning, MoonStars } from '@phosphor-icons/react';
 import { Grainient } from './Grainient';
 import { TiltSurface } from './interactionEffects';
@@ -20,10 +20,10 @@ const iconComponents = {
   volume: SpeakerHigh, warning: Warning,
 } as const;
 
-export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
+export function Icon({ name, size = 18, filled = false }: { name: IconName; size?: number; filled?: boolean }) {
   const Glyph = iconComponents[name];
   const solid = name === 'play' || name === 'pause' || name === 'previous' || name === 'next';
-  return <Glyph className="ui-icon" size={size} weight={solid ? 'fill' : 'duotone'} aria-hidden="true"/>;
+  return <Glyph className="ui-icon" size={size} weight={solid || filled ? 'fill' : 'duotone'} aria-hidden="true"/>;
 }
 
 export { SOURCE_NAMES as sourceNames } from '../shared/types';
@@ -48,15 +48,16 @@ export function TrackRow({ item, active, pending, draggable, onPlay, onWarm, onF
       {item.duration > 0 && <time>{formatDuration(item.duration)}</time>}
     </button>
     <div className="row-actions">
-      <button className={favorite ? 'active' : ''} data-success-spark={!favorite} onClick={onFavorite} aria-label="收藏"><Icon name="heart" size={14}/></button>
-      {onAdd && <button onClick={onAdd} aria-label="加入歌单"><Icon name="add" size={14}/></button>}
-      {onDislike && <button onClick={onDislike} aria-label="不感兴趣"><Icon name="dislike" size={14}/></button>}
-      {onRemove && <button onClick={onRemove} aria-label="移除"><Icon name="close" size={14}/></button>}
+      <button className={`favorite-button ${favorite ? 'active' : ''}`} aria-pressed={Boolean(favorite)} data-success-spark={!favorite} onClick={onFavorite} aria-label="收藏"><Icon name="heart" size={20} filled={favorite}/></button>
+      {onAdd && <button onClick={onAdd} aria-label="加入歌单"><Icon name="add" size={20}/></button>}
+      {onDislike && <button onClick={onDislike} aria-label="不感兴趣"><Icon name="dislike" size={20}/></button>}
+      {onRemove && <button onClick={onRemove} aria-label="移除"><Icon name="close" size={20}/></button>}
     </div>
   </div>;
 }
 
 interface DailyStageProps {
+  collections?: ReactNode;
   theme: ToneThemeId;
   motionEnabled: boolean;
   visible: boolean;
@@ -95,7 +96,7 @@ export function DailyStage(props: DailyStageProps) {
         <div className="daily-actions">
           <button className="btn primary" disabled={!tracks.length || loading} onClick={props.onPlayAll}><Icon name="play" size={15}/>{zh ? '播放全部' : 'Play all'}</button>
           {activeTrackId && <button className="btn stage-return" onClick={props.onReturnPlayer}><span className={playing ? 'playing-dot' : ''}/>{zh ? '正在播放' : 'Now playing'}</button>}
-          <button className="btn icon-only" disabled={loading} onClick={props.onRegenerate} aria-label={zh ? '重新生成' : 'Regenerate'}><Icon name="sync" size={16}/></button>
+          <button className="btn daily-regenerate" disabled={loading} onClick={props.onRegenerate} aria-label={zh ? '重新生成' : 'Regenerate'}><Icon name="sync" size={17}/><span>{loading ? (zh ? '生成中' : 'Generating') : (zh ? '重新生成' : 'Regenerate')}</span></button>
         </div>
       </div>
       <div className="daily-collage" aria-label={zh ? '今日推荐封面' : 'Daily recommendation covers'}>
@@ -111,6 +112,7 @@ export function DailyStage(props: DailyStageProps) {
       </button>)}
     </div>
     {loading && <div className="daily-loading"><span/><strong>{zh ? '正在刷新今日推荐' : 'Refreshing today’s rotation'}</strong></div>}
+    {props.collections}
     <div className="daily-mobile-list">
       {tracks.map(track => <TrackRow key={track.id} item={track} active={activeTrackId === track.id} pending={pendingTrackId === track.id} favorite={favoriteIds.has(track.id)} reason={track.reason} onPlay={() => props.onPlay(track)} onWarm={() => props.onWarm(track)} onFavorite={event => props.onFavorite(track, event)} onAdd={() => props.onAdd(track)} onDislike={() => props.onDislike(track)}/>) }
     </div>

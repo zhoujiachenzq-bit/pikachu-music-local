@@ -3,10 +3,11 @@ import { localMusicApiAvailable, markLocalMusicApiReady } from '../client/phone'
 import { createNativeFetch } from './nativeFetch';
 import type { PhoneApp } from './shims/fastify';
 import type { NativeResponse } from './nativeFetch';
+import { localServiceConnector } from './localService';
+import { ImportEvents } from './importEvents';
 
 const LOCAL_USER_CREATED_AT = '2000-01-01T00:00:00.000Z';
 const LOCAL_MUSIC_API = 'http://127.0.0.1:8080';
-const LOCAL_MUSIC_API_WAIT_MS = 4000;
 
 function installAbortSignalAny() {
   const signalType = AbortSignal as { any?: typeof AbortSignal.any };
@@ -21,44 +22,17 @@ function installAbortSignalAny() {
   };
 }
 
-// Stands in for the server-sent events route, which needs a streaming response.
-class ImportEvents {
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onerror: (() => void) | null = null;
-  private timer: number;
-
-  constructor(url: string) {
-    const jobUrl = url.replace(/\/events$/, '');
-    this.timer = window.setInterval(async () => {
-      try { const { job } = await (await fetch(jobUrl)).json(); this.onmessage?.({ data: JSON.stringify(job) }); }
-      catch { this.close(); this.onerror?.(); }
-    }, 500);
-  }
-
-  close() { window.clearInterval(this.timer); }
-}
-
 const nativeFetch = createNativeFetch(options => CapacitorHttp.request(options) as Promise<NativeResponse>);
 
 // The bundled service takes a moment to listen after the app starts.
-async function connectLocalMusicApi(env: Record<string, string>) {
-  if (!await localMusicApiAvailable()) return;
-  const deadline = Date.now() + LOCAL_MUSIC_API_WAIT_MS;
-  while (Date.now() < deadline) {
-    try {
-      await nativeFetch(`${LOCAL_MUSIC_API}/swagger/index.html`);
-      env.GO_MUSIC_API_URL = LOCAL_MUSIC_API; env.GO_MUSIC_API_DIRECT_MEDIA = '1';
-      markLocalMusicApiReady();
-      return;
-    } catch { await new Promise(resolve => setTimeout(resolve, 150)); }
-  }
-}
-
-function installFetch(app: PhoneApp) {
+function installFetch(app: PhoneApp, connect: () => Promise<void>) {
   const webFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    if (url.startsWith('/api/')) return app.handle(url, init);
+    if (url.startsWith('/api/')) {
+      if (/^\/api\/(platform|search)(\/|\?|$)/.test(url) || /^\/api\/(imports|playlists\/[^/]+\/sync)(\?|$)/.test(url)) await connect();
+      return app.handle(url, init);
+    }
     if (/^https?:/.test(url) && !url.startsWith(location.origin)) return nativeFetch(url, init);
     return webFetch(input, init);
   };
@@ -68,7 +42,9 @@ export async function startPhoneBackend() {
   const env: Record<string, string> = { RECOMMENDATION_SKIP_PREFLIGHT: '1' };
   Object.assign(globalThis, { process: { env } });
   installAbortSignalAny();
-  await connectLocalMusicApi(env);
+  const available = await localMusicApiAvailable();
+  const connect = localServiceConnector(env, async () => available && (await nativeFetch(`${LOCAL_MUSIC_API}/swagger/index.html`)).ok, markLocalMusicApiReady);
+  if (available) await connect();
   const { openPhoneDatabase } = await import('./shims/sqlite');
   await openPhoneDatabase();
   const [{ createDatabase }, { createApp }, { createSession, createUserId }] = await Promise.all([
@@ -84,5 +60,5 @@ export async function startPhoneBackend() {
   const app = await createApp({ db, logger: false, trustProxy: false, mediaTickets: { issue: () => null } as never }) as unknown as PhoneApp;
   app.cookies = { pikachu_session: createSession(db, user.id) };
   Object.assign(window, { EventSource: ImportEvents });
-  installFetch(app);
+  installFetch(app, available ? connect : async () => undefined);
 }

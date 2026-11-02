@@ -77,8 +77,11 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
             password="$KEYSTORE_PASSWORD"
           else
-            # Without the stable key the APK still installs, but cannot update over an earlier one.
-            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; signing with a one-off key."
+            if [[ "$RELEASE_TAG" == v* ]]; then
+              echo "::error::Release requires a stable signing key. Configure ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD; refusing a data-breaking one-off signature."
+              exit 1
+            fi
+            echo "::warning::Test build only: one-off signing key; do not install over personal data."
             password="$(openssl rand -hex 24)"
             keytool -genkeypair -alias musichouse -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12 \
               -keystore "$keystore" -storepass "$password" -keypass "$password" -dname "CN=Music House, O=zqmusic.cn, C=CN"
@@ -96,7 +99,9 @@ jobs:
           ./gradlew assembleRelease --no-daemon
 
       - name: Name the APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk "music-house-${RELEASE_TAG}.apk"
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk
+          cp android/app/build/outputs/apk/release/app-release.apk "music-house-${RELEASE_TAG}.apk"
 
       - name: Keep the APK with this run
         uses: actions/upload-artifact@v4

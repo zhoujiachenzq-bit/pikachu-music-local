@@ -9,8 +9,9 @@ import './controlStyles.css';
 import './landscapeThemes.css';
 import './themeArtDirection.css';
 import './mobileShell.css';
+import './collectionSurfaces.css';
 
-document.documentElement.dataset.visualRelease = '0.6.11';
+document.documentElement.dataset.visualRelease = '0.6.12';
 
 if (import.meta.env.PROD && !phoneApp && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

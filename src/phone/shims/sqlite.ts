@@ -18,8 +18,11 @@ function openStore() {
 
 function storeRequest<T>(store: IDBDatabase, mode: IDBTransactionMode, run: (files: IDBObjectStore) => IDBRequest<T>) {
   return new Promise<T>((resolve, reject) => {
-    const request = run(store.transaction(STORE, mode).objectStore(STORE));
-    request.onsuccess = () => resolve(request.result);
+    const transaction = store.transaction(STORE, mode);
+    const request = run(transaction.objectStore(STORE));
+    transaction.oncomplete = () => resolve(request.result);
+    transaction.onabort = () => reject(transaction.error || new Error('手机数据保存中断'));
+    transaction.onerror = () => reject(transaction.error);
     request.onerror = () => reject(request.error);
   });
 }

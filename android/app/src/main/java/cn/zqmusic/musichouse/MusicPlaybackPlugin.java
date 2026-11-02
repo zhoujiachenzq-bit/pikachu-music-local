@@ -5,6 +5,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.app.Activity;
+import androidx.activity.result.ActivityResult;
+import com.getcapacitor.annotation.ActivityCallback;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSObject;
@@ -28,6 +33,32 @@ public class MusicPlaybackPlugin extends Plugin {
         JSObject data = new JSObject();
         data.put("action", action);
         active.notifyListeners("action", data, true);
+    }
+
+    @PluginMethod
+    public void saveBackup(PluginCall call) {
+        String data = call.getString("data");
+        if (data == null || data.length() > 32 * 1024 * 1024) { call.reject("备份为空或过大"); return; }
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE).setType("application/json")
+            .putExtra(Intent.EXTRA_TITLE, "music-house-backup.json");
+        startActivityForResult(call, intent, "backupCreated");
+    }
+
+    @ActivityCallback
+    private void backupCreated(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject answer = new JSObject();
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+            answer.put("saved", false); call.resolve(answer); return;
+        }
+        getBridge().execute(() -> {
+            try (OutputStream output = getContext().getContentResolver().openOutputStream(result.getData().getData(), "wt")) {
+                if (output == null) throw new java.io.IOException("无法写入所选文件");
+                output.write(call.getString("data", "").getBytes(StandardCharsets.UTF_8));
+                answer.put("saved", true); call.resolve(answer);
+            } catch (Exception error) { call.reject("备份保存失败", error); }
+        });
     }
 
     @PluginMethod

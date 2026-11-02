@@ -77,7 +77,9 @@ async function runImportJobInternal(db: Db, jobId: string): Promise<void> {
     if (imported.tracks.length > maxTracks) throw new Error(`该歌单包含 ${imported.tracks.length} 首歌曲，超过单次导入上限 ${maxTracks} 首。`);
     const selectedTracks = retryTrackIds.size ? imported.tracks.filter(item => retryTrackIds.has(item.sourceTrackId)) : imported.tracks;
     patchJob(db, jobId, { total: selectedTracks.length, progress: 74, message: '正在写入本地数据库…' });
-    const failures: Array<{ trackId?: string; track?: string; reason: string }> = [];
+    const incomplete = !retryTrackIds.size && (imported.totalTracks || 0) > imported.tracks.length;
+    const failures: Array<{ trackId?: string; track?: string; reason: string }> = (imported.warnings || []).map(reason => ({ reason }));
+    if (incomplete) failures.push({ reason: `平台只返回 ${imported.tracks.length}/${imported.totalTracks} 首；未删除原歌单中的其他歌曲，可稍后同步。` });
     let playlistId = '';
     transaction(db, () => {
       const existing = db.prepare('SELECT id FROM playlists WHERE user_id=? AND source=? AND source_playlist_id=?').get(userId, source, sourceId) as { id: string } | undefined;
@@ -92,7 +94,7 @@ async function runImportJobInternal(db: Db, jobId: string): Promise<void> {
 
       const oldVisible = (db.prepare("SELECT track_id id,origin FROM playlist_items WHERE playlist_id=? AND excluded=0 ORDER BY position").all(playlistId) as Record<string, unknown>[])
         .map(item => ({ id: String(item.id), origin: item.origin as OrderedItem['origin'] }));
-      if (!retryTrackIds.size) db.prepare("DELETE FROM playlist_items WHERE playlist_id=? AND origin='source' AND excluded=0").run(playlistId);
+      if (!retryTrackIds.size && !incomplete) db.prepare("DELETE FROM playlist_items WHERE playlist_id=? AND origin='source' AND excluded=0").run(playlistId);
       const exclusions = new Set((db.prepare("SELECT track_id FROM playlist_items WHERE playlist_id=? AND origin='source' AND excluded=1").all(playlistId) as Array<{ track_id: string }>).map(value => value.track_id));
       const sourceIds: string[] = [];
       for (const item of selectedTracks) {
@@ -110,13 +112,13 @@ async function runImportJobInternal(db: Db, jobId: string): Promise<void> {
       }
       const finalOrder = retryTrackIds.size
         ? (db.prepare('SELECT track_id FROM playlist_items WHERE playlist_id=? AND excluded=0 ORDER BY position').all(playlistId) as Array<{ track_id: string }>).map(item => item.track_id)
-        : mergeSourceAndLocalOrder(oldVisible, sourceIds);
+        : mergeSourceAndLocalOrder(oldVisible, incomplete ? [...new Set([...sourceIds, ...oldVisible.filter(item => item.origin === 'source').map(item => item.id)])] : sourceIds);
       finalOrder.forEach((trackId, index) => db.prepare('UPDATE playlist_items SET position=? WHERE playlist_id=? AND track_id=?').run(index, playlistId, trackId));
     });
     patchJob(db, jobId, {
-      status: failures.length ? 'partial' : 'completed', progress: 100, processed: selectedTracks.length - failures.length,
-      total: selectedTracks.length, playlistId, failures,
-      message: failures.length ? `已导入，${failures.length} 首写入失败。` : `已导入 ${selectedTracks.length} 首歌曲。`
+      status: failures.length ? 'partial' : 'completed', progress: 100, processed: selectedTracks.length - failures.filter(item => item.trackId).length,
+      total: incomplete ? imported.totalTracks : selectedTracks.length, playlistId, failures,
+      message: failures.length ? `部分导入：已写入 ${selectedTracks.length - failures.filter(item => item.trackId).length} 首，请查看详情。` : `已导入 ${selectedTracks.length} 首歌曲。`
     });
   } catch (error) {
     patchJob(db, jobId, { status: 'failed', progress: 100, message: error instanceof Error ? error.message : String(error), failures: [{ reason: error instanceof Error ? error.message : String(error) }] });

@@ -653,10 +653,21 @@ export async function resolveTrackWithFallback(input: Track, db?: Db, forceRefre
 async function fetchNeteasePlaylist(id: string): Promise<ImportedPlaylist> {
   const j = await fetchJson(`https://music.163.com/api/v6/playlist/detail?id=${encodeURIComponent(id)}&n=1000`, { headers: { referer: 'https://music.163.com/' } });
   const p = asObject(j.playlist); if (!p.id) throw new SourceError('PLAYLIST_NOT_FOUND', '网易云公开歌单不存在或不可访问。');
-  const list = Array.isArray(p.tracks) ? p.tracks : [];
+  const initial = Array.isArray(p.tracks) ? p.tracks : [];
+  const ids: string[] = Array.isArray(p.trackIds) ? p.trackIds.map((item: any) => String(item.id)).filter((value: string) => /^\d+$/.test(value)) : [];
+  const songs = new Map<string, any>(initial.map((item: any) => [String(item.id), item]));
+  const missing = ids.slice(0, 2000).filter(value => !songs.has(value));
+  for (let offset = 0; offset < missing.length; offset += 100) {
+    try {
+      const details = await fetchJson(`https://music.163.com/api/song/detail/?ids=${encodeURIComponent(JSON.stringify(missing.slice(offset, offset + 100)))}`, { headers: { referer: 'https://music.163.com/' } });
+      for (const item of Array.isArray(details.songs) ? details.songs : []) if (item.id && item.name) songs.set(String(item.id), item);
+    } catch { /* Return an explicitly partial list instead of losing known songs. */ }
+  }
+  const list = ids.length ? ids.flatMap(value => songs.has(value) ? [songs.get(value)] : []) : [...songs.values()];
+  const totalTracks = Math.max(Number(p.trackCount) || 0, ids.length, list.length);
   return { source: 'netease', sourcePlaylistId: id, title: first(p.name, `网易云歌单 ${id}`), description: first(p.description), coverUrl: absolute(first(p.coverImgUrl)),
-    sourceUrl: `https://music.163.com/playlist?id=${id}`, tracks: list.slice(0, 1000).map((item: any) => track('netease', item.id, {
-      title: first(item.name), artist: artists(item.ar), album: first(item.al?.name), duration: durationMs(item.dt), coverUrl: absolute(first(item.al?.picUrl))
+    totalTracks, sourceUrl: `https://music.163.com/playlist?id=${id}`, tracks: list.slice(0, 2000).map((item: any) => track('netease', item.id, {
+      title: first(item.name), artist: artists(item.ar || item.artists), album: first(item.al?.name, item.album?.name), duration: durationMs(item.dt || item.duration), coverUrl: absolute(first(item.al?.picUrl, item.album?.picUrl))
     })) };
 }
 
@@ -719,6 +730,10 @@ async function fetchMiguPlaylist(id: string, onProgress?: (processed: number, to
 export async function fetchPublicPlaylist(source: MusicSource, id: string, onProgress?: (processed: number, total: number) => void, db?: Db) {
   return withSourceHealth(db, source, 'playlist', async () => {
     if (!CORE_SOURCES.includes(source)) return playlistWithGoMusicApi(source, id);
+    if (process.env.GO_MUSIC_API_DIRECT_MEDIA) {
+      try { return await playlistWithGoMusicApi(source, id); }
+      catch { /* Preserve the platform-specific importer as a fallback. */ }
+    }
     if (source === 'netease') return fetchNeteasePlaylist(id);
     if (source === 'qq') return fetchQqPlaylist(id);
     if (source === 'kuwo') return fetchKuwoPlaylist(id);
