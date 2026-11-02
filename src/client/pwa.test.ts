@@ -21,7 +21,7 @@ describe('PWA assets', () => {
     expect(worker).toContain("fetch('/', { cache: 'no-cache' })");
     expect(worker).toContain("url.pathname.startsWith('/assets/')");
     expect(worker).toContain("'/pikachu.gif'");
-    expect(worker).toContain('pikachu-music-shell-v0.7.0-r1');
+    expect(worker).toContain('pikachu-music-shell-v0.7.1-r1');
     // A theme image can render online yet fail after installation without its cache entry.
     expect(worker).toContain("'/moon-gate-garden.webp'");
     expect(existsSync('public/moon-gate-garden.webp')).toBe(true);
@@ -55,10 +55,13 @@ describe('PWA assets', () => {
     expect(entries.has('/assets/app-fixture.js')).toBe(true);
     offline = true;
     let response!: Promise<Response>;
-    listeners.fetch!({
-      request: { method: 'GET', url: `${origin}/moon-gate-garden.webp`, mode: 'cors', destination: 'image' },
-      respondWith: (pending: Promise<Response>) => { response = pending; },
-    });
-    expect(await (await response).text()).toBe('/moon-gate-garden.webp');
+    for (const path of ['/moon-gate-garden.webp', '/coast-sea.webp', '/coast-sea-fish-far.webp', '/coast-sea-fish-near.webp', '/coast-sea-weed-left.webp', '/coast-sea-weed-right.webp', '/holiday-coast.webp', '/holiday-coast-mask.webp', '/holiday-coast-bird.webp', '/lofi-gate.webp', '/lofi-gate-mask.webp']) {
+      expect(existsSync(`public${path}`)).toBe(true);
+      listeners.fetch!({
+        request: { method: 'GET', url: `${origin}${path}`, mode: 'cors', destination: 'image' },
+        respondWith: (pending: Promise<Response>) => { response = pending; },
+      });
+      expect(await (await response).text()).toBe(path);
+    }
   });
 });

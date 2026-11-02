@@ -13,7 +13,7 @@ import './collectionSurfaces.css';
 import './themeDetails.css';
 import './themeFrames.css';
 
-document.documentElement.dataset.visualRelease = '0.6.12';
+document.documentElement.dataset.visualRelease = '0.7.1';
 
 if (import.meta.env.PROD && !phoneApp && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

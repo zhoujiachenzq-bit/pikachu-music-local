@@ -2,7 +2,7 @@
 /* Shared light UI for the two daylight illustrations. Legacy IDs preserve preferences. */
 
 :where(.app-shell,.tone-panel)[data-tone='night'] {
-  --landscape-image: url('/summer-coast.webp'); --brand: #287b89; --brand-bright: #176572; --brand-ink: #fffdf6;
+  --landscape-image: url('/holiday-coast.webp'); --brand: #287b89; --brand-bright: #176572; --brand-ink: #fffdf6;
   --text: #294854; --text-strong: #183d48; --muted: #506c75; --quiet: #607983;
   --surface-0: #dceff2; --surface-1: #f0f8f5; --surface-2: #e7f2ef; --surface-3: #d5e8e6;
   --panel-a: #eff8f5; --panel-b: #d9ecee; --control-bg: #e0eeeb; --input-bg: #f6fbf8;
@@ -19,6 +19,8 @@
 .illustrated-scene { background: var(--landscape-image) center / cover no-repeat; }
 .app-shell[data-background-art='off'] { --landscape-image: none; }
 .app-shell[data-background-art='off'] .illustrated-scene { background: linear-gradient(150deg,var(--surface-1),var(--surface-0) 60%,var(--surface-3)); }
+.coast-live-scene { position: absolute; inset: 0; }
+.coast-live-scene canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity .6s ease; }
 .landscape-air { inset: 45% -5% 10%; background: radial-gradient(ellipse,#fff9e32a,transparent 70%); }
 .landscape-light { inset: 0; background: linear-gradient(125deg,#fffce920,transparent 45%); }
 .illustrated-scene[data-motion='true'] .landscape-air { animation: landscape-breeze 24s ease-in-out infinite alternate; }

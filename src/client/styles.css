@@ -807,7 +807,7 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
 
 .app-shell[data-tone='burgundy'] {
   --edge-particle-a: #ffb7d5; --edge-particle-b: #c14dff;
-  --garden-image: url('/moon-gate-garden.webp');
+  --garden-image: url('/lofi-gate.webp');
   background: linear-gradient(#fff4f980,#fff4f99c),var(--garden-image) center 46% / cover fixed;
 }
 .app-shell[data-tone='burgundy'][data-background-art='off'] { --garden-image: none; }

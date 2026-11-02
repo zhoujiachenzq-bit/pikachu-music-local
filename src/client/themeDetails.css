@@ -90,6 +90,87 @@
   .app-shell[data-tone='night'] .workspace .lyrics { --m-ink: #ffdca8; --m-muted: #e6f4f4c7; --m-line: #e6f4f455; border-radius: 0; background: linear-gradient(#17788a, #0a4553 38%, #082f3b); box-shadow: none; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='14'%3E%3Cpath d='M0 14V7c45-9 90-9 135 0s90 9 135 0 60-7 90 0v7z'/%3E%3C/svg%3E") 0 0 / 360px 14px repeat-x, linear-gradient(#000 0 0) 0 13px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='14'%3E%3Cpath d='M0 14V7c45-9 90-9 135 0s90 9 135 0 60-7 90 0v7z'/%3E%3C/svg%3E") 0 0 / 360px 14px repeat-x, linear-gradient(#000 0 0) 0 13px no-repeat; }
   .app-shell[data-tone='night'] .workspace .lyrics.sheet-open { -webkit-mask: none; mask: none; }
   .app-shell[data-tone='night'] .lyrics-page-bar button { color: var(--m-ink); }
+
+  /* Fully open, the peek's sea becomes the whole page: same water, same gold type, only the crest gives way. */
+  .app-shell[data-tone='night'] .lyrics.sheet-open .lyric-line { text-shadow: 0 1px 6px #06303ccc; }
+  .app-shell[data-tone='night'] .lyrics.sheet-open .lyric-line.active { text-shadow: 0 0 16px #0a4553, 0 1px 6px #06303ccc; }
+  .app-shell[data-tone='night'] .lyrics.sheet-open .lyrics-scroll { -webkit-mask-image: linear-gradient(transparent calc(var(--m-safe-top) + 52px), #000 calc(var(--m-safe-top) + 100px), #000 calc(100% - 41dvh), transparent calc(100% - 28dvh)); mask-image: linear-gradient(transparent calc(var(--m-safe-top) + 52px), #000 calc(var(--m-safe-top) + 100px), #000 calc(100% - 41dvh), transparent calc(100% - 28dvh)); }
+  .coast-sea { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .24s ease, visibility 0s .24s; background: linear-gradient(#1b8397, #157386 34%, #106377 66%, #0c5365); }
+  .lyrics:is(.sheet-open,.is-dragging) .coast-sea { opacity: 1; visibility: visible; transition: opacity .24s ease; }
+  .coast-sea :is(i,svg) { position: absolute; display: block; }
+  .coast-sea-surface { inset: 0 auto auto 0; width: calc(100% + 540px); background: #fff; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='540' height='36'%3E%3Cpath d='M0 0V18c90-16 180-16 270 0s180 16 270 0V0z'/%3E%3C/svg%3E") 0 100% / 540px 36px repeat-x, linear-gradient(#000 0 0) 0 0 / 100% calc(100% - 35px) no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='540' height='36'%3E%3Cpath d='M0 0V18c90-16 180-16 270 0s180 16 270 0V0z'/%3E%3C/svg%3E") 0 100% / 540px 36px repeat-x, linear-gradient(#000 0 0) 0 0 / 100% calc(100% - 35px) no-repeat; }
+  .coast-sea-surface.back { height: calc(var(--m-safe-top) + 112px); opacity: .07; }
+  .coast-sea-surface.front { height: calc(var(--m-safe-top) + 76px); opacity: .1; transform: translate3d(-200px,0,0); }
+  .coast-sea-plate ~ .coast-sea-surface.back { opacity: .07; }
+  .coast-sea-plate ~ .coast-sea-surface.front { opacity: .1; }
+  .coast-sea-swell { inset: auto 0 0; background: linear-gradient(#ffffff14, transparent 26px), var(--swell); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='460' height='30'%3E%3Cpath d='M0 30V15c76-20 154-20 230 0s154 20 230 0v15z'/%3E%3C/svg%3E") var(--swell-x, 0) 0 / 460px 30px repeat-x, linear-gradient(#000 0 0) 0 29px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='460' height='30'%3E%3Cpath d='M0 30V15c76-20 154-20 230 0s154 20 230 0v15z'/%3E%3C/svg%3E") var(--swell-x, 0) 0 / 460px 30px repeat-x, linear-gradient(#000 0 0) 0 29px no-repeat; }
+  .coast-sea-swell.far { --swell: #0a455355; height: 68%; }
+  .coast-sea-swell.mid { --swell: #0a455366; --swell-x: -150px; height: 31%; }
+  .coast-sea-swell.near { --swell: #08303b66; --swell-x: -300px; height: 21%; }
+  /* The plate is cover-fitted in plain CSS, so everything cut out of it can be placed in its percentages and stay registered. */
+  .coast-sea-plate { position: absolute; left: 50%; bottom: min(0px, calc((100dvh - 100vw * 13 / 6) * .62)); height: max(100%, calc(100vw * 13 / 6)); aspect-ratio: 6 / 13; transform: translateX(-50%); }
+  .coast-sea-plate img { position: absolute; display: block; }
+  .coast-sea-bed { inset: 0; width: 100%; height: 100%; }
+  .coast-sea-weed { transform-origin: 50% 100%; }
+  .coast-sea-weed.left { left: 0.00%; bottom: 0.00%; width: 17.41%; }
+  .coast-sea-weed.right { left: 85.56%; bottom: 0.00%; width: 14.44%; }
+  .coast-sea-fish.far { left: 16.85%; bottom: 69.10%; width: 16.39%; opacity: .84; }
+  .coast-sea-fish.near { left: 54.26%; bottom: 14.87%; width: 28.43%; }
+  .coast-sea-bubbles i { bottom: var(--y); left: var(--x); width: var(--s); height: var(--s); opacity: .72; border: 1.5px solid #ffffffc4; border-radius: 50%; background: radial-gradient(circle at 34% 30%, #ffffffd9 0 14%, #ffffff2e 34%, #ffffff12 70%); }
+  .coast-sea-bubbles i:nth-child(1) { --x: 8%; --y: 25%; --s: 11px; --d: 19s; --delay: -3s; }
+  .coast-sea-bubbles i:nth-child(2) { --x: 13%; --y: 30%; --s: 7px; --d: 24s; --delay: -14s; }
+  .coast-sea-bubbles i:nth-child(3) { --x: 89%; --y: 31%; --s: 9px; --d: 21s; --delay: -8s; }
+  .coast-sea-bubbles i:nth-child(4) { --x: 93%; --y: 27%; --s: 6px; --d: 27s; --delay: -19s; }
+  .coast-sea-bubbles i:nth-child(5) { --x: 84%; --y: 33%; --s: 5px; --d: 23s; --delay: -11s; }
+  /* Motion stays low and off to the sides; everything above is already the complete still picture. */
+  .lyrics.sheet-open .coast-sea[data-motion='true'] .coast-sea-surface.back { animation: coast-sea-tide 46s linear infinite; }
+  .lyrics.sheet-open .coast-sea[data-motion='true'] .coast-sea-surface.front { animation: coast-sea-tide 32s linear -9s infinite reverse; }
+  .lyrics.sheet-open .coast-sea[data-motion='true'] .coast-sea-fish { animation: coast-sea-school 15s ease-in-out infinite alternate; }
+  .lyrics.sheet-open .coast-sea[data-motion='true'] .coast-sea-fish.far { animation-duration: 21s; animation-direction: alternate-reverse; }
+  .lyrics.sheet-open .coast-sea[data-motion='true'] .coast-sea-bubbles i { animation: coast-sea-bubble var(--d) linear var(--delay) infinite; }
+  .lyrics.sheet-open .coast-sea[data-motion='true'] .coast-sea-weed { animation: coast-sea-sway 9s ease-in-out infinite alternate; }
+  .lyrics.sheet-open .coast-sea[data-motion='true'] .coast-sea-weed.right { animation-duration: 11s; animation-direction: alternate-reverse; }
+  .coast-sea[data-page-hidden='true'] * { animation-play-state: paused !important; }
+  @keyframes coast-sea-tide { from { transform: translate3d(0,0,0); } to { transform: translate3d(-540px,0,0); } }
+  @keyframes coast-sea-school { from { transform: translate3d(9px,0,0); } to { transform: translate3d(-12px,-5px,0); } }
+  @keyframes coast-sea-bubble { 0% { transform: translate3d(0,7dvh,0); opacity: 0; } 18% { opacity: .78; } 82% { opacity: .62; } 100% { transform: translate3d(5px,-9dvh,0); opacity: 0; } }
+  @keyframes coast-sea-sway { from { transform: rotate(-1.4deg); } to { transform: rotate(1.6deg); } }
+}
+
+/* Summer Coast, desktop: only the lyrics box takes the holiday coast. The sea and boat it replaces stay for the scenery-off case. */
+@media (min-width: 761px) {
+  .coast-lyrics-frame { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; background: var(--landscape-image) center / cover no-repeat; }
+  .coast-lyrics-frame i { position: absolute; inset: 0; background: radial-gradient(ellipse 72% 78% at 50% 54%, #06283a94, #06283a5c 62%, #06283a1f); }
+  .app-shell[data-tone='night'][data-background-art='on'] .lyrics { border-radius: 6px; background: none; box-shadow: 0 18px 38px #0b3a4538; }
+  .app-shell[data-tone='night'][data-background-art='on'] .lyrics-effects, .app-shell[data-tone='night'][data-background-art='on'] .lyrics::after { display: none; }
+  .app-shell[data-tone='night'][data-background-art='on'] .lyrics-scroll { -webkit-mask-image: linear-gradient(transparent, #000 34px, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(transparent, #000 34px, #000 calc(100% - 34px), transparent); }
+  .app-shell[data-tone='night'][data-background-art='on'] .lyric-line { color: #f1fbfbd9; text-shadow: 0 1px 6px #06283a99; }
+  .app-shell[data-tone='night'][data-background-art='on'] .lyric-line.active { color: #ffe2b3; text-shadow: 0 1px 8px #06283ab3; }
+}
+
+/* Twilight Garden on the original gate: the art sets the dusk and the stage's type turns light on it. Scenery off keeps the pale garden. */
+.app-shell[data-tone='burgundy'][data-background-art='on'] .garden-scene { background-position: center; }
+.app-shell[data-tone='burgundy'][data-background-art='on'] .garden-shade { background: linear-gradient(#1d0f33a6, #1d0f3352 30%, #1d0f3338 50%, #1d0f33d1 84%); }
+.app-shell[data-tone='burgundy'][data-background-art='on'] :is(.garden-haze,.garden-fireflies) { display: none; }
+@media (min-width: 761px) {
+  .app-shell[data-tone='burgundy'][data-background-art='on'] { background: linear-gradient(#2a1745d6, #1d0f33e6), var(--garden-image) center 46% / cover fixed; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .player-heading h2 { color: #fff7fb; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .player-heading small { color: #ffd6ea; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .track-hero h3 { color: #fff7fb; text-shadow: 0 2px 16px #1d0f33d9; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .track-hero p, .app-shell[data-tone='burgundy'][data-background-art='on'] .progress-row { color: #f4dcec; text-shadow: 0 1px 8px #1d0f33d9; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .player-range { --range-empty: #fff4f93d; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .hero-actions button { color: #fff7fb; background: #1d0f3366; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .hero-actions span { color: #f4dcec; background: #1d0f3366; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .transport > button:not(.mobile-volume-toggle):not(.play-main) { color: #fff7fb; background: linear-gradient(#2a1745cc, #2a1745cc) padding-box, var(--gate-rim) border-box; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .lyric-line { color: #f6e6f2d1; text-shadow: 0 1px 8px #1d0f33e6; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .lyric-line.active { color: #ffd6ea; text-shadow: 0 0 20px #e0559acc, 0 1px 8px #1d0f33e6; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .lyric-line time { color: #ffd6ea; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .empty-lyrics { color: #f6e6f2; text-shadow: 0 1px 8px #1d0f33e6; }
+}
+@media (max-width: 760px) {
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .workspace .lyrics { --m-ink: #fff7fb; --m-muted: #f0dcea; --m-line: #fff4f933; background: linear-gradient(#1d0f33b8, #1d0f33d6), var(--garden-image) center / cover no-repeat; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .lyrics.sheet-open .lyric-line { text-shadow: 0 1px 8px #1d0f33e6; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .lyrics.sheet-open .lyric-line.active { color: #ffd6ea; text-shadow: 0 0 18px #e0559acc, 0 1px 8px #1d0f33e6; }
 }
 
 /* Sunny Meadow: drifting seed heads and a breathing sun on the stage */

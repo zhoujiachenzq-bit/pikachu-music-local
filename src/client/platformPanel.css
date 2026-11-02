@@ -86,6 +86,44 @@
 @media(prefers-reduced-motion:reduce) { .platform-collection-play { transition:none; transform:none; } }
 .motion-off .platform-collection-play { transition:none; transform:none; }
 
+/* Discovery shares the collection controls' material and shape in every theme. */
+.app-shell[data-tone] .modal-card.platform-panel {
+  --p-bg:var(--collection-paper); --p-raised:var(--collection-input);
+  --p-ink:var(--collection-ink); --p-muted:var(--collection-muted);
+  --p-line:var(--collection-edge); --p-accent:var(--collection-accent); --p-on-accent:var(--collection-on-accent);
+  border-color:var(--p-line); border-radius:var(--collection-radius); box-shadow:var(--collection-shadow,0 24px 80px #0005);
+}
+.app-shell[data-tone] .platform-panel :is(.platform-query,.platform-type-switch,.platform-collection-art,.platform-save,.platform-heading-icon,.platform-close,.btn,input,select,.platform-track-cover) { border-radius:var(--collection-control-radius); }
+.app-shell[data-tone] .platform-panel .platform-header { padding:20px 24px; background:var(--p-bg); }
+.app-shell[data-tone] .platform-panel .platform-heading h2 { color:var(--p-ink); font-family:inherit; }
+.app-shell[data-tone] .platform-panel .platform-close { width:40px; height:40px; padding:8px; color:var(--p-ink); background:var(--p-raised); box-shadow:none; }
+.app-shell[data-tone] .platform-panel .platform-type-switch button { border-radius:var(--collection-control-radius); }
+.platform-save > label { display:grid; gap:6px; flex:1; min-width:160px; }
+.platform-save { align-items:flex-end; }
+.app-shell[data-tone] .platform-panel .platform-save > .btn { height:44px; }
+.platform-save > label > span { color:var(--p-muted); font-size:12px; }
+.platform-save > label > input { width:100%; min-width:0; padding:8px 12px; }
+.platform-tracks li { display:grid; grid-template-columns:22px 42px minmax(0,1fr) 40px 40px; gap:10px; }
+.app-shell[data-tone] .platform-panel .platform-track-action { display:grid; place-items:center; width:40px; height:44px; padding:6px; border:1px solid transparent; border-radius:var(--collection-control-radius); color:var(--p-muted); background:transparent; cursor:pointer; }
+.app-shell[data-tone] .platform-panel .platform-track-action.is-liked { color:#ed3157; }
+@media(hover:hover) { .app-shell[data-tone] .platform-panel .platform-track-action:hover { background:var(--p-raised); border-color:var(--p-line); } }
+.app-shell[data-tone='paper'] .modal-card.platform-panel { border:2px solid var(--p-line); box-shadow:6px 6px 0 var(--p-ink); }
+.app-shell[data-tone='paper'] .platform-panel :is(.platform-query,.platform-save,.platform-type-switch,.platform-close,.btn) { border-width:2px; box-shadow:2px 2px 0 var(--p-ink); }
+.app-shell[data-tone='paper'] .platform-panel .btn.primary { box-shadow:2px 2px 0 var(--p-ink); }
+.app-shell[data-tone='arcade'] .modal-card.platform-panel { border:5px solid transparent; border-image:var(--pixel-tile) 6 / 5px stretch; background-clip:padding-box; border-radius:0; }
+.app-shell[data-tone='arcade'] .platform-panel .platform-heading h2 { font-family:var(--arcade-mono); }
+.app-shell[data-tone='vinyl'] .modal-card.platform-panel { border-radius:18px 4px 18px 4px; }
+.app-shell[data-tone='burgundy'] .modal-card.platform-panel { border:2px solid transparent; background:linear-gradient(var(--p-bg),var(--p-bg)) padding-box,var(--gate-rim) border-box; }
+@media(max-width:760px) {
+  .app-shell[data-tone] .modal-card.platform-panel { border:0; border-image:none; border-radius:0; box-shadow:none; }
+  .app-shell[data-tone] .platform-panel .platform-header { padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px; }
+  .platform-save > label { flex-basis:100%; }
+  .platform-tracks li { grid-template-columns:36px minmax(0,1fr) 36px 36px; gap:8px; }
+  .platform-tracks li::before { display:none; }
+  .platform-track-cover { width:36px; height:36px; }
+  .app-shell[data-tone] .platform-panel .platform-track-action { width:36px; height:44px; }
+}
+
 /* New dialogs share the room palette, including import/backup on Android. */
 .app-shell[data-tone] .modal-card:not(.platform-panel) { color:var(--text-strong); background:var(--surface-0); border-color:var(--line-strong); }
 .app-shell[data-tone] .modal-label { color:var(--muted); font-size:13px; }

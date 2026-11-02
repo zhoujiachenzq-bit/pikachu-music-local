@@ -21,9 +21,6 @@
 .app-shell[data-tone='cobalt'] .modal-card:not(.platform-panel) { border: 10px solid transparent; border-image: var(--deco-frame) 10 / 10px stretch; border-radius: 0; background-clip: padding-box; box-shadow: none; }
 .app-shell[data-tone='cobalt'] .track-row { border: 1px solid #ffffff1f; border-left: 3px double #ffd84d80; border-radius: 0; background: #ffffff08; }
 .app-shell[data-tone='cobalt'] .track-row.active { border: 7px solid transparent; border-image: var(--deco-frame) 10 / 7px stretch; border-radius: 0; background: #ffd84d14 padding-box; box-shadow: none; }
-@media (min-width:761px) {
-  .app-shell[data-tone='cobalt'] :is(.topbar.panel,.workspace > section.panel) { border: 10px solid transparent; border-image: var(--deco-frame) 10 / 10px stretch; border-radius: 0; background-clip: padding-box; box-shadow: none; outline: 0; }
-}
 @media (max-width:760px) {
   .app-shell[data-tone='cobalt'] .track-hero { padding: 12px 14px; border: 10px solid transparent; border-image: var(--deco-frame) 10 / 10px stretch; border-radius: 0; background: var(--m-raised) padding-box; }
 }
@@ -43,7 +40,11 @@
 }
 
 /* ─── Sunny Meadow: leaf-cut outlines with a stitched line, a sprig in the corner ─── */
-.app-shell[data-tone='vinyl'] { --leaf-cut: 18px 4px 18px 4px; --meadow-stitch: 1.5px dashed #52744580; }
+.app-shell[data-tone='vinyl'] { --leaf-cut: 18px 4px 18px 4px; --meadow-stitch: none; }
+@media (min-width:761px) {
+  .app-shell[data-tone='vinyl'] :is(.topbar.panel,.workspace > section.panel) { outline: none; }
+  .app-shell[data-tone='vinyl'] .playlist-panel .tabs { border-style: solid; }
+}
 .app-shell[data-tone='vinyl'] :is(.daily-spotlight-card,.daily-collections,.modal-card:not(.platform-panel),.daily-editorial,.daily-editorial.has-grainient) { border: 1.5px solid #527445a6; border-radius: var(--leaf-cut); outline: var(--meadow-stitch); outline-offset: -6px; box-shadow: 0 8px 18px #354f441f; }
 .app-shell[data-tone='vinyl'] .track-row { border: 1.5px solid #52744540; border-radius: 14px 3px 14px 3px; background: #fffdf2; }
 .app-shell[data-tone='vinyl'] .track-row.active { border: 1.5px solid #527445; border-radius: 14px 3px 14px 3px; background: #e9efd2; outline: var(--meadow-stitch); outline-offset: -5px; box-shadow: none; }

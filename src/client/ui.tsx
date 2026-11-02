@@ -23,7 +23,7 @@ const iconComponents = {
 export function Icon({ name, size = 18, filled = false }: { name: IconName; size?: number; filled?: boolean }) {
   const Glyph = iconComponents[name];
   const solid = name === 'play' || name === 'pause' || name === 'previous' || name === 'next';
-  return <Glyph className="ui-icon" size={size} weight={solid || filled ? 'fill' : 'duotone'} aria-hidden="true"/>;
+  return <Glyph className="ui-icon" size={size} weight={name === 'close' ? 'regular' : solid || filled ? 'fill' : 'duotone'} aria-hidden="true"/>;
 }
 
 export { SOURCE_NAMES as sourceNames } from '../shared/types';

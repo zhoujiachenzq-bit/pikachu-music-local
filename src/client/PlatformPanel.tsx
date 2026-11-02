@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { api, json } from './api';
 import { QR_SOURCES, PLATFORM_RECOMMEND_SOURCES, PLATFORM_CATEGORY_SOURCES, PLATFORM_PERSONAL_SOURCES, PLATFORM_ALBUM_SOURCES, type PlatformItem, type PlatformQr, type PlatformResult, type QrSource } from '../shared/platform';
-import { SOURCE_NAMES, SOURCES, type MusicSource, type Track } from '../shared/types';
+import { SOURCE_NAMES, SOURCES, type MusicSource, type Track, type PlaylistDetail, type ResolvedTrack } from '../shared/types';
 import './platformPanel.css';
 import { useExitGhost } from './motionEffects';
-import { phoneCoverUrl } from './phone';
+import { phoneApp, phoneCoverUrl } from './phone';
 import { Icon } from './ui';
 
 type Result = PlatformResult & { previewId?: string; localAccounts: boolean };
-export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPlay: (track: Track, queue: Track[]) => void; onSaved: () => void; onClose: () => void; initialItem?: PlatformItem }) {
+export function PlatformPanel({ onPlay, onSaved, onClose, initialItem, favoriteIds, onFavorite }: { onPlay: (track: Track, queue: Track[]) => void; onSaved: (playlist: PlaylistDetail) => void; onClose: () => void; initialItem?: PlatformItem; favoriteIds: ReadonlySet<string>; onFavorite: (track: Track) => Promise<boolean> }) {
   const [source, setSource] = useState<MusicSource>('netease'); const [type, setType] = useState('playlist'); const [query, setQuery] = useState('');
   const [result, setResult] = useState<Result | null>(null); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
   const [name, setName] = useState('发现的音乐'); const [qrSource, setQrSource] = useState<QrSource>('qq'); const [qr, setQr] = useState<PlatformQr | null>(null); const [qrImage, setQrImage] = useState('');
@@ -17,6 +17,11 @@ export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPla
   const [mode, setMode] = useState('search');
   const [selected, setSelected] = useState<PlatformItem | null>(null);
   const [collection, setCollection] = useState<Result | null>(null);
+  const [savedPlaylist, setSavedPlaylist] = useState<PlaylistDetail | null>(null);
+  const saving = useRef(false);
+  const [savingPlaylist, setSavingPlaylist] = useState(false);
+  const pendingActions = useRef(new Set<string>());
+  const [pendingIds, setPendingIds] = useState(new Set<string>());
   const dialog = useRef<HTMLElement>(null);
   const backdrop = useRef<HTMLDivElement>(null);
   useExitGhost(backdrop);
@@ -66,7 +71,7 @@ export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPla
     }
     setMode(mode);
     if (item) { setCollection(result); setSelected(item); } else setSelected(null);
-    const sequence = ++generation.current; setBusy(true); setNotice(''); setResult(null);
+    const sequence = ++generation.current; setBusy(true); setNotice(''); setResult(null); setSavedPlaylist(null);
     const params = new URLSearchParams({ mode, source: item?.source || source, type: item?.kind || type, q: query, id: item?.id || id || '' });
     try {
       const data = await api<Result>(`/api/platform/browse?${params}`);
@@ -78,11 +83,19 @@ export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPla
     finally { if (mounted.current && generation.current === sequence) setBusy(false); }
   };
   const save = async () => {
-    if (!result?.previewId || !name.trim()) return;
-    setBusy(true);
-    try { await api('/api/platform/save', json('POST', { previewId: result.previewId, name })); setNotice('已保存到本机歌单。'); onSaved(); }
+    if (saving.current || savedPlaylist) return;
+    if (!result?.previewId) { setNotice('歌曲预览已失效，请重新打开歌单后保存。'); return; }
+    if (!name.trim()) { setNotice('请输入歌单名称。'); return; }
+    const sequence = generation.current;
+    saving.current = true; setSavingPlaylist(true); setNotice('');
+    try {
+      const data = await api<{ playlist: PlaylistDetail }>('/api/platform/save', json('POST', { previewId: result.previewId, name: name.trim() }));
+      if (!data.playlist?.id) throw new Error('未收到保存结果，请重新打开歌单核对。');
+      onSaved(data.playlist);
+      if (mounted.current && generation.current === sequence) { setSavedPlaylist(data.playlist); setNotice(`已保存歌单「${data.playlist.name}」· ${data.playlist.tracks.length} 首`); }
+    }
     catch (error) { setNotice(error instanceof Error ? error.message : '保存失败'); }
-    finally { if (mounted.current) setBusy(false); }
+    finally { saving.current = false; if (mounted.current) setSavingPlaylist(false); }
   };
   const login = async () => {
     setBusy(true); setQr(null); setNotice('');
@@ -90,13 +103,19 @@ export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPla
     catch (error) { if (mounted.current) setNotice(error instanceof Error ? error.message : '登录失败'); }
     finally { if (mounted.current) setBusy(false); }
   };
-  const exportAsset = async (track: Track, kind: 'lyric' | 'inspect') => {
+  const trackAction = async (track: Track, action: 'favorite' | 'download') => {
+    if (pendingActions.current.has(track.id)) return;
+    pendingActions.current.add(track.id); setPendingIds(new Set(pendingActions.current));
     try {
-      const params = new URLSearchParams({ id: track.id });
-      if (kind === 'inspect') { const data = await api<{ valid: boolean; size: string; bitrate: string }>(`/api/platform/inspect?${params}`); setNotice(`${track.title} · ${data.valid ? '探测可用' : '暂不可用'} · ${data.size || '大小未知'} · ${data.bitrate || '码率未知'}`); return; }
-      const data = await api<{ lyric: string }>(`/api/platform/lyric?${params}`);
-      const url = URL.createObjectURL(new Blob([data.lyric], { type: 'text/plain;charset=utf-8' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${track.title.replace(/[\\/:*?"<>|]/g, '_')}.lrc`; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-    } catch (error) { setNotice(error instanceof Error ? error.message : '读取失败'); }
+      if (action === 'favorite') { const removing = favoriteIds.has(track.id); if (await onFavorite(track)) setNotice(removing ? '已取消喜欢' : '已加入我的收藏'); return; }
+      if (!phoneApp) { window.open(`/api/tracks/${encodeURIComponent(track.id)}/download`, '_blank', 'noopener'); return; }
+      const data = await api<{track: ResolvedTrack}>(`/api/tracks/${encodeURIComponent(track.id)}/resolve`, json('POST', {track}));
+      const url = new URL(data.track.audioUrl, location.href);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('当前歌曲没有可下载的公开地址。');
+      const anchor = document.createElement('a'); anchor.href = url.href; anchor.target = '_blank'; anchor.rel = 'noreferrer'; anchor.download = track.title; anchor.click();
+      setNotice('已打开音频地址，请在浏览器中保存。');
+    } catch (error) { if (mounted.current) setNotice(error instanceof Error ? error.message : '操作失败，请重试'); }
+    finally { pendingActions.current.delete(track.id); if (mounted.current) setPendingIds(new Set(pendingActions.current)); }
   };
   return <div ref={backdrop} className="modal-backdrop platform-backdrop" onClick={onClose}><section ref={dialog} tabIndex={-1} className="modal-card platform-panel" role="dialog" aria-modal="true" aria-labelledby="platform-title" onClick={event => event.stopPropagation()}>
     <header className="platform-header"><div className="platform-heading"><span className="platform-heading-icon"><Icon name="library" size={25}/></span><h2 id="platform-title">发现音乐</h2></div><button className="platform-close" aria-label="关闭发现音乐" onClick={onClose}><Icon name="close" size={22}/></button></header>
@@ -113,7 +132,19 @@ export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPla
     {!!result?.items.length && <div className="platform-results-heading"><h3>{mode === 'recommend' ? '平台推荐' : mode === 'personal' ? '个人歌单' : '搜索结果'}</h3><span>{result.items.length} {type === 'album' ? '张专辑' : '张歌单'}</span></div>}
     {!!result?.categories.length && <div className="platform-categories">{result.categories.map(category => <button className="btn ghost" key={category.id} onClick={() => void browse('category', undefined, category.id)}>{category.name}</button>)}</div>}
     <div className="platform-collections">{result?.items.map(item => <button key={`${item.source}:${item.kind}:${item.id}`} onClick={() => void browse('detail', item)}><CollectionCover item={item}/><strong>{item.name}</strong><small>{SOURCE_NAMES[item.source]}{item.count > 0 ? ` · ${item.count} 首` : ''}</small></button>)}</div>
-    {!!result?.tracks.length && <><div className="platform-save"><input aria-label="保存的歌单名称" maxLength={60} value={name} onChange={event => setName(event.target.value)}/><button className="btn primary" disabled={busy || !name.trim()} onClick={() => void save()}>保存这 {result.tracks.length} 首</button><button className="btn ghost" onClick={() => onPlay(result.tracks[0], [...result.tracks])}>播放全部</button></div><ol className="platform-tracks">{result.tracks.map(track => <li key={track.id}><PlatformTrackCover track={track}/><button className="platform-track-title" onClick={() => onPlay(track, [...result.tracks])}><strong>{track.title}</strong><small>{track.artist} · {SOURCE_NAMES[track.source]}</small></button><button className="btn ghost" aria-label={`探测${track.title}`} onClick={() => void exportAsset(track, 'inspect')}>音质</button><button className="btn ghost" aria-label={`导出${track.title}歌词`} onClick={() => void exportAsset(track, 'lyric')}>歌词</button><a className="btn ghost" href={phoneCoverUrl(track.source, track.sourceTrackId) || `/api/platform/cover?id=${encodeURIComponent(track.id)}&download=1`} target="_blank" rel="noreferrer">封面</a></li>)}</ol></>}
+    {!!result?.tracks.length && <>
+      <div className="platform-save">
+        <label><span>歌单名称 · {result.tracks.length} 首</span><input aria-label="保存的歌单名称" maxLength={60} value={name} disabled={savingPlaylist || !!savedPlaylist} onChange={event => setName(event.target.value)}/></label>
+        <button className="btn primary" disabled={busy || savingPlaylist || !!savedPlaylist || !name.trim()} onClick={() => void save()}><Icon name="library" size={18}/>{savingPlaylist ? '保存中…' : savedPlaylist ? '已保存歌单' : '保存歌单'}</button>
+        {savedPlaylist && <button className="btn ghost" onClick={onClose}>查看歌单</button>}
+        <button className="btn ghost" onClick={() => onPlay(result.tracks[0], [...result.tracks])}><Icon name="play" size={16}/>播放全部</button>
+      </div>
+      <ol className="platform-tracks">{result.tracks.map(track => <li key={track.id}>
+        <PlatformTrackCover track={track}/><button className="platform-track-title" onClick={() => onPlay(track, [...result.tracks])}><strong>{track.title}</strong><small>{track.artist} · {SOURCE_NAMES[track.source]}</small></button>
+        <button className={`platform-track-action ${favoriteIds.has(track.id) ? 'is-liked' : ''}`} aria-label={`${favoriteIds.has(track.id) ? '取消喜欢' : '喜欢'} ${track.title}`} title={favoriteIds.has(track.id) ? '取消喜欢' : '喜欢'} aria-pressed={favoriteIds.has(track.id)} disabled={pendingIds.has(track.id)} onClick={() => void trackAction(track, 'favorite')}><Icon name="heart" size={22} filled={favoriteIds.has(track.id)}/></button>
+        <button className="platform-track-action" aria-label={`下载 ${track.title}`} title="下载" disabled={pendingIds.has(track.id)} onClick={() => void trackAction(track, 'download')}><Icon name="download" size={22}/></button>
+      </li>)}</ol>
+    </>}
     </div>
   </section></div>;
 }

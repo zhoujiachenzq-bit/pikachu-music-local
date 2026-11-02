@@ -48,7 +48,7 @@
   --pixel-frame-lit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' shape-rendering='crispEdges'%3E%3Cpath fill='%2322e3ff' d='M8 0h8v4h4v4h4v8h-4v4h-4v4H8v-4H4v-4H0V8h4V4h4z'/%3E%3Cpath fill='%2308070f' d='M10 2h4v4h4v4h4v4h-4v4h-4v4h-4v-4H6v-4H2v-4h4V6h4z'/%3E%3C/svg%3E");
 }
 .app-shell[data-tone='arcade'] { background:radial-gradient(ellipse at 4% 22%,#22e3ff12,transparent 42%),radial-gradient(ellipse at 96% 76%,#ff3d8b14,transparent 44%),#08070f; }
-.app-shell[data-tone='arcade']::before { opacity: .5; inset: 0; transform: none; mask-image: none; background-image: radial-gradient(#7e7ba8 1px, transparent 1.5px), radial-gradient(#22e3ff 1px, transparent 1.5px); background-size: 127px 113px, 211px 173px; background-position: 13px 29px, 71px 5px; }
+.app-shell[data-tone='arcade']::before { opacity: .64; inset: 0; background-image: linear-gradient(#22e3ff26 1px, transparent 1px), linear-gradient(90deg, #ff3d8b21 1px, transparent 1px); background-size: 32px 32px; background-position: 0 0; mask-image: linear-gradient(to bottom, transparent, #000 24% 86%, transparent); transform: perspective(700px) rotateX(8deg) scale(1.12); }
 .app-shell[data-tone='arcade']::after { opacity: .5; mix-blend-mode: normal; background: repeating-linear-gradient(to bottom, transparent 0 3px, #0000001f 3px 4px); }
 .app-shell[data-tone='arcade'] .panel::after { display: none; }
 .app-shell[data-tone='arcade'] .topbar.panel, .app-shell[data-tone='arcade'] .workspace > section.panel { padding: 6px; border: 8px solid transparent; border-radius: 0; border-image: var(--pixel-frame) 8 fill / 8px stretch; background: none; box-shadow: none; backdrop-filter: none; }
@@ -143,7 +143,7 @@
 /* The CRT: bezel, phosphor text and scanlines. Nothing else in the room moves. */
 
 
-.app-shell[data-tone='arcade'] .lyrics { margin: 12px 6px 6px; border: 0; border-radius: 22px / 26px; background: radial-gradient(ellipse at 50% 42%, #0b1f19 0, #050b0a 72%); box-shadow: 0 0 0 6px #17142b, 0 0 0 8px var(--line), inset 0 0 60px #000c; }
+.app-shell[data-tone='arcade'] .lyrics { margin: 12px 6px 6px; border: 0; border-radius: 22px / 26px; background: radial-gradient(ellipse at 50% 42%, #0b1f1966 0, #050b0a99 72%); box-shadow: 0 0 0 6px #17142b, 0 0 0 8px var(--line), inset 0 0 60px #0006; }
 .app-shell[data-tone='arcade'] .lyrics-effects { display: block; }
 .app-shell[data-tone='arcade'] .lyrics-effects::before { opacity: 1; inset: 0; animation: none; background: repeating-linear-gradient(to bottom, transparent 0 2px, #0000004d 2px 4px); }
 .app-shell[data-tone='arcade'] .lyrics-effects::after { display: none; }
@@ -386,7 +386,8 @@
   .app-shell[data-tone='burgundy'] .workspace { grid-template-columns: minmax(250px, .74fr) minmax(540px, 1.9fr) minmax(270px, .78fr); gap: 16px; }
 }
 @media (min-width: 1081px) and (min-height: 760px) {
-  .app-shell[data-tone='burgundy'] .stage-mode-player .now-card { position: relative; min-height: 0; margin-top: 2px; padding: 0 8px; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 8px; text-align: center; }
+  /* The disc sits at this card's top edge; let its glow fade inside the stage instead of cutting it flat. */
+  .app-shell[data-tone='burgundy'] .stage-mode-player .now-card { position: relative; min-height: 0; margin-top: 2px; padding: 0 8px; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 8px; text-align: center; overflow: visible; }
   .app-shell[data-tone='burgundy'] .stage-mode-player .record-wrap { width: 124px; }
   .app-shell[data-tone='burgundy'] .stage-mode-player .track-hero { width: min(100%, 460px); }
   .app-shell[data-tone='burgundy'] .stage-mode-player .track-hero p { margin-bottom: 12px; }
