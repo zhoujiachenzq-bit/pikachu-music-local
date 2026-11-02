@@ -24,6 +24,8 @@
 .app-shell[data-tone='paper'] .daily-actions .btn.daily-regenerate { box-shadow:2px 2px 0 var(--collection-ink); }
 .daily-collection-rail { touch-action:pan-x pan-y pinch-zoom; -webkit-overflow-scrolling:touch; user-select:none; }
 .daily-collection-rail img { -webkit-user-drag:none; }
+.app-shell[data-tone] .daily-collections > .daily-collection-rail { scroll-behavior:smooth; }
+.app-shell[data-tone] .daily-collections > .daily-collection-rail[data-dragging] { scroll-snap-type:none; scroll-behavior:auto; }
 @media(hover:hover) { .daily-collection-rail { cursor:grab; } .daily-collection-rail:active,.daily-collection-rail:active button { cursor:grabbing; } }
 .app-shell[data-tone] .daily-collections > div { display:grid; grid-auto-flow:column; grid-template-columns:none; grid-auto-columns:160px; gap:12px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; padding:2px 2px 9px; scrollbar-width:thin; scrollbar-color:var(--collection-edge) transparent; }
 .app-shell[data-tone] .daily-collections > div > button { display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; min-width:0; padding:8px; border-color:var(--collection-edge); border-radius:var(--collection-control-radius); background:var(--collection-input); scroll-snap-align:start; }
@@ -83,6 +85,7 @@
 }
 .app-shell[data-tone='paper'] .modal-card:not(.platform-panel) .modal-actions .btn { border-color:var(--collection-ink); box-shadow:2px 2px 0 var(--collection-ink); }
 .app-shell[data-tone] :is(.add-list,.playlist-cards) { gap:10px; padding:3px 5px 7px 1px; }
+.app-shell[data-tone] .playlist-cards { grid-template-columns:minmax(0,1fr); }
 .app-shell[data-tone] :is(.add-list,.playlist-cards) > button {
   min-width:0; min-height:76px; padding:12px; gap:3px 12px;
   color:var(--collection-ink); background:var(--collection-input);

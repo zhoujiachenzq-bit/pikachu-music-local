@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs';
 import { createApp } from './app.js';
+import { startLocalMusicService } from './localMusicService.js';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
+await startLocalMusicService();
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '127.0.0.1';

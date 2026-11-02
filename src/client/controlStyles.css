@@ -46,7 +46,17 @@
 .app-shell .transport .volume > .ui-icon { width: 19px; height: 19px; color: var(--text); }
 .app-shell .elastic-volume-visual { height: 6px; background: color-mix(in srgb,var(--text),transparent 84%); box-shadow: inset 0 1px 2px #0002; }
 .app-shell .elastic-volume-visual > span::after { top: -4px; width: 14px; height: 14px; border-width: 3px; border-color: var(--surface-1); box-shadow: 0 0 0 1px color-mix(in srgb,var(--brand),transparent 45%),0 2px 5px #0003; }
-.app-shell.motion-on :is(.transport > button,.hero-actions button,.language button,.tabs button,.profile-button) { transition: background .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease; }
+/* One press language: quick down, springy release. Paper and arcade sink instead of shrinking. */
+:root { --ease-settle: cubic-bezier(.2,.8,.2,1); --ease-spring: cubic-bezier(.34,1.56,.64,1); }
+@supports (transition-timing-function: linear(0,1)) { :root { --ease-spring: linear(0,.28 9%,.66 20%,.96 33%,1.08 44%,1.08 52%,1.03 66%,1 82%,1); } }
+[data-tone] { --press-scale: .96; --press-card-scale: .985; --press-x: 0px; --press-y: 0px; }
+[data-tone='paper'] { --press-scale: 1; --press-card-scale: 1; --press-x: 2px; --press-y: 2px; }
+[data-tone='arcade'] { --press-scale: 1; --press-card-scale: 1; --press-y: 2px; }
+:is(.app-shell.motion-on,.tone-panel[data-motion='on']) :is(.btn,.transport > button,.hero-actions button,.language button,.tabs button,.profile-button,.tone-trigger,.row-actions > button,.collection-refresh,.playlist-toolbar button,.play-modes button,.search-box > button,.modal-card > header > button,.tone-panel > header button,.daily-spotlight-card,.daily-collections > div > button,.playlist-cards > button,.add-list > button,.platform-launch,.tone-card,.motion-toggle) { transition: background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .2s var(--ease-settle),translate .3s var(--ease-spring),scale .3s var(--ease-spring); }
+:is(.app-shell.motion-on,.tone-panel[data-motion='on'])[data-tone] :is(.btn,.transport > button,.hero-actions button,.language button,.tabs button,.profile-button,.tone-trigger,.row-actions > button,.collection-refresh,.playlist-toolbar button,.play-modes button,.search-box > button,.modal-card > header > button,.tone-panel > header button):active:not(:disabled) { translate: var(--press-x) var(--press-y); scale: var(--press-scale); transition-duration: .16s,.16s,.16s,.07s,.2s,.07s,.07s; }
+:is(.app-shell.motion-on,.tone-panel[data-motion='on'])[data-tone] :is(.daily-spotlight-card,.daily-collections > div > button,.playlist-cards > button,.add-list > button,.platform-launch,.tone-card,.motion-toggle):active:not(:disabled) { translate: var(--press-x) var(--press-y); scale: var(--press-card-scale); transition-duration: .16s,.16s,.16s,.07s,.2s,.07s,.07s; }
+.app-shell.motion-on[data-tone='paper'] :is(.btn,.search-box > button,.collection-refresh,.profile-button,.modal-card > header > button,.daily-spotlight-card,.daily-collections > div > button,.playlist-cards > button,.add-list > button,.platform-launch):active:not(:disabled) { box-shadow: 1px 1px 0 var(--text-strong); }
+.app-shell.motion-on .daily-collection-rail[data-dragging] button { scale: 1; translate: none; }
 @media (hover:hover) {
   .app-shell.motion-on :is(.transport > button,.hero-actions button,.profile-button):hover { transform: translateY(-1px); border-color: var(--brand); }
 }
@@ -70,4 +80,5 @@
 }
 @media (prefers-reduced-motion:reduce) {
   .app-shell.motion-on :is(.transport > button,.hero-actions button,.language button,.tabs button,.profile-button) { transition: none; transform: none; }
+  [data-tone] { --press-scale: 1; --press-card-scale: 1; --press-x: 0px; --press-y: 0px; }
 }

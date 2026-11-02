@@ -187,7 +187,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .search-box input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--text-strong); background: transparent; font-size: 10px; }
 .search-box input::placeholder { color: var(--quiet); }
 .btn { min-height: 34px; padding: 7px 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); border-radius: 20px; background: var(--control-bg); color: var(--text); cursor: pointer; font-size: 10px; font-weight: 650; transition: transform .2s ease, border-color .2s ease, background .2s ease; }
-.btn:hover { transform: translateY(-1px); border-color: rgba(255,216,77,.34); }
+@media (hover: hover) { .btn:hover { transform: translateY(-1px); border-color: rgba(255,216,77,.34); } }
 .btn.gold, .btn.primary { color: var(--brand-ink); border-color: #ffe486; background: linear-gradient(135deg, #ffe982, #e6b82f); box-shadow: 0 8px 28px rgba(255,216,77,.18); }
 .btn.ghost { background: rgba(27,31,43,.8); }
 .btn.wide, .wide { width: 100%; }
@@ -204,7 +204,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .search-mini-list { min-height: 0; flex: 1; overflow-y: auto; }
 
 .track-row { min-height: 50px; display: flex; align-items: stretch; border-bottom: 1px solid rgba(255,255,255,.052); border-radius: 10px; transition: background .18s ease, transform .18s ease; }
-.track-row:hover { background: var(--hover-bg); }
+@media (hover: hover) { .track-row:hover { background: var(--hover-bg); } }
 .track-row.active { background: linear-gradient(90deg, rgba(255,216,77,.1), color-mix(in srgb, var(--track-accent), transparent 94%)); box-shadow: inset 2px 0 var(--brand); }
 .track-row.pending:not(.active) { background: color-mix(in srgb, var(--track-accent), transparent 91%); box-shadow: inset 2px 0 var(--track-accent); }
 .track-row.pending .track-source { animation: pulse .7s ease-in-out infinite alternate; }
@@ -275,10 +275,13 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .now-card { min-height: clamp(188px, 24vh, 238px); margin-top: 6px; padding: 10px 8px; display: grid; grid-template-columns: clamp(138px, 17vw, 174px) minmax(0, 1fr) 72px; gap: 13px; align-items: center; border: 1px solid rgba(255,255,255,.055); border-radius: 18px; background: linear-gradient(105deg, rgba(14,17,25,.63), rgba(10,12,19,.24)); box-shadow: inset 0 1px rgba(255,255,255,.025); }
 .record-wrap { width: clamp(132px, 16vw, 164px); aspect-ratio: 1; display: grid; place-items: center; border-radius: 18px; transform: perspective(700px) rotateY(-8deg) rotateX(3deg); background: radial-gradient(circle, color-mix(in srgb, var(--track-accent), transparent 87%), transparent 64%); transition: transform .32s ease; }
 .now-card:hover .record-wrap { transform: perspective(700px) rotateY(-3deg) rotateX(1deg) translateY(-2px); }
-.record { width: 76%; aspect-ratio: 1; position: relative; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: repeating-radial-gradient(circle at center, #08090d 0 8px, #191a20 9px 11px, #05060a 12px 16px); box-shadow: 0 18px 45px #000, inset 0 0 0 2px #2c2c31, 0 0 38px color-mix(in srgb, var(--track-accent), transparent 70%); }
+.record { width: 76%; aspect-ratio: 1; position: relative; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: repeating-radial-gradient(circle at center, #08090d 0 8px, #191a20 9px 11px, #05060a 12px 16px); box-shadow: 0 18px 45px #000, inset 0 0 0 2px #2c2c31, 0 0 38px color-mix(in srgb, var(--track-accent), transparent 70%); animation: spin 5.5s linear infinite paused; }
 .record img { width: 100%; height: 100%; object-fit: cover; opacity: .76; }
 .record::after, .record-center { content: ''; position: absolute; width: 29%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #0b0c10 0 16%, var(--brand) 18% 47%, #8d7115 49%); box-shadow: 0 0 16px rgba(255,216,77,.45); }
-.spinning .record { animation: spin 5.5s linear infinite; }
+/* Pausing holds the disc at its current angle instead of snapping it back to zero. */
+.spinning .record { animation-play-state: running; }
+.motion-off .record { animation: none; }
+.motion-on .record img { animation: fade-in .26s ease; }
 @keyframes spin { to { rotate: 360deg; } }
 .track-hero { min-width: 0; }
 .now-kicker { margin-bottom: 7px; }
@@ -352,7 +355,7 @@ button:disabled { opacity: .48; cursor: not-allowed; }
 .daily-count { position: absolute; z-index: 6; right: 4%; bottom: 1%; color: var(--brand); font-size: clamp(58px, 7vw, 96px); font-weight: 700; line-height: .78; letter-spacing: -.09em; text-shadow: 0 10px 30px #000; }
 .daily-spotlight { margin-top: 9px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .daily-spotlight-card { min-width: 0; min-height: 104px; padding: 9px; display: grid; grid-template-columns: 23px 64px minmax(0, 1fr); align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 14px; color: inherit; background: rgba(10,13,20,.7); text-align: left; cursor: pointer; transition: transform .2s ease, border-color .2s ease; }
-.daily-spotlight-card:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+@media (hover: hover) { .daily-spotlight-card:hover { transform: translateY(-2px); border-color: var(--line-strong); } }
 .daily-spotlight-card.active { border-color: rgba(255,216,77,.42); background: rgba(255,216,77,.055); }
 .spotlight-rank { align-self: start; color: var(--brand); font-size: 9px; }
 .daily-spotlight-card img, .spotlight-placeholder { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; }
@@ -803,9 +806,9 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
 .app-shell[data-tone='arcade'] .panel::after { top: -20%; left: -45%; width: 16%; height: 140%; opacity: .72; background: linear-gradient(90deg, transparent, rgba(47,230,255,.3), rgba(255,75,216,.18), transparent); animation-duration: 6s; }
 
 .app-shell[data-tone='burgundy'] {
-  --edge-particle-a: #f5c3dc; --edge-particle-b: #a8bbff;
-  --garden-image: url('/twilight-garden.webp');
-  background: linear-gradient(#30395980,#41334e9c),var(--garden-image) center 65% / cover fixed;
+  --edge-particle-a: #ffb7d5; --edge-particle-b: #c14dff;
+  --garden-image: url('/moon-gate-garden.webp');
+  background: linear-gradient(#fff4f980,#fff4f99c),var(--garden-image) center 46% / cover fixed;
 }
 .app-shell[data-tone='burgundy'][data-background-art='off'] { --garden-image: none; }
 .app-shell[data-tone='burgundy']::before, .app-shell[data-tone='burgundy']::after { display: none; }
@@ -817,7 +820,7 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
 .app-shell[data-tone='burgundy'] .daily-copy h2 { font-weight: 600; letter-spacing: -.04em; text-shadow: none; }
 .app-shell[data-tone='burgundy'] .panel::after { display: none; }
 .app-shell[data-tone='burgundy'] :is(.search-box,.playlist-search) { background: #2d3151; border: 1px solid #d7d3ec40; box-shadow: inset 0 2px 5px #20223c20; }
-.app-shell[data-tone='burgundy'] .search-box input { color: #fff7fc; }
+.app-shell[data-tone='burgundy'] .search-box input { color: var(--text-strong); }
 .app-shell[data-tone='burgundy'] .search-box > button { color: #352a45; background: #efc3d7; }
 .app-shell[data-tone='burgundy'] .record-tilt { border-color: #ddd6ee55; background: #60689730; box-shadow: 0 16px 24px #25243f55,inset 0 1px #eee6ff40; }
 .app-shell[data-tone='burgundy'] .transport { background: #303451e8; border: 1px solid #d7d3ec35; }
@@ -949,8 +952,14 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
 
 
 @keyframes rb-fade-in { from { opacity: .35; } to { opacity: 1; } }
-.motion-on .motion-on .modal-card { animation: rb-fade-in 220ms ease-out; }
-.motion-off .motion-off .motion-off .modal-card { animation: none; }
+@keyframes modal-in { from { opacity: 0; translate: 0 10px; scale: .975; } }
+@keyframes modal-out { to { opacity: 0; translate: 0 6px; scale: .985; } }
+@keyframes backdrop-out { to { opacity: 0; } }
+.motion-on .modal-card { animation: modal-in 240ms var(--ease-settle); }
+.motion-off :is(.modal-backdrop,.modal-card) { animation: none; }
+.modal-backdrop.exit-ghost { pointer-events: none; animation: backdrop-out 170ms ease forwards; }
+.modal-backdrop.exit-ghost .modal-card { animation: modal-out 170ms ease forwards; }
+.tone-panel.exit-ghost { pointer-events: none; animation: modal-out 170ms ease forwards; }
 .motion-off .stage-surface { transition: none; }
 
 .spotlight-art { position: relative; display: block; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; }
@@ -967,5 +976,5 @@ footer { display: flex; align-items: center; justify-content: flex-end; padding:
 }
 @media (prefers-reduced-motion: reduce) {
   .success-spark, .edge-threads, .rb-glare::before { display: none; }
-  .motion-on .motion-on .motion-on .modal-card { animation: none; }
+  .motion-on .modal-card { animation: none; }
 }

@@ -45,25 +45,55 @@ export function ElasticVolume({ motionEnabled, ...props }: InputHTMLAttributes<H
   </span>;
 }
 
-export function TiltSurface({ children, enabled, className = '', intensity = 6 }: { children: ReactNode; enabled: boolean; className?: string; intensity?: number }) {
-  const root = useRef<HTMLSpanElement>(null); const frame = useRef(0);
+const TILT_VARS = ['--tilt-x', '--tilt-y', '--tilt-z', '--tilt-scale', '--glare-x', '--glare-y'];
+
+/** Tilts a surface toward the pointer; `touch` adds a gentler press tilt. Spin belongs on a child layer, never on this one. */
+export function TiltSurface({ children, enabled, className = '', intensity = 6, glare = false, touch = false }: { children: ReactNode; enabled: boolean; className?: string; intensity?: number; glare?: boolean; touch?: boolean }) {
+  const root = useRef<HTMLSpanElement>(null);
   const reduced = useReducedMotion();
-  const reset = () => {
-    cancelAnimationFrame(frame.current);
-    root.current?.style.setProperty('--tilt-x', '0deg'); root.current?.style.setProperty('--tilt-y', '0deg');
-    root.current?.style.setProperty('--tilt-scale', '1');
-  };
-  useEffect(() => { if (!enabled || reduced) reset(); return () => cancelAnimationFrame(frame.current); }, [enabled, reduced]);
-  return <span ref={root} className={`tilt-surface ${className}`} onPointerLeave={reset} onPointerCancel={reset} onPointerMove={event => {
-    if (!enabled || reduced || event.pointerType !== 'mouse' || !window.matchMedia('(min-width: 761px) and (hover: hover)').matches) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.max(-1, Math.min(1, (event.clientX - rect.left) / rect.width * 2 - 1));
-    const y = Math.max(-1, Math.min(1, (event.clientY - rect.top) / rect.height * 2 - 1));
-    cancelAnimationFrame(frame.current); frame.current = requestAnimationFrame(() => {
-      root.current?.style.setProperty('--tilt-x', `${-y * intensity}deg`); root.current?.style.setProperty('--tilt-y', `${x * intensity}deg`);
-      root.current?.style.setProperty('--tilt-scale', '1.03');
-    });
-  }}>{children}</span>;
+  const active = enabled && !reduced;
+  useEffect(() => {
+    const surface = root.current; const host = surface?.parentElement;
+    if (!surface || !host || !active) return;
+    let frame = 0; let rect: DOMRect | null = null; let target: { x: number; y: number; depth: number; scale: number } | null = null;
+    const draw = () => {
+      frame = 0;
+      if (!target) return;
+      const { x, y, depth, scale } = target; const style = surface.style;
+      style.setProperty('--tilt-x', `${-y * intensity * depth}deg`); style.setProperty('--tilt-y', `${x * intensity * depth}deg`);
+      // The small twist reads as warp while rotation keeps the artwork's proportions.
+      style.setProperty('--tilt-z', `${x * y * 1.6 * depth}deg`); style.setProperty('--tilt-scale', String(scale));
+      style.setProperty('--glare-x', `${x * 25}%`); style.setProperty('--glare-y', `${y * 25}%`);
+    };
+    const aim = (event: globalThis.PointerEvent, depth: number, scale: number) => {
+      // The host stays still, so tilting can neither move the pointer out of bounds nor skew this measurement.
+      rect ??= host.getBoundingClientRect();
+      const x = Math.max(-1, Math.min(1, (event.clientX - rect.left) / rect.width * 2 - 1));
+      const y = Math.max(-1, Math.min(1, (event.clientY - rect.top) / rect.height * 2 - 1));
+      target = { x, y, depth, scale }; surface.dataset.tilting = 'true';
+      frame ||= requestAnimationFrame(draw);
+    };
+    const release = () => {
+      cancelAnimationFrame(frame); frame = 0; rect = null; target = null;
+      delete surface.dataset.tilting;
+      for (const name of TILT_VARS) surface.style.removeProperty(name);
+    };
+    const move = (event: globalThis.PointerEvent) => {
+      if (event.pointerType === 'mouse' ? window.matchMedia('(min-width: 761px) and (hover: hover)').matches : touch && target) aim(event, event.pointerType === 'mouse' ? 1 : .4, event.pointerType === 'mouse' ? 1.03 : .985);
+    };
+    const press = (event: globalThis.PointerEvent) => { if (touch && event.pointerType !== 'mouse') aim(event, .4, .985); };
+    const lift = (event: globalThis.PointerEvent) => { if (event.pointerType !== 'mouse') release(); };
+    host.addEventListener('pointermove', move, { passive: true }); host.addEventListener('pointerdown', press, { passive: true });
+    host.addEventListener('pointerup', lift); host.addEventListener('pointercancel', release); host.addEventListener('pointerleave', release);
+    window.addEventListener('blur', release);
+    return () => {
+      release();
+      host.removeEventListener('pointermove', move); host.removeEventListener('pointerdown', press);
+      host.removeEventListener('pointerup', lift); host.removeEventListener('pointercancel', release); host.removeEventListener('pointerleave', release);
+      window.removeEventListener('blur', release);
+    };
+  }, [active, intensity, touch]);
+  return <span ref={root} className={`tilt-surface ${className}`}>{children}{glare && <span className="tilt-glare" aria-hidden="true"><i/></span>}</span>;
 }
 
 /** Localized panel light only; never moves content or listens to editing areas. */

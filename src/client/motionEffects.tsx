@@ -1,6 +1,6 @@
 // Adapted from React Bits FadeContent and ClickSpark (David Haz).
 // See docs/react-bits-motion.md and third_party/react-bits-LICENSE.md.
-import { useCallback, useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -20,6 +20,28 @@ export function useFadeContent(ref: RefObject<HTMLDivElement | null>, trigger: s
     const animation = ref.current.animate([{ opacity: .35 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
     return () => animation.cancel();
   }, [ref, trigger, enabled, active]);
+}
+
+/** Plays a closing dialog on an inert copy, so every close path animates without delaying the real unmount. */
+export function useExitGhost(ref: RefObject<HTMLElement | null>, mounted = true) {
+  useLayoutEffect(() => {
+    const node = ref.current; const parent = node?.parentNode;
+    if (!node || !parent) return;
+    return () => {
+      const scrollTop = node.querySelector('.platform-body')?.scrollTop ?? node.querySelector('.modal-card')?.scrollTop ?? 0;
+      // Strict Mode re-runs effects on a live node; only a real unmount disconnects it.
+      queueMicrotask(() => {
+        if (node.isConnected || !parent.isConnected || document.hidden || !document.querySelector('.app-shell.motion-on') || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const ghost = node.cloneNode(true) as HTMLElement;
+        ghost.classList.add('exit-ghost'); ghost.setAttribute('aria-hidden', 'true'); ghost.setAttribute('inert', '');
+        ghost.querySelectorAll('.ripple-circle, .ripple-circle-inner').forEach(item => item.remove());
+        parent.appendChild(ghost);
+        const scroller = ghost.querySelector('.platform-body') ?? ghost.querySelector('.modal-card');
+        if (scroller) scroller.scrollTop = scrollTop;
+        window.setTimeout(() => ghost.remove(), 200);
+      });
+    };
+  }, [ref, mounted]);
 }
 
 export interface SparkPoint { x: number; y: number }

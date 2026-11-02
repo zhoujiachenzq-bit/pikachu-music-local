@@ -4,6 +4,7 @@ import { api, json } from './api';
 import { QR_SOURCES, PLATFORM_RECOMMEND_SOURCES, PLATFORM_CATEGORY_SOURCES, PLATFORM_PERSONAL_SOURCES, PLATFORM_ALBUM_SOURCES, type PlatformItem, type PlatformQr, type PlatformResult, type QrSource } from '../shared/platform';
 import { SOURCE_NAMES, SOURCES, type MusicSource, type Track } from '../shared/types';
 import './platformPanel.css';
+import { useExitGhost } from './motionEffects';
 import { phoneCoverUrl } from './phone';
 import { Icon } from './ui';
 
@@ -17,7 +18,9 @@ export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPla
   const [selected, setSelected] = useState<PlatformItem | null>(null);
   const [collection, setCollection] = useState<Result | null>(null);
   const dialog = useRef<HTMLElement>(null);
-  useEffect(() => { if (initialItem) void browse('detail', initialItem); }, []);
+  const backdrop = useRef<HTMLDivElement>(null);
+  useExitGhost(backdrop);
+  useEffect(() => { void browse(initialItem ? 'detail' : 'recommend', initialItem); }, []);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     dialog.current?.focus();
@@ -95,7 +98,7 @@ export function PlatformPanel({ onPlay, onSaved, onClose, initialItem }: { onPla
       const url = URL.createObjectURL(new Blob([data.lyric], { type: 'text/plain;charset=utf-8' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${track.title.replace(/[\\/:*?"<>|]/g, '_')}.lrc`; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (error) { setNotice(error instanceof Error ? error.message : '读取失败'); }
   };
-  return <div className="modal-backdrop platform-backdrop" onClick={onClose}><section ref={dialog} tabIndex={-1} className="modal-card platform-panel" role="dialog" aria-modal="true" aria-labelledby="platform-title" onClick={event => event.stopPropagation()}>
+  return <div ref={backdrop} className="modal-backdrop platform-backdrop" onClick={onClose}><section ref={dialog} tabIndex={-1} className="modal-card platform-panel" role="dialog" aria-modal="true" aria-labelledby="platform-title" onClick={event => event.stopPropagation()}>
     <header className="platform-header"><div className="platform-heading"><span className="platform-heading-icon"><Icon name="library" size={25}/></span><h2 id="platform-title">发现音乐</h2></div><button className="platform-close" aria-label="关闭发现音乐" onClick={onClose}><Icon name="close" size={22}/></button></header>
     <div className="platform-body">
     <form onSubmit={event => { event.preventDefault(); void browse(/^https?:/.test(query.trim()) ? 'link' : 'search'); }}>

@@ -35,12 +35,24 @@ app.addHook('preHandler', async (request, reply) => {
     if ((request.body as Track)?.sourceTrackId === 'motion-2') return reply.code(503).send({ error: { code: 'QA_FAILURE', message: '夹具预期失败，不能出现成功火花' } });
   }
 });
-app.get('/__fixture/silence.wav', async (_req, reply) => {
+app.get('/__fixture/silence.wav', async (request, reply) => {
   const rate = 8000; const data = Buffer.alloc(44 + rate * 45 * 2);
   data.write('RIFF'); data.writeUInt32LE(data.length - 8, 4); data.write('WAVEfmt ', 8); data.writeUInt32LE(16, 16);
   data.writeUInt16LE(1, 20); data.writeUInt16LE(1, 22); data.writeUInt32LE(rate, 24); data.writeUInt32LE(rate * 2, 28);
   data.writeUInt16LE(2, 32); data.writeUInt16LE(16, 34); data.write('data', 36); data.writeUInt32LE(data.length - 44, 40);
-  return reply.type('audio/wav').send(data);
+  reply.header('accept-ranges', 'bytes').type('audio/wav');
+  // The fixture must support real seeking; a full-body-only response can reset
+  // currentTime after an apparently successful slider or lyric click.
+  if (request.headers.range) {
+    const match = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range);
+    const start = match ? Number(match[1]) : NaN;
+    const end = match?.[2] ? Math.min(Number(match[2]), data.length - 1) : data.length - 1;
+    if (!Number.isSafeInteger(start) || start < 0 || start > end) {
+      return reply.code(416).header('content-range', `bytes */${data.length}`).send();
+    }
+    return reply.code(206).header('content-range', `bytes ${start}-${end}/${data.length}`).send(data.subarray(start, end + 1));
+  }
+  return reply.send(data);
 });
 app.get('/__fixture/unplayable.wav', async (_req, reply) => reply.code(404).type('text/plain').send('Synthetic invalid media'));
 await app.ready();

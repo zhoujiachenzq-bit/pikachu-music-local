@@ -10,6 +10,8 @@ import './landscapeThemes.css';
 import './themeArtDirection.css';
 import './mobileShell.css';
 import './collectionSurfaces.css';
+import './themeDetails.css';
+import './themeFrames.css';
 
 document.documentElement.dataset.visualRelease = '0.6.12';
 

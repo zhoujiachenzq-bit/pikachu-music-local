@@ -28,9 +28,9 @@ export function DailyCollections({ onOpen }: { onOpen: (item: PlatformItem) => v
     {status && (!loading || !items.length) && <p role="status">{status}</p>}
     <div className="daily-collection-rail"
       onPointerDown={event => { drag.current = event.pointerType === 'mouse' && event.button === 0 ? { x: event.clientX, scroll: event.currentTarget.scrollLeft, moved: false } : null; }}
-      onPointerMove={event => { const start = drag.current; if (!start || event.buttons !== 1) return; const delta = event.clientX - start.x; if (!start.moved && Math.abs(delta) > 6) { start.moved = true; event.currentTarget.setPointerCapture(event.pointerId); } if (start.moved) event.currentTarget.scrollLeft = start.scroll - delta; }}
-      onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
-      onPointerCancel={() => { drag.current = null; }}
+      onPointerMove={event => { const start = drag.current; if (!start || event.buttons !== 1) return; const delta = event.clientX - start.x; if (!start.moved && Math.abs(delta) > 6) { start.moved = true; event.currentTarget.setPointerCapture(event.pointerId); event.currentTarget.dataset.dragging = 'true'; } if (start.moved) event.currentTarget.scrollLeft = start.scroll - delta; }}
+      onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); delete event.currentTarget.dataset.dragging; }}
+      onPointerCancel={event => { drag.current = null; delete event.currentTarget.dataset.dragging; }}
       onClickCapture={event => { if (drag.current?.moved) { event.preventDefault(); event.stopPropagation(); drag.current = null; } }}
     >{items.map(item => <button key={`${item.source}:${item.id}`} onClick={() => onOpen(item)}>
       {item.cover ? <img src={item.cover} alt="" draggable={false} loading="lazy" onError={event => { event.currentTarget.style.visibility = 'hidden'; }}/> : <span><Icon name="library" size={30}/></span>}

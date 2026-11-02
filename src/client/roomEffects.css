@@ -10,8 +10,15 @@
 .elastic-volume:hover .elastic-volume-value, .elastic-volume:focus-within .elastic-volume-value { opacity: 1; }
 .transport > .mobile-volume-toggle { display: none; }
 
-.tilt-surface { display: block; transform: perspective(750px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) scale(var(--tilt-scale,1)); transform-origin: center; }
-.motion-on .tilt-surface { transition: transform .24s ease-out; }
+.tilt-surface { display: block; transform: perspective(750px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) rotateZ(var(--tilt-z,0deg)) scale(var(--tilt-scale,1)); transform-origin: center; }
+.motion-on .tilt-surface { transition: transform .62s var(--ease-spring); }
+.motion-on .tilt-surface[data-tilting] { transition: transform .1s ease-out; will-change: transform; }
+.tilt-glare { position: absolute; z-index: 3; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s ease; }
+.tilt-surface[data-tilting] > .tilt-glare { opacity: 1; }
+.tilt-glare i { position: absolute; left: -50%; top: -50%; width: 200%; height: 200%; background: var(--glare-sheen, radial-gradient(circle closest-side,#ffffff5c,transparent 60%)); transform: translate(var(--glare-x,0%),var(--glare-y,0%)); }
+.app-shell[data-tone='paper'] { --glare-sheen: linear-gradient(115deg,transparent 44%,#ffffff66 44% 51%,transparent 51%); }
+.app-shell[data-tone='arcade'] { --glare-sheen: linear-gradient(90deg,transparent 42%,#22e3ff40 42% 50%,transparent 50%); }
+.app-shell[data-tone='burgundy'] { --glare-sheen: radial-gradient(circle closest-side,#ffffff80,transparent 60%); }
 .collage-tilt { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
 .daily-editorial { flex-shrink: 0; }
 .daily-collage .collage-tilt img { display: block; width: 100%; height: 100%; object-fit: cover; border: 1px solid #ffffff1f; border-radius: 17px; box-shadow: 5px 16px 28px #0005, 1px 3px 0 #0008, inset 0 1px #fff3; }
@@ -146,7 +153,7 @@
 .app-shell:is([data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy']) .player-panel::after { display: none; }
 .app-shell[data-tone='night'] .lyrics { background: linear-gradient(90deg,#07142608,#07142685 35% 65%,#07142608); }
 .app-shell[data-tone='vinyl'] .lyrics { background: linear-gradient(90deg,#fff3db08,#fff3db90 35% 65%,#fff3db08); }
-.app-shell[data-tone='burgundy'] .lyrics { background: linear-gradient(90deg,#34305405,#34305470 32% 68%,#34305405); }
+.app-shell[data-tone='burgundy'] .lyrics { background: linear-gradient(90deg,#fff4f905,#fff4f9b8 32% 68%,#fff4f905); }
 @keyframes room-stage-light { from { transform: rotate(-4deg); opacity: .62; } to { transform: rotate(5deg); opacity: 1; } }
 @media (max-width: 760px), (prefers-reduced-motion: reduce) {
   .room-stage[data-motion='true'] .stage-light { animation: none; }
@@ -178,7 +185,7 @@
 
 
 
-.garden-scene { background: #6571ac var(--garden-image) center center / cover no-repeat; }
+.garden-scene { background: #fbe6f1 var(--garden-image) center center / cover no-repeat; }
 .garden-haze { left: -8%; right: -8%; top: 53%; height: 25%; background: radial-gradient(ellipse,#e7c5ef38,transparent 70%); }
 .garden-shade { inset: 0; background: linear-gradient(#303c6530,transparent 35%,#2c254724); }
 .garden-fireflies { inset: 61% 5% 3%; opacity: .7; background: radial-gradient(circle at 9% 64%,#ffe7b5 0 1px,transparent 3px),radial-gradient(circle at 84% 38%,#ffe5b8 0 1.5px,transparent 4px),radial-gradient(circle at 64% 88%,#ffd9b0 0 1px,transparent 3px),radial-gradient(circle at 30% 40%,#ffe5bd 0 1px,transparent 3px); }
@@ -203,7 +210,6 @@
   .transport .volume .elastic-volume-input { height: 36px; }
   .transport .volume .elastic-volume-value { left: calc(100% + 10px); bottom: 8px; padding: 0; border: 0; background: transparent; translate: none; opacity: 1; }
   .daily-collage { width: min(70vw,240px); }
-  .tilt-surface { transform: none; transition: none; }
   .room-light-rays i:nth-child(n+2), .vinyl-metal-stamp, .stage-sleeve { display: none; }
   .room-light-rays { animation: none !important; opacity: .25; }
   .room-moon { top: 6%; right: -20px; }

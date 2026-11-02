@@ -1,0 +1,102 @@
+/* Each theme owns one outline language, carried from the panels down to the record and the
+   song rows, the way Paper carries its ink line and hard shadow. Paper needs nothing here.
+   Frames use border-image, so their fill stops at the padding box and corners stay open. */
+
+.app-shell:is([data-tone='arcade'],[data-tone='cobalt'],[data-tone='night'],[data-tone='vinyl'],[data-tone='burgundy']) .track-row { margin-bottom: 6px; padding-inline: 1px; border-bottom-width: 0; }
+
+/* ─── Arcade: its panels already wear --pixel-frame; rows and cards now share the stepped outline ─── */
+.app-shell[data-tone='arcade'] { --pixel-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' shape-rendering='crispEdges'%3E%3Cg fill='%2322e3ff'%3E%3Crect x='6' width='6' height='3'/%3E%3Crect x='6' y='15' width='6' height='3'/%3E%3Crect y='6' width='3' height='6'/%3E%3Crect x='15' y='6' width='3' height='6'/%3E%3C/g%3E%3Cg fill='%23ff3d8b'%3E%3Crect x='3' y='3' width='3' height='3'/%3E%3Crect x='12' y='3' width='3' height='3'/%3E%3Crect x='3' y='12' width='3' height='3'/%3E%3Crect x='12' y='12' width='3' height='3'/%3E%3C/g%3E%3C/svg%3E"); --pixel-tile-hot: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' shape-rendering='crispEdges'%3E%3Cg fill='%23ff3d8b'%3E%3Crect x='6' width='6' height='3'/%3E%3Crect x='6' y='15' width='6' height='3'/%3E%3Crect y='6' width='3' height='6'/%3E%3Crect x='15' y='6' width='3' height='6'/%3E%3C/g%3E%3Cg fill='%23ffd23f'%3E%3Crect x='3' y='3' width='3' height='3'/%3E%3Crect x='12' y='3' width='3' height='3'/%3E%3Crect x='3' y='12' width='3' height='3'/%3E%3Crect x='12' y='12' width='3' height='3'/%3E%3C/g%3E%3C/svg%3E"); }
+.app-shell[data-tone='arcade'] :is(.daily-spotlight-card,.daily-collections,.modal-card:not(.platform-panel),.daily-collections > div > button,.daily-editorial,.daily-editorial.has-grainient) { border: 6px solid transparent; border-image: var(--pixel-tile) 6 / 6px stretch; border-radius: 0; background-clip: padding-box; box-shadow: none; }
+.app-shell[data-tone='arcade'] .track-row { border: 3px solid transparent; border-image: var(--pixel-tile) 6 / 3px stretch; border-radius: 0; background: #15132a padding-box; box-shadow: none; }
+.app-shell[data-tone='arcade'] .track-row.active { border-image-source: var(--pixel-tile-hot); background: var(--coin) padding-box; box-shadow: none; }
+.app-shell[data-tone='arcade'] .transport > button:not(.mobile-volume-toggle), .app-shell[data-tone='arcade'] .hero-actions button { border: 3px solid transparent; border-image: var(--pixel-tile) 6 / 3px stretch; border-radius: 0; background-clip: padding-box; box-shadow: none; }
+@media (max-width:760px) {
+  .app-shell[data-tone='arcade'] .track-row.active :is(.track-copy strong,.track-copy small,time,.row-actions > button:not(.active)) { color: var(--brand-ink); }
+  .app-shell:is([data-tone='arcade'],[data-tone='cobalt']) .now-card .hero-actions { margin: 18px 12px 0 0; }
+  .app-shell[data-tone='arcade'] .track-hero { padding: 12px 14px; border: 6px solid transparent; border-image: var(--pixel-tile) 6 / 6px stretch; border-radius: 0; background: var(--m-raised) padding-box; }
+}
+
+/* ─── Cobalt: art-deco gilt, a stepped corner over a double rule ─── */
+.app-shell[data-tone='cobalt'] { --deco-frame: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' fill='none' stroke='%23ffd84d'%3E%3Cpath stroke-width='1.6' d='M10 1h10M10 29h10M1 10v10M29 10v10M1 10V6h5V1h4M20 1h4v5h5v4M1 20v4h5v5h4M20 29h4v-5h5v-4'/%3E%3Cpath stroke-width='1' stroke-opacity='.55' d='M10 6h10M10 24h10M6 10v10M24 10v10'/%3E%3C/svg%3E"); }
+.app-shell[data-tone='cobalt'] .modal-card:not(.platform-panel) { border: 10px solid transparent; border-image: var(--deco-frame) 10 / 10px stretch; border-radius: 0; background-clip: padding-box; box-shadow: none; }
+.app-shell[data-tone='cobalt'] .track-row { border: 1px solid #ffffff1f; border-left: 3px double #ffd84d80; border-radius: 0; background: #ffffff08; }
+.app-shell[data-tone='cobalt'] .track-row.active { border: 7px solid transparent; border-image: var(--deco-frame) 10 / 7px stretch; border-radius: 0; background: #ffd84d14 padding-box; box-shadow: none; }
+@media (min-width:761px) {
+  .app-shell[data-tone='cobalt'] :is(.topbar.panel,.workspace > section.panel) { border: 10px solid transparent; border-image: var(--deco-frame) 10 / 10px stretch; border-radius: 0; background-clip: padding-box; box-shadow: none; outline: 0; }
+}
+@media (max-width:760px) {
+  .app-shell[data-tone='cobalt'] .track-hero { padding: 12px 14px; border: 10px solid transparent; border-image: var(--deco-frame) 10 / 10px stretch; border-radius: 0; background: var(--m-raised) padding-box; }
+}
+
+/* ─── Summer Coast: airmail edging on the outer panels, song rows as ticket stubs ─── */
+.app-shell[data-tone='night'] { --airmail-edge: repeating-linear-gradient(115deg, #e2583e 0 12px, #fffcf5 12px 19px, #0f7c8a 19px 31px, #fffcf5 31px 38px) 6; }
+.app-shell[data-tone='night'] .modal-card:not(.platform-panel) { border: 5px solid transparent; border-image: var(--airmail-edge); border-radius: 0; background-clip: padding-box; }
+.app-shell[data-tone='night'] .track-row { border: 1.5px dashed #0f7c8a59; border-radius: 3px; background: #fffcf5; -webkit-mask: radial-gradient(circle 6px at 0 50%, #0000 96%, #000) 0 0 / 51% 100% no-repeat, radial-gradient(circle 6px at 100% 50%, #0000 96%, #000) 100% 0 / 51% 100% no-repeat; mask: radial-gradient(circle 6px at 0 50%, #0000 96%, #000) 0 0 / 51% 100% no-repeat, radial-gradient(circle 6px at 100% 50%, #0000 96%, #000) 100% 0 / 51% 100% no-repeat; }
+.app-shell[data-tone='night'] .track-row.active { border: 1.5px solid var(--brand); border-radius: 3px; background: #fff0e6; box-shadow: none; }
+.app-shell[data-tone='night'] .track-row.active .track-source { outline: 2px solid #e2583e66; outline-offset: 1px; }
+@media (min-width:761px) {
+  .app-shell[data-tone='night'] :is(.topbar.panel,.workspace > section:is(.search-panel,.playlist-panel),.now-card) { border: 6px solid transparent; border-image: var(--airmail-edge); border-radius: 0; background-clip: padding-box; }
+  .app-shell[data-tone='night'] .topbar::before, .app-shell[data-tone='night'] :is(.search-panel,.playlist-panel)::before { display: none; }
+}
+@media (max-width:760px) {
+  .app-shell[data-tone='night'] .track-hero { padding-top: 14px; border: 5px solid transparent; border-image: var(--airmail-edge); border-radius: 0; background: var(--surface-1) padding-box; }
+}
+
+/* ─── Sunny Meadow: leaf-cut outlines with a stitched line, a sprig in the corner ─── */
+.app-shell[data-tone='vinyl'] { --leaf-cut: 18px 4px 18px 4px; --meadow-stitch: 1.5px dashed #52744580; }
+.app-shell[data-tone='vinyl'] :is(.daily-spotlight-card,.daily-collections,.modal-card:not(.platform-panel),.daily-editorial,.daily-editorial.has-grainient) { border: 1.5px solid #527445a6; border-radius: var(--leaf-cut); outline: var(--meadow-stitch); outline-offset: -6px; box-shadow: 0 8px 18px #354f441f; }
+.app-shell[data-tone='vinyl'] .track-row { border: 1.5px solid #52744540; border-radius: 14px 3px 14px 3px; background: #fffdf2; }
+.app-shell[data-tone='vinyl'] .track-row.active { border: 1.5px solid #527445; border-radius: 14px 3px 14px 3px; background: #e9efd2; outline: var(--meadow-stitch); outline-offset: -5px; box-shadow: none; }
+.app-shell[data-tone='vinyl'] .transport > button:not(.mobile-volume-toggle):not(.play-main), .app-shell[data-tone='vinyl'] .hero-actions button { border: 1.5px solid #52744566; border-radius: 12px 3px 12px 3px; }
+.app-shell[data-tone='vinyl'] .transport > .play-main { border-radius: 20px 6px 20px 6px; }
+@media (min-width:761px) {
+  .app-shell[data-tone='vinyl'] .workspace > section.panel:is(.search-panel,.playlist-panel)::before { content: ''; display: block; position: absolute; z-index: -1; inset: auto auto 28px 8px; width: 44px; height: 44px; border: 0; opacity: .85; transform: rotate(180deg); pointer-events: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Cpath fill='none' stroke='%235f8f45' stroke-width='1.6' d='M42 2Q22 8 6 34'/%3E%3Cg fill='%236f9a4e'%3E%3Cpath d='M32 6q8-4 8 5q-7 3-8-5zM22 12q8-3 7 6q-7 2-7-6zM14 21q8-2 6 7q-7 1-6-7zM28 10q-1-8-8-5q2 7 8 5zM18 17q-2-8-8-4q2 6 8 4z'/%3E%3C/g%3E%3Ccircle cx='6' cy='36' r='4' fill='%23fff'/%3E%3Ccircle cx='6' cy='36' r='1.7' fill='%23f2c14e'/%3E%3C/svg%3E") center / contain no-repeat; }
+}
+@media (max-width:760px) {
+  .app-shell[data-tone='vinyl'] .track-hero { border: 1.5px solid #527445a6; border-radius: var(--leaf-cut); outline: var(--meadow-stitch); outline-offset: -6px; }
+}
+
+/* ─── Twilight Garden: a rim of gate-light from pink to violet to lake, tiled eaves ─── */
+.app-shell[data-tone='burgundy'] { --gate-rim: linear-gradient(135deg, #ff9ec7, #c14dff 52%, #3fd8e0); --eaves: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='12'%3E%3Cpath fill='%238fd4d0' stroke='%235a3a6e' stroke-width='1.4' d='M0 0h32v2a8 9 0 0 1-16 0a8 9 0 0 1-16 0z M0 2'/%3E%3C/svg%3E"); }
+.app-shell[data-tone='burgundy'] :is(.daily-spotlight-card,.daily-collections,.modal-card:not(.platform-panel)) { border: 2px solid transparent; border-radius: 20px; background: linear-gradient(#fff7fb,#fff7fb) padding-box, var(--gate-rim) border-box; box-shadow: 0 8px 22px #c14dff1f; }
+.app-shell[data-tone='burgundy'] .daily-editorial, .app-shell[data-tone='burgundy'] .daily-editorial.has-grainient { border: 2px solid #c14dff80; border-radius: 20px; box-shadow: 0 0 0 4px #ff9ec726; }
+.app-shell[data-tone='burgundy'] .track-row { border: 1.5px solid #c0327f2e; border-radius: 22px 22px 22px 6px; background: #fff7fb; }
+.app-shell[data-tone='burgundy'] .track-row.active { border: 2px solid transparent; border-radius: 22px 22px 22px 6px; background: linear-gradient(#ffeef6,#ffeef6) padding-box, var(--gate-rim) border-box; box-shadow: 0 2px 12px #c14dff33; }
+.app-shell[data-tone='burgundy'] .transport > button:not(.mobile-volume-toggle):not(.play-main) { border: 2px solid transparent; background: linear-gradient(#fff7fb,#fff7fb) padding-box, var(--gate-rim) border-box; }
+@media (min-width:761px) {
+  .app-shell[data-tone='burgundy'] .topbar.panel, .app-shell[data-tone='burgundy'] .workspace > section:is(.search-panel,.playlist-panel) { border: 2px solid transparent; border-radius: 22px; background: linear-gradient(#fff4f9f2,#fff4f9f2) padding-box, var(--gate-rim) border-box; outline: 0; }
+  .app-shell[data-tone='burgundy'] .workspace > section.player-panel { border: 3px solid transparent; border-radius: 22px; background: var(--gate-rim) border-box; box-shadow: 0 0 22px #c14dff4d; }
+  .app-shell[data-tone='burgundy'] :is(.search-panel,.playlist-panel)::before { content: ''; display: block; position: absolute; z-index: 0; inset: 0 0 auto; height: 12px; opacity: 1; border: 0; background: var(--eaves) 0 0 / 32px 12px repeat-x; pointer-events: none; }
+  .app-shell[data-tone='burgundy'] .now-card { border: 0; }
+}
+@media (max-width:760px) {
+  .app-shell[data-tone='burgundy'] .track-hero { border: 2px solid transparent; border-radius: 20px; background: linear-gradient(var(--m-raised),var(--m-raised)) padding-box, var(--gate-rim) border-box; }
+}
+
+/* The record stays plain: one clean line, no ornament. Arcade, Coast and the desktop Garden keep their own. */
+.app-shell[data-tone='cobalt'] .record-tilt { border: 1.5px solid #ffd84d; box-shadow: none; }
+.app-shell[data-tone='vinyl'] .record-tilt { border: 1.5px solid #527445a6; border-radius: 18px 4px 18px 4px; background: #fffdf2; box-shadow: none; }
+@media (max-width:760px) {
+  .app-shell[data-tone='vinyl'] .record { border-radius: 16px 3px 16px 3px; }
+  .app-shell[data-tone='burgundy'] .record-tilt { box-shadow: 0 0 0 1.5px #c0327f59; }
+}
+
+/* Keep decorative frames outside the text budget: long titles remain readable. */
+@media (min-width:761px) {
+  .app-shell:is([data-tone='arcade'],[data-tone='night']) .track-copy strong {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width:360px) {
+  .app-shell:is([data-tone='arcade'],[data-tone='cobalt']) .now-card {
+    gap: 10px;
+    padding-bottom: 14px;
+  }
+  .app-shell:is([data-tone='arcade'],[data-tone='cobalt']) .record-wrap {
+    width: min(66vw, 32dvh);
+  }
+}

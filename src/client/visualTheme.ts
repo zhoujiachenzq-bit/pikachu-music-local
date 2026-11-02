@@ -56,9 +56,9 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
     // Keep the stored ID compatible with existing account preferences.
     id: 'burgundy',
     name: { zh: '暮光花园', en: 'Twilight Garden' },
-    description: { zh: '夜色绘本、拱形窗与灯笼暖光', en: 'A dusk picture book with an arched window and lantern light' },
-    canvas: '#12142e', surface: '#181a38', sceneAccent: '#ffc978', sceneGlow: '#f2b6cd',
-    swatches: ['#12142e', '#7a5da8', '#ffc978'],
+    description: { zh: '圆月门、樱花与湖光', en: 'A glowing moon gate, cherry blossom and lake light' },
+    canvas: '#fdeef5', surface: '#fff7fb', sceneAccent: '#c0327f', sceneGlow: '#c14dff',
+    swatches: ['#fdeef5', '#c14dff', '#c0327f'],
   },
   cobalt: {
     id: 'cobalt',

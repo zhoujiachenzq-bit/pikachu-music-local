@@ -25,7 +25,7 @@ function responseHeaders(raw: Record<string, unknown>) {
 
 export function createNativeFetch(http: NativeHttp) {
   return async (url: string, init: RequestInit = {}): Promise<Response> => {
-    init.signal?.throwIfAborted();
+    if (init.signal?.aborted) throw init.signal.reason || new DOMException('请求已取消', 'AbortError');
     const method = (init.method || 'GET').toUpperCase(); const headers = new Headers(init.headers);
     const binary = headers.get('accept') === 'application/octet-stream';
     const pending = http({

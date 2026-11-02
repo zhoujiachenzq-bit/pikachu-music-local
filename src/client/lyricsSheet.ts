@@ -21,8 +21,8 @@ export function useLyricsSheet(enabled: boolean) {
   const gesture = useRef<{ x: number; y: number; at: number; dragging: boolean } | null>(null);
 
   const show = useCallback(() => {
-    if (window.history.state?.lyricsSheet) return;
-    window.history.pushState({ lyricsSheet: true }, '');
+    // A reload keeps the history entry but not the open state, so the entry alone must not block opening.
+    if (!window.history.state?.lyricsSheet) window.history.pushState({ lyricsSheet: true }, '');
     setOpen(true);
   }, []);
   const hide = useCallback(() => {

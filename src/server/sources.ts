@@ -650,7 +650,7 @@ export async function resolveTrackWithFallback(input: Track, db?: Db, forceRefre
   return resolved;
 }
 
-async function fetchNeteasePlaylist(id: string): Promise<ImportedPlaylist> {
+export async function fetchNeteasePlaylist(id: string): Promise<ImportedPlaylist> {
   const j = await fetchJson(`https://music.163.com/api/v6/playlist/detail?id=${encodeURIComponent(id)}&n=1000`, { headers: { referer: 'https://music.163.com/' } });
   const p = asObject(j.playlist); if (!p.id) throw new SourceError('PLAYLIST_NOT_FOUND', '网易云公开歌单不存在或不可访问。');
   const initial = Array.isArray(p.tracks) ? p.tracks : [];

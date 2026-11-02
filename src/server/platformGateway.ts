@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { goMusicApiBaseUrl } from './goMusicApi.js';
 import { SOURCE_PAGE_HOSTS, SOURCES, type MusicSource, type Track } from '../shared/types.js';
 import type { PlatformItem, PlatformResult } from '../shared/platform.js';
+import { fetchJsonWithDeadline } from '../shared/fetchDeadline.js';
+import { queryNeteaseDiscovery } from './platformNetease.js';
 
 const object = (value: unknown): Record<string, any> => value && typeof value === 'object' ? value as Record<string, any> : {};
 const list = (value: unknown): any[] => Array.isArray(value) ? value : [];
@@ -14,8 +16,8 @@ export function safePlatformImage(value: unknown): string | null {
 export async function platformRequest(path: string, params: Record<string, string> = {}, init: RequestInit = {}) {
   const base = goMusicApiBaseUrl(); if (!base) throw new Error('此功能需要内置或已配置的音源服务。');
   const url = new URL(`/api/v1/${path}`, `${base}/`); url.search = new URLSearchParams(params).toString();
-  const response = await fetch(url.href, { ...init, signal: AbortSignal.timeout(15000), headers: { accept: 'application/json', ...init.headers } });
-  const body = object(await response.json());
+  const { response, body: raw } = await fetchJsonWithDeadline(url.href, { ...init, headers: { accept: 'application/json', ...init.headers } }, 15000);
+  const body = object(raw);
   if (!response.ok || typeof body.code === 'number' && body.code !== 200) throw new Error(text(body.msg || body.error) || `平台接口暂不可用（${response.status}）`);
   return body;
 }
@@ -51,6 +53,12 @@ export function normalizePlatformResult(raw: unknown, source: MusicSource, kind:
 }
 
 export async function queryPlatform(query: PlatformQuery): Promise<PlatformResult> {
+  const direct = query.source === 'netease' && ['recommend', 'search', 'detail'].includes(query.mode);
+  let directError: unknown;
+  if (direct) {
+    try { return await queryNeteaseDiscovery(query); }
+    catch (error) { directError = error; /* The bundled provider remains a second independent path. */ }
+  }
   const params = { source: query.source, page: String(query.page), limit: '30' };
   let path: string; let extra: Record<string, string> = {};
   switch (query.mode) {
@@ -66,7 +74,9 @@ export async function queryPlatform(query: PlatformQuery): Promise<PlatformResul
     case 'personal': path = 'playlist/user'; break;
     case 'detail': path = query.type === 'album' ? 'album/detail' : 'playlist/detail'; extra = { id: query.id }; break;
   }
-  const response = await platformRequest(path, { ...params, ...extra });
+  let response: Record<string, any>;
+  try { response = await platformRequest(path, { ...params, ...extra }); }
+  catch (error) { throw directError || error; }
   const result = normalizePlatformResult(response.data, query.source, query.type === 'album' ? 'album' : 'playlist');
   if (query.mode === 'categories') {
     const raw = response.data;

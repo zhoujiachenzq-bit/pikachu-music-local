@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useExitGhost } from './motionEffects';
 import { Icon } from './ui';
 import { TONE_THEMES, TONE_THEME_GROUPS, type ToneThemeId } from './visualTheme';
 
@@ -29,6 +30,7 @@ export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, b
   const [anchor, setAnchor] = useState({ top: 0, right: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  useExitGhost(panelRef, open);
   const zh = lang === 'zh';
 
   const close = () => { setOpen(false); onPreview(null); };
@@ -75,6 +77,7 @@ export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, b
     ref={panelRef}
     className="tone-panel"
     data-tone={activeTheme}
+    data-motion={motionEnabled ? 'on' : 'off'}
     role="dialog"
     aria-label={zh ? '网站色调' : 'Site tone'}
     style={{ '--tone-top': `${anchor.top}px`, '--tone-right': `${anchor.right}px` } as CSSProperties}

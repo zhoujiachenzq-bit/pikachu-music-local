@@ -38,7 +38,7 @@
 .app-shell:is([data-tone='night'],[data-tone='vinyl']) .track-row.active { background: var(--hover-bg); box-shadow: inset 3px 0 var(--brand); }
 .app-shell:is([data-tone='night'],[data-tone='vinyl']) .daily-editorial { background: linear-gradient(90deg,#fffdf5ec,#fffdf560),var(--landscape-image) center 67% / cover; border: 1px solid var(--line); border-radius: 14px; }
 .app-shell:is([data-tone='night'],[data-tone='vinyl']) .daily-editorial > .grainient { opacity: .1; }
-.app-shell[data-tone='burgundy'] .daily-editorial.has-grainient { background: linear-gradient(90deg,#34385cdd,#49457655),var(--garden-image) center 68% / cover; }
+.app-shell[data-tone='burgundy'] .daily-editorial.has-grainient { background: linear-gradient(90deg,#fff4f9f0,#fff4f94d),var(--garden-image) center 46% / cover; }
 .app-shell:is([data-tone='night'],[data-tone='vinyl']) .daily-copy h2 { color: var(--text-strong); text-shadow: none; }
 .app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.mobile-nav,.mobile-mini-player) { background: var(--surface-1); border-color: var(--line); color: var(--text-strong); }
 .app-shell:is([data-tone='night'],[data-tone='vinyl']) :is(.play-modes button,.playlist-toolbar button,.daily-tools select) { color: var(--text-strong); background: var(--surface-2); border-color: var(--line); }

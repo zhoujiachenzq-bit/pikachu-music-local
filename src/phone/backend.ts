@@ -11,6 +11,14 @@ const LOCAL_MUSIC_API = 'http://127.0.0.1:8080';
 
 function installAbortSignalAny() {
   const signalType = AbortSignal as { any?: typeof AbortSignal.any };
+  if (!AbortSignal.timeout) AbortSignal.timeout = milliseconds => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException('请求超时', 'TimeoutError')), milliseconds);
+    return controller.signal;
+  };
+  if (!AbortSignal.prototype.throwIfAborted) AbortSignal.prototype.throwIfAborted = function () {
+    if (this.aborted) throw this.reason || new DOMException('请求已取消', 'AbortError');
+  };
   if (signalType.any) return;
   signalType.any = signals => {
     const controller = new AbortController();
