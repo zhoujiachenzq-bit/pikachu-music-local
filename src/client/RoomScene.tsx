@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
-import { CoastLiveScene, GardenLiveScene } from './CoastLiveScene';
+import { CoastLiveScene, GardenLiveScene, HarborLiveScene } from './CoastLiveScene';
 import type { ToneThemeId } from './visualTheme';
 
 const MEADOW_SEEDS = Array.from({ length: 16 }, (_, i) => ({
@@ -39,12 +39,16 @@ export function CoastLyricsSea({ art, motion }: { art: boolean; motion: boolean 
   </div>;
 }
 
-/** Summer Coast's desktop lyrics box: the holiday coast, framed by the box alone. */
-export function CoastLyricsFrame({ live }: { live: boolean }) {
-  return <div className="coast-lyrics-frame" aria-hidden="true">{live && <CoastLiveScene/>}<i/></div>;
+/** Sea and You's phone lyrics page: the whole picture behind the lines, alive while the page is open. */
+export function HarborLyricsScene({ live }: { live: boolean }) {
+  return <div className="harbor-lyrics-scene" aria-hidden="true">{live && <HarborLiveScene/>}<i/></div>;
 }
 
-export function RoomStage({ theme, motionEnabled = false, live = false }: { theme: 'night' | 'vinyl' | 'burgundy'; coverUrl?: string | null; motionEnabled?: boolean; live?: boolean }) {
+export function RoomStage({ theme, motionEnabled = false, live = false }: { theme: 'night' | 'vinyl' | 'burgundy' | 'harbor'; coverUrl?: string | null; motionEnabled?: boolean; live?: boolean }) {
+  if (theme === 'harbor') return <div className="room-stage harbor-scene" data-motion={motionEnabled} aria-hidden="true">
+    {live && <HarborLiveScene/>}
+    <i className="harbor-shade"/>
+  </div>;
   if (theme === 'burgundy') return <div className="room-stage garden-scene" data-motion={motionEnabled} aria-hidden="true">
     {live && <GardenLiveScene/>}
     <i className="garden-stars"/><i className="garden-haze"/><i className="garden-fireflies"/><i className="garden-shade"/>

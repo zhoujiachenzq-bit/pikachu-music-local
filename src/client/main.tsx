@@ -12,8 +12,11 @@ import './mobileShell.css';
 import './collectionSurfaces.css';
 import './themeDetails.css';
 import './themeFrames.css';
+import './harborTheme.css';
+import './stageDock.css';
+import './arcadeTheme.css';
 
-document.documentElement.dataset.visualRelease = '0.7.1';
+document.documentElement.dataset.visualRelease = '0.7.2';
 
 if (import.meta.env.PROD && !phoneApp && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

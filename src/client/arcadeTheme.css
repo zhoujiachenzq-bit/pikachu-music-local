@@ -1,0 +1,36 @@
+/* Neon Arcade, desktop: the room around the cabinets. Far signs glow cyan and magenta through the dark,
+   a pink haze sits on the horizon, and a neon floor runs out from under the panels. */
+@media (min-width: 761px) {
+  .app-shell[data-tone='arcade'][data-tone] {
+    background:
+      radial-gradient(circle, #ffd23f 0 1.6px, #ffd23f66 2.6px, transparent 4.5px) 6px 8px / 22px 16px repeat-x,
+      linear-gradient(90deg, #22e3ff40, #22e3ff12 1.6%, transparent 3.2%, transparent 96.8%, #ff3d8b12 98.4%, #ff3d8b40),
+      radial-gradient(ellipse 34% 26% at 6% 26%, #22e3ff2e, transparent 70%),
+      radial-gradient(ellipse 30% 22% at 95% 18%, #ff3d8b33, transparent 70%),
+      radial-gradient(ellipse 18% 12% at 82% 58%, #ffd23f1f, transparent 70%),
+      radial-gradient(ellipse 22% 16% at 16% 66%, #b45cff26, transparent 70%),
+      radial-gradient(ellipse 80% 16% at 50% 70%, #ff3d8b2e, transparent 72%),
+      linear-gradient(#07051a, #120a2c 52%, #1d0b34 70%, #0c0618);
+  }
+  .app-shell[data-tone='arcade'][data-tone]::before {
+    inset: auto -40% 0; height: 46%; opacity: .8;
+    background-image: linear-gradient(#ff3d8bb3 3px, transparent 3px), linear-gradient(90deg, #22e3ff99 3px, transparent 3px);
+    background-size: 64px 64px; background-position: 50% 0;
+    -webkit-mask-image: linear-gradient(transparent, #000 30%); mask-image: linear-gradient(transparent, #000 30%);
+    transform-origin: 50% 100%; transform: perspective(380px) rotateX(66deg) translateY(0);
+  }
+  .app-shell.motion-on[data-tone='arcade'][data-tone]::before { animation: arcade-floor 3.2s linear infinite; }
+  .app-shell[data-tone='arcade'][data-tone]::after {
+    opacity: 1; mix-blend-mode: normal;
+    background: linear-gradient(transparent 82%, #ff3d8b1f), repeating-linear-gradient(to bottom, transparent 0 3px, #00000024 3px 4px);
+  }
+  .app-shell[data-tone='arcade'] > footer { position: relative; z-index: 1; color: #c9c6e8; text-shadow: 0 0 6px #07051a, 0 1px 2px #07051a; }
+  @keyframes arcade-floor { to { transform: perspective(380px) rotateX(66deg) translateY(64px); } }
+}
+/* Reduced motion hides every WebGL host; the arcade's is a single still frame there, so it may stay. */
+@media (prefers-reduced-motion: reduce) {
+  .immersive-backdrop.scene-arcade .immersive-webgl-host { display: block; }
+}
+@media (min-width: 761px) and (prefers-reduced-motion: reduce) {
+  .app-shell.motion-on[data-tone='arcade'][data-tone]::before { animation: none; }
+}

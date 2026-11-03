@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { sceneVariantForTheme, selectSceneQuality, shouldAnimateCssScene, type ToneThemeId } from './visualTheme';
+import { sceneVariantForTheme, selectSceneQuality, shouldAnimateCssScene, type SceneVariant, type ToneThemeId } from './visualTheme';
 import type { StageMode, VisualPalette } from './visualState';
+import { ARCADE_FRAGMENT, ARCADE_VERTEX } from './arcadeScene';
 
 interface ImmersiveBackdropProps {
   coverUrl?: string | null;
@@ -37,6 +38,8 @@ export function ImmersiveBackdrop({
   const variant = sceneVariantForTheme(theme);
   const calmDefault = theme === 'night';
   const cssMotionActive = shouldAnimateCssScene({ motionEnabled, reducedMotion: device.reducedMotion });
+  // With motion off the arcade still draws its scene, once, instead of falling back to the CSS sketch.
+  const stillArcade = variant === 'arcade' && quality === 'off';
 
   useEffect(() => {
     live.current = { playing, progress, stage };
@@ -60,7 +63,7 @@ export function ImmersiveBackdrop({
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || quality === 'off') {
+    if (!host || (quality === 'off' && !stillArcade)) {
       setWebglReady(false);
       return;
     }
@@ -71,6 +74,68 @@ export function ImmersiveBackdrop({
 
     void import('three').then(THREE => {
       if (disposed || !hostRef.current) return;
+
+      // Widened so the branch below does not narrow `variant` for the shared scene code after it.
+      if ((variant as SceneVariant) === 'arcade') {
+        const renderer = new THREE.WebGLRenderer({ alpha: false, antialias: false, powerPreference: 'low-power' });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'desktop' ? 1.5 : 1.25));
+        renderer.domElement.className = 'immersive-webgl-canvas';
+        renderer.domElement.setAttribute('aria-hidden', 'true');
+        host.append(renderer.domElement);
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const uniforms = {
+          uRes: { value: new THREE.Vector2(1, 1) }, uPointer: { value: new THREE.Vector2() },
+          uTime: { value: 0 }, uPulse: { value: 0 }, uProgress: { value: 0 },
+          uPink: { value: new THREE.Color(palette.secondary) }, uCyan: { value: new THREE.Color(palette.glow) }, uGold: { value: new THREE.Color('#ffd23f') },
+        };
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        const material = new THREE.ShaderMaterial({ vertexShader: ARCADE_VERTEX, fragmentShader: ARCADE_FRAGMENT, uniforms, depthTest: false, depthWrite: false });
+        scene.add(new THREE.Mesh(geometry, material));
+        let frame = 0, last = 0, pulse = 0, pointerX = 0, pointerY = 0;
+        const draw = (stamp: number) => {
+          uniforms.uTime.value = stillArcade ? 18 : stamp / 1000 % 3600;
+          uniforms.uProgress.value = live.current.progress;
+          uniforms.uPointer.value.set(pointerX, pointerY);
+          renderer.render(scene, camera);
+        };
+        const resize = () => {
+          const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
+          renderer.setSize(width, height, false);
+          uniforms.uRes.value.set(width, height);
+          if (stillArcade) draw(0);
+        };
+        const observer = new ResizeObserver(resize);
+        observer.observe(host); resize();
+        const onPointerMove = (event: PointerEvent) => {
+          if (quality !== 'desktop') return;
+          const rect = host.getBoundingClientRect();
+          pointerX = ((event.clientX - rect.left) / Math.max(1, rect.width) - .5) * 2;
+          pointerY = ((event.clientY - rect.top) / Math.max(1, rect.height) - .5) * 2;
+        };
+        const loop = (stamp: number) => {
+          frame = requestAnimationFrame(loop);
+          if (document.visibilityState !== 'visible') return;
+          const interval = live.current.playing ? (quality === 'desktop' ? 33 : 40) : (quality === 'desktop' ? 66 : 90);
+          if (stamp - last < interval) return;
+          last = stamp;
+          pulse += ((live.current.playing ? 1 : 0) - pulse) * .06;
+          uniforms.uPulse.value = pulse * (.6 + .4 * Math.max(0, Math.sin(stamp * .0062)));
+          draw(stamp);
+        };
+        const onContextLost = (event: Event) => { event.preventDefault(); cancelAnimationFrame(frame); setWebglReady(false); };
+        renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+        host.addEventListener('pointermove', onPointerMove, { passive: true });
+        if (!stillArcade) frame = requestAnimationFrame(loop);
+        setWebglReady(true);
+        destroy = () => {
+          cancelAnimationFrame(frame); observer.disconnect();
+          host.removeEventListener('pointermove', onPointerMove);
+          renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+          geometry.dispose(); material.dispose(); renderer.dispose(); renderer.domElement.remove();
+        };
+        return;
+      }
 
       const renderer = new THREE.WebGLRenderer({
         alpha: true,
@@ -267,7 +332,7 @@ export function ImmersiveBackdrop({
       disposed = true;
       destroy?.();
     };
-  }, [calmDefault, motionEnabled, palette.glow, palette.primary, palette.secondary, palette.seed, quality, variant]);
+  }, [calmDefault, motionEnabled, palette.glow, palette.primary, palette.secondary, palette.seed, quality, stillArcade, variant]);
 
   return <div
     className={`immersive-backdrop scene-${variant} quality-${quality} ${webglReady ? 'webgl-ready' : 'css-fallback'} ${cssMotionActive ? 'motion-active' : 'motion-still'} ${playing ? 'is-playing' : 'is-paused'} stage-${stage}`}

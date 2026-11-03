@@ -27,11 +27,12 @@ describe('visual theme preferences', () => {
     expect(resolveToneTheme('night', null)).toBe('night');
   });
 
-  it('groups all six themes without changing the legacy night id', () => {
+  it('groups every theme without changing the legacy night id', () => {
     expect(TONE_THEME_GROUPS.flatMap(group => group.themes)).toEqual(TONE_THEME_IDS);
     expect(parseVisualPreferences('{"version":1,"theme":"night","motionEnabled":true}').theme).toBe('night');
     expect(parseVisualPreferences('{"version":1,"theme":"vinyl","motionEnabled":true}').theme).toBe('vinyl');
     expect(parseVisualPreferences('{"version":1,"theme":"arcade","motionEnabled":false}').theme).toBe('arcade');
+    expect(parseVisualPreferences('{"version":1,"theme":"harbor","motionEnabled":true}').theme).toBe('harbor');
   });
 
   it('keeps artwork enabled for existing saved preferences without the new switch', () => {

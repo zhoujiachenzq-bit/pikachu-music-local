@@ -137,10 +137,8 @@
   @keyframes coast-sea-sway { from { transform: rotate(-1.4deg); } to { transform: rotate(1.6deg); } }
 }
 
-/* Summer Coast, desktop: only the lyrics box takes the holiday coast. The sea and boat it replaces stay for the scenery-off case. */
+/* Summer Coast, desktop, scenery on: the lines sit straight on the stage picture (stageDock.css). The sea and boat stay for the scenery-off case. */
 @media (min-width: 761px) {
-  .coast-lyrics-frame { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; background: var(--landscape-image) center / cover no-repeat; }
-  .coast-lyrics-frame i { position: absolute; inset: 0; background: radial-gradient(ellipse 72% 78% at 50% 54%, #06283a94, #06283a5c 62%, #06283a1f); }
   .app-shell[data-tone='night'][data-background-art='on'] .lyrics { border-radius: 6px; background: none; box-shadow: 0 18px 38px #0b3a4538; }
   .app-shell[data-tone='night'][data-background-art='on'] .lyrics-effects, .app-shell[data-tone='night'][data-background-art='on'] .lyrics::after { display: none; }
   .app-shell[data-tone='night'][data-background-art='on'] .lyrics-scroll { -webkit-mask-image: linear-gradient(transparent, #000 34px, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(transparent, #000 34px, #000 calc(100% - 34px), transparent); }

@@ -1,0 +1,63 @@
+/* Sea and You: the night-sea picture fills the room; every surface is glass laid over it. */
+:where(.app-shell,.tone-panel)[data-tone='harbor'] {
+  --brand: #9fd4ff; --brand-bright: #cfeaff; --brand-ink: #0b1430; --text: #e8f0ff; --text-strong: #ffffff;
+  --surface-0: #0b1430; --surface-1: rgba(14,24,52,.88); --surface-2: rgba(24,38,78,.82); --surface-3: rgba(40,58,108,.72);
+  --panel-a: rgba(16,27,58,.74); --panel-b: rgba(9,16,38,.82); --control-bg: rgba(30,46,92,.72); --input-bg: rgba(8,14,34,.74);
+  --hover-bg: rgba(159,212,255,.1); --line: rgba(190,220,255,.16); --line-strong: rgba(159,212,255,.5);
+  --muted: #b3c3e0; --quiet: #8496b8; --danger: #ff9fb5; --scene-theme-accent: #9fd4ff; --scene-theme-glow: #ffc9dc; --radius-panel: 18px;
+}
+/* The room itself is not the picture: a deep harbour night with the far shore's glow low on the horizon. */
+.app-shell[data-tone='harbor'] { --harbor-image: url('/harbor-night.jpg'); --edge-particle-a: #9fd4ff; --edge-particle-b: #ffc9dc; background: radial-gradient(1.5px 1.5px at 12% 18%, #cfe6ffb3, transparent), radial-gradient(1px 1px at 34% 9%, #ffffff99, transparent), radial-gradient(1.5px 1.5px at 71% 14%, #ffd9e6a6, transparent), radial-gradient(1px 1px at 88% 30%, #cfe6ff99, transparent), radial-gradient(1px 1px at 56% 24%, #ffffff80, transparent), radial-gradient(ellipse 90% 34% at 50% 104%, #3a7fd166, transparent 70%), radial-gradient(ellipse 60% 22% at 72% 100%, #ffb7cf33, transparent 70%), linear-gradient(#081026, #0f1a3d 58%, #12224c); }
+.app-shell[data-tone='harbor'][data-background-art='off'] { --harbor-image: none; }
+.app-shell[data-tone='harbor']::before, .app-shell[data-tone='harbor']::after, .app-shell[data-tone='harbor'] .panel::after { display: none; }
+.app-shell[data-tone='harbor'] .daily-editorial { border: 1px solid var(--line); background: linear-gradient(90deg, #0b1430f0 0 38%, #0b143073 72%, #0b143026), var(--harbor-image) center 42% / cover, #14204a; }
+.app-shell[data-tone='harbor'] .daily-editorial > .grainient { display: none; }
+.harbor-scene { background: #0b1430 var(--harbor-image) center 40% / cover no-repeat; }
+.harbor-shade { inset: 0; }
+
+@media (min-width: 761px) {
+  .app-shell[data-tone='harbor'] :is(.topbar.panel, .workspace > section.panel:not(.player-panel)) { border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(160deg, #121e40b8, #09102acc); box-shadow: 0 18px 40px #02061566, inset 0 1px #ffffff14; backdrop-filter: blur(16px) saturate(1.2); }
+  .app-shell[data-tone='harbor'] .workspace > section.player-panel { border: 1px solid #bedcff38; border-radius: 18px; background: #0b1430; box-shadow: 0 22px 48px #02061580, inset 0 1px #ffffff1a; }
+  .app-shell[data-tone='harbor'] .harbor-shade { background: linear-gradient(#0b1430b8, #0b143038 30%, #0b14301f 52%, #0b1430d4 88%); }
+  .app-shell[data-tone='harbor'] .player-heading h2 { color: #fff; }
+  .app-shell[data-tone='harbor'] .player-heading small { border-color: var(--line); color: #cfe6ff; background: #0b143066; }
+  .app-shell[data-tone='harbor'] .now-card { border: 0; background: none; box-shadow: none; }
+  .app-shell[data-tone='harbor'] .record-tilt { border: 0; background: none; box-shadow: none; }
+  .app-shell[data-tone='harbor'] .record { box-shadow: 0 0 0 2px #e8f4ff, 0 0 18px 4px #6fc2ffb3, 0 6px 30px 8px #ffc9dc4d; }
+  .app-shell[data-tone='harbor'] .track-hero h3 { color: #fff; text-shadow: 0 2px 18px #0b1430; }
+  .app-shell[data-tone='harbor'] :is(.track-hero p, .progress-row, .now-kicker) { color: #d6e4fb; text-shadow: 0 1px 10px #0b1430; }
+  .app-shell[data-tone='harbor'] .player-range { --range-empty: #ffffff33; }
+  .app-shell[data-tone='harbor'] .transport { border: 1px solid var(--line); background: #0b14308c; box-shadow: none; backdrop-filter: blur(10px); }
+  .app-shell[data-tone='harbor'] .transport > button:not(.mobile-volume-toggle):not(.play-main), .app-shell[data-tone='harbor'] .hero-actions button { border-color: var(--line); color: #eaf2ff; background: #ffffff12; }
+  .app-shell[data-tone='harbor'] .play-main { color: #0b1430; background: radial-gradient(circle at 40% 34%, #f2f9ff, #9fd4ff 72%); box-shadow: 0 0 28px #9fd4ff80; }
+  .app-shell[data-tone='harbor'] .lyrics { border: 0; background: none; box-shadow: none; }
+  .app-shell[data-tone='harbor'] .lyrics-effects { display: none; }
+  .app-shell[data-tone='harbor'] .lyric-line { color: #e3ecffd1; text-shadow: 0 1px 10px #0b1430f0; }
+  .app-shell[data-tone='harbor'] .lyric-line.active { color: #ffe6c2; background: none; text-shadow: 0 0 20px #ffd39a8c, 0 1px 10px #0b1430f0; }
+  .app-shell[data-tone='harbor'] .lyric-line time { color: #cfe6ff; }
+  /* Film-subtitle framing: she stands in the right third and the lines keep to the left, so her face is never under them. */
+  .app-shell[data-tone='harbor'][data-background-art='on'] .player-panel .harbor-scene { background-position: 10% 40%; }
+  .app-shell[data-tone='harbor'][data-background-art='on'] .harbor-shade { background: linear-gradient(90deg, #0b1430d9, #0b14309e 40%, #0b143024 64%, #0b143000), linear-gradient(#0b143099, transparent 26%, transparent 72%, #0b1430cc); }
+  .app-shell[data-tone='harbor'][data-background-art='on'] .stage-mode-player .lyrics-scroll { padding-inline: 30px 40%; }
+  .app-shell[data-tone='harbor'][data-background-art='on'] .stage-mode-player .lyric-line { grid-template-columns: minmax(0, 1fr); justify-items: start; text-align: left; }
+  .app-shell[data-tone='harbor'][data-background-art='on'] .stage-mode-player .lyric-line > span { grid-column: 1; }
+  .app-shell[data-tone='harbor'][data-background-art='on'] .stage-mode-player .lyric-line time { display: none; }
+  .app-shell[data-tone='harbor'][data-background-art='on'] .stage-mode-player .lyric-line.active { transform-origin: 0 50%; }
+}
+
+@media (max-width: 760px) {
+  .app-shell[data-tone='harbor'] { --m-bg: #0b1430; --m-raised: #16234d; --m-sunken: #0e1838; --m-ink: #eaf2ff; --m-muted: #a9bad8; --m-accent: #9fd4ff; --m-on-accent: #0b1430; --m-line: #bcd8ff26; background: var(--m-bg); }
+  .app-shell[data-tone='harbor'] .workspace > section.panel.player-panel:not([data-mobile-section='daily']) { background: transparent !important; }
+  .app-shell[data-tone='harbor'] .workspace .player-panel .room-stage { position: absolute; display: block; inset: 0 !important; }
+  .app-shell[data-tone='harbor'] .harbor-shade { background: linear-gradient(#0b143073, transparent 30%, transparent 58%, #0b1430b3); }
+  .app-shell[data-tone='harbor'] .track-hero { padding: 14px 16px; border: 1px solid var(--m-line); border-radius: 14px; background: #16234deb; }
+  .app-shell[data-tone='harbor'] .now-card .hero-actions { margin: 10px 8px 0 0; }
+  .app-shell[data-tone='harbor'] .workspace .lyrics { background: linear-gradient(#16234d, #0b1430); }
+  .app-shell[data-tone='harbor'] .lyrics-page-bar { background: none; }
+  /* Fully open, the page is the picture itself; the veil only steadies the lines over it. */
+  .harbor-lyrics-scene { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .24s ease, visibility 0s .24s; background: #0b1430 var(--harbor-image) center 42% / cover no-repeat; }
+  .lyrics:is(.sheet-open,.is-dragging) .harbor-lyrics-scene { opacity: 1; visibility: visible; transition: opacity .24s ease; }
+  .harbor-lyrics-scene i { position: absolute; inset: 0; background: linear-gradient(#0b143099, #0b143026 22%, #0b143059 50%, #0b1430d9 86%); }
+  .app-shell[data-tone='harbor'] .lyrics.sheet-open .lyric-line { text-shadow: 0 1px 10px #0b1430f0; }
+  .app-shell[data-tone='harbor'] .lyrics.sheet-open .lyric-line.active { color: #ffe6c2; text-shadow: 0 0 18px #ffd39a8c, 0 1px 10px #0b1430f0; }
+}

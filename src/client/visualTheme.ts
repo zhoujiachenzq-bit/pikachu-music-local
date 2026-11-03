@@ -1,4 +1,4 @@
-export const TONE_THEME_IDS = ['paper', 'arcade', 'cobalt', 'night', 'vinyl', 'burgundy'] as const;
+export const TONE_THEME_IDS = ['paper', 'arcade', 'cobalt', 'night', 'vinyl', 'burgundy', 'harbor'] as const;
 
 export type ToneThemeId = typeof TONE_THEME_IDS[number];
 
@@ -60,6 +60,13 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
     canvas: '#fdeef5', surface: '#fff7fb', sceneAccent: '#c0327f', sceneGlow: '#c14dff',
     swatches: ['#fdeef5', '#c14dff', '#c0327f'],
   },
+  harbor: {
+    id: 'harbor',
+    name: { zh: '海与你', en: 'Sea and You' },
+    description: { zh: '夜海、对岸灯火与回眸', en: 'Night sea, far-shore lights and a glance back' },
+    canvas: '#0b1430', surface: '#14204a', sceneAccent: '#9fd4ff', sceneGlow: '#ffc9dc',
+    swatches: ['#0b1430', '#3aa8ff', '#ffe0b8'],
+  },
   cobalt: {
     id: 'cobalt',
     name: { zh: '钴蓝画廊', en: 'Cobalt Gallery' },
@@ -86,8 +93,8 @@ export const TONE_THEME_GROUPS: readonly ToneThemeGroupDefinition[] = [
   {
     id: 'curated',
     name: { zh: '治愈风景', en: 'Restful Landscapes' },
-    description: { zh: '海岸、花野与暮光花园', en: 'Coast, meadow and twilight garden' },
-    themes: ['night', 'vinyl', 'burgundy'],
+    description: { zh: '海岸、花野、暮光花园与夜海', en: 'Coast, meadow, twilight garden and night sea' },
+    themes: ['night', 'vinyl', 'burgundy', 'harbor'],
   },
 ] as const;
 

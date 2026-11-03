@@ -9,6 +9,7 @@ export type GrainientTone = ToneThemeId | 'login';
 const COLORS: Record<GrainientTone, readonly [string, string, string]> = {
   login: ['#846039', '#26334e', '#090e1a'],
   burgundy: ['#b792c9', '#6571b2', '#303455'],
+  harbor: ['#2b5d9a', '#14204a', '#0b1430'],
   vinyl: ['#eaf1cc', '#b8c896', '#d6e9ee'],
   paper: ['#fff3d1', '#e6a36f', '#edcf99'],
   night: ['#cceaf1', '#a7dbe8', '#f4e9ce'],

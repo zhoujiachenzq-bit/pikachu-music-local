@@ -11,6 +11,11 @@ const IMAGE_RATIO = 2912 / 1632;
 const GARDEN_RATIO = 16 / 9;
 const FRAME_MS = 1000 / 30;
 const MAX_PIXELS = 1_800_000;
+// The night-sea picture is shown at full resolution, so its canvas may go up to the 4K source.
+const CRISP_PIXELS = 3840 * 2160;
+const HARBOR_IMAGE = '/harbor-night.jpg';
+// R: the water. G: the eyes' highlights. B: hair and collar drift, grey at rest.
+const HARBOR_MASK = '/harbor-night-mask.webp';
 
 const VERTEX = `attribute vec2 a; varying vec2 v; void main() { v = vec2(a.x * .5 + .5, .5 - a.y * .5); gl_Position = vec4(a, 0., 1.); }`;
 const FRAGMENT = `#ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -106,12 +111,51 @@ void main() {
   gl_FragColor = vec4(color, 1.);
 }`;
 
-function loadTexture(gl: WebGLRenderingContext, unit: number, source: HTMLImageElement) {
+const HARBOR_FRAGMENT = `#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying vec2 v;
+uniform sampler2D image, mask;
+uniform vec2 cover, shift;
+uniform float aspect, time;
+
+float hash(float n) { return fract(sin(n * 12.9898) * 43758.5453); }
+vec3 bokeh(float i) {
+  float t = fract(time / (40. + hash(i) * 30.) + hash(i + 2.));
+  vec2 at = vec2(fract(hash(i + 5.) + t * .18 * (hash(i + 9.) - .5)), .08 + hash(i + 7.) * .42 + .03 * sin(time * .2 + i));
+  float d = length((v - at) * vec2(aspect, 1.)), r = .018 + hash(i + 1.) * .03;
+  float a = smoothstep(r, r * .7, d) * (.05 + .05 * hash(i + 4.)) * sin(t * 3.14159);
+  return mix(vec3(1., .78, .88), vec3(.62, .82, 1.), hash(i + 3.)) * a;
+}
+void main() {
+  vec2 uv = (v - .5) * cover + .5 + shift;
+  vec4 m = texture2D(mask, uv);
+  vec2 sway = (m.b - .5) * .004 * vec2(sin(time * .9 + uv.y * 6.), .4 * sin(time * .7 + uv.x * 5.));
+  vec2 ripple = m.r * .0006 * vec2(sin(uv.y * 320. + time * .9 + 2. * sin(uv.x * 40.)), sin(uv.x * 110. - time * .6));
+  vec3 color = texture2D(image, uv + sway + ripple).rgb;
+  float lum = dot(color, vec3(.299, .587, .114));
+  vec2 cell = floor(uv * vec2(420., 300.));
+  float seed = hash(cell.x + cell.y * 57.);
+  color += m.r * smoothstep(.5, .85, lum) * pow(.5 + .5 * sin(time * (1. + seed * 3.) + seed * 40.), 12.) * .3;
+  // The far shore runs at her eye level; keep the twinkle off her, to either side.
+  float shore = smoothstep(.455, .47, uv.y) * smoothstep(.535, .52, uv.y) * (1. - smoothstep(.35, .38, uv.x) * smoothstep(.65, .62, uv.x)), lamp = floor(uv.x * 140.);
+  color *= 1. + shore * smoothstep(.6, .95, lum) * (sin(time * (1.2 + hash(lamp) * 2.) + hash(lamp + 3.) * 6.28) * .18);
+  color += vec3(.75, .9, 1.) * m.g * (.1 + .08 * sin(time * 1.3));
+  for (float i = 0.; i < 10.; i += 1.) color += bokeh(i);
+  gl_FragColor = vec4(color, 1.);
+}`;
+
+function loadTexture(gl: WebGLRenderingContext, unit: number, source: HTMLImageElement, mipmap: boolean) {
   const texture = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0 + unit);
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Mipmaps keep a 4K picture from shimmering when it is drawn smaller; WebGL 1 cannot mip a non-power-of-two image.
+  const mip = mipmap && typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+  if (mip) gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 }
@@ -123,13 +167,14 @@ function loadImage(src: string) {
 }
 
 /** A wallpaper, alive. Sits on the static picture and fades in only once it has drawn, so any failure just leaves that picture. */
-function LiveCanvas({ fragment, sources, imageRatio }: { fragment: string; sources: string[]; imageRatio: number }) {
+function LiveCanvas({ fragment, sources, imageRatio, crisp = false }: { fragment: string; sources: string[]; imageRatio: number; crisp?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // Made here, not in JSX: releasing a context is final for its canvas, and this effect may run again.
     const element = document.createElement('canvas');
     host.current?.append(element);
-    const gl = element.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'low-power' });
+    const options: WebGLContextAttributes = { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'low-power' };
+    const gl: WebGLRenderingContext | null = (crisp ? element.getContext('webgl2', options) : null) || element.getContext('webgl', options);
     if (!gl) { element.remove(); return; }
     let frame = 0, disposed = false, last = 0, ready = false;
     const lost = () => { disposed = true; cancelAnimationFrame(frame); element.style.opacity = '0'; };
@@ -149,11 +194,16 @@ function LiveCanvas({ fragment, sources, imageRatio }: { fragment: string; sourc
     const uniform = (name: string) => gl.getUniformLocation(program, name);
     const resize = () => {
       const { width, height } = element.getBoundingClientRect(); if (!width || !height) return;
-      const scale = Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(MAX_PIXELS / (width * height)));
+      const scale = crisp ? Math.min(window.devicePixelRatio || 1, 3, Math.sqrt(CRISP_PIXELS / (width * height))) : Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(MAX_PIXELS / (width * height)));
       element.width = Math.round(width * scale); element.height = Math.round(height * scale);
       gl.viewport(0, 0, element.width, element.height);
       const ratio = width / height;
-      gl.uniform2f(uniform('cover'), Math.min(ratio / imageRatio, 1), Math.min(imageRatio / ratio, 1));
+      const cover = [Math.min(ratio / imageRatio, 1), Math.min(imageRatio / ratio, 1)];
+      gl.uniform2f(uniform('cover'), cover[0], cover[1]);
+      // Same framing as the CSS picture underneath: its background-position percentages, read off the stage.
+      const stage = host.current?.parentElement;
+      const [x, y] = (stage ? getComputedStyle(stage).backgroundPosition : '50% 50%').split(' ').map(part => part.endsWith('%') ? parseFloat(part) / 100 : .5);
+      gl.uniform2f(uniform('shift'), (x - .5) * (1 - cover[0]), (y - .5) * (1 - cover[1]));
       gl.uniform1f(uniform('aspect'), ratio);
     };
     const observer = new ResizeObserver(resize);
@@ -173,7 +223,7 @@ function LiveCanvas({ fragment, sources, imageRatio }: { fragment: string; sourc
     document.addEventListener('visibilitychange', visibility);
     void Promise.all(sources.map(loadImage)).then(images => {
       if (disposed) return;
-      images.forEach((image, unit) => loadTexture(gl, unit, image));
+      images.forEach((image, unit) => loadTexture(gl, unit, image, crisp && unit === 0));
       images.forEach((_, unit) => gl.uniform1i(uniform(['image', 'mask', 'bird'][unit]), unit));
       observer.observe(element); resize();
       ready = true; visibility();
@@ -185,11 +235,13 @@ function LiveCanvas({ fragment, sources, imageRatio }: { fragment: string; sourc
       gl.getExtension('WEBGL_lose_context')?.loseContext();
       element.remove();
     };
-  }, [fragment, imageRatio, sources]);
+  }, [crisp, fragment, imageRatio, sources]);
   return <div ref={host} className="coast-live-scene"/>;
 }
 
 const COAST_SOURCES = [IMAGE, MASK, BIRD];
 const GARDEN_SOURCES = [GARDEN_IMAGE, GARDEN_MASK];
 export const CoastLiveScene = () => <LiveCanvas fragment={FRAGMENT} sources={COAST_SOURCES} imageRatio={IMAGE_RATIO}/>;
+const HARBOR_SOURCES = [HARBOR_IMAGE, HARBOR_MASK];
+export const HarborLiveScene = () => <LiveCanvas fragment={HARBOR_FRAGMENT} sources={HARBOR_SOURCES} imageRatio={16 / 9} crisp/>;
 export const GardenLiveScene = () => <LiveCanvas fragment={GARDEN_FRAGMENT} sources={GARDEN_SOURCES} imageRatio={GARDEN_RATIO}/>;

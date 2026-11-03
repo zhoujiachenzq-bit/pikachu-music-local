@@ -115,7 +115,7 @@ export function TonePicker({ activeTheme, committedTheme, lang, motionEnabled, b
     </button>
     <button className={`motion-toggle background-art-toggle ${backgroundArtEnabled ? 'active' : ''}`} onClick={() => onBackgroundArtChange(!backgroundArtEnabled)} aria-pressed={backgroundArtEnabled}>
       <span><Icon name="palette" size={16}/></span>
-      <span><strong>{zh ? '风景背景图' : 'Landscape artwork'}</strong><small>{zh ? '适用于海岸、花野与花园；关闭后保留纯色氛围' : 'For coast, meadow and garden; keep the calm colours when off'}</small></span>
+      <span><strong>{zh ? '风景背景图' : 'Landscape artwork'}</strong><small>{zh ? '适用于海岸、花野、花园与夜海；关闭后保留纯色氛围' : 'For coast, meadow, garden and night sea; keep the calm colours when off'}</small></span>
       <i/>
     </button>
   </section> : null;
