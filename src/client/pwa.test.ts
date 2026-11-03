@@ -21,7 +21,7 @@ describe('PWA assets', () => {
     expect(worker).toContain("fetch('/', { cache: 'no-cache' })");
     expect(worker).toContain("url.pathname.startsWith('/assets/')");
     expect(worker).toContain("'/pikachu.gif'");
-    expect(worker).toContain('pikachu-music-shell-v0.7.2-r1');
+    expect(worker).toContain('pikachu-music-shell-v0.7.3-r1');
     // A theme image can render online yet fail after installation without its cache entry.
     expect(worker).toContain("'/moon-gate-garden.webp'");
     expect(existsSync('public/moon-gate-garden.webp')).toBe(true);

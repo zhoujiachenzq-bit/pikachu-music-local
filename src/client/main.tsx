@@ -16,7 +16,7 @@ import './harborTheme.css';
 import './stageDock.css';
 import './arcadeTheme.css';
 
-document.documentElement.dataset.visualRelease = '0.7.2';
+document.documentElement.dataset.visualRelease = '0.7.3';
 
 if (import.meta.env.PROD && !phoneApp && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

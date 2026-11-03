@@ -151,7 +151,8 @@
 .app-shell[data-tone='burgundy'][data-background-art='on'] .garden-shade { background: linear-gradient(#1d0f33a6, #1d0f3352 30%, #1d0f3338 50%, #1d0f33d1 84%); }
 .app-shell[data-tone='burgundy'][data-background-art='on'] :is(.garden-haze,.garden-fireflies) { display: none; }
 @media (min-width: 761px) {
-  .app-shell[data-tone='burgundy'][data-background-art='on'] { background: linear-gradient(#2a1745d6, #1d0f33e6), var(--garden-image) center 46% / cover fixed; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] { background: radial-gradient(ellipse 46% 30% at 10% 12%, #ff9ec733, transparent 70%), radial-gradient(ellipse 40% 28% at 92% 88%, #3fd8e01f, transparent 70%), radial-gradient(ellipse 70% 40% at 50% 108%, #c14dff40, transparent 72%), linear-gradient(160deg, #2a1745, #1d0f33 55%, #241240); }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .garden-shade { background: radial-gradient(ellipse 72% 50% at 50% 50%, #1d0f3399, #1d0f3340 64%, transparent), linear-gradient(#1d0f33a6, #1d0f3338 30%, #1d0f3326 50%, #1d0f33c7 86%); }
   .app-shell[data-tone='burgundy'][data-background-art='on'] .player-heading h2 { color: #fff7fb; }
   .app-shell[data-tone='burgundy'][data-background-art='on'] .player-heading small { color: #ffd6ea; }
   .app-shell[data-tone='burgundy'][data-background-art='on'] .track-hero h3 { color: #fff7fb; text-shadow: 0 2px 16px #1d0f33d9; }
@@ -164,6 +165,24 @@
   .app-shell[data-tone='burgundy'][data-background-art='on'] .lyric-line.active { color: #ffd6ea; text-shadow: 0 0 20px #e0559acc, 0 1px 8px #1d0f33e6; }
   .app-shell[data-tone='burgundy'][data-background-art='on'] .lyric-line time { color: #ffd6ea; }
   .app-shell[data-tone='burgundy'][data-background-art='on'] .empty-lyrics { color: #f6e6f2; text-shadow: 0 1px 8px #1d0f33e6; }
+  /* The floating record and title stay up top; the controls move down into a glass strip at the stage's foot, like the coast.
+     The card and its text step out of positioning so the controls are placed against the stage surface. */
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .stage-surface { padding-bottom: 104px; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .stage-surface::after { content: ''; position: absolute; z-index: 0; left: 0; right: 0; bottom: 0; height: 92px; border: 2px solid transparent; border-radius: 16px; background: linear-gradient(#2a1745c7, #2a1745c7) padding-box, var(--gate-rim) border-box; box-shadow: 0 12px 30px #1d0f3373, 0 0 18px #c14dff33; backdrop-filter: blur(14px) saturate(1.2); pointer-events: none; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player :is(.now-card, .track-hero) { position: static; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .track-hero p { margin-bottom: 0; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .progress-row { position: absolute; z-index: 1; left: 26px; right: 26px; bottom: 58px; margin: 0; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .transport { position: absolute; z-index: 1; left: 50%; bottom: 12px; margin: 0; padding: 0; transform: translateX(-50%); }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .transport { flex-wrap: nowrap; gap: 8px; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .volume input { width: 56px; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .transport > .play-main { width: 42px; height: 42px; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .transport > button:not(.mobile-volume-toggle):not(.play-main) { width: 32px; height: 32px; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .hero-actions { position: absolute; z-index: 1; right: 24px; bottom: 16px; margin: 0; padding: 0; display: flex; gap: 6px; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .hero-actions button { width: 32px; height: 32px; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .hero-actions span { display: none; }
+}
+@media (min-width: 761px) and (max-width: 1280px) {
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player .transport { left: 24px; transform: none; }
 }
 @media (max-width: 760px) {
   .app-shell[data-tone='burgundy'][data-background-art='on'] .workspace .lyrics { --m-ink: #fff7fb; --m-muted: #f0dcea; --m-line: #fff4f933; background: linear-gradient(#1d0f33b8, #1d0f33d6), var(--garden-image) center / cover no-repeat; }
