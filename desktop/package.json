@@ -1,6 +1,6 @@
 {
   "name": "music-house-desktop",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "private": true,
   "description": "音乐小屋 Windows 桌面版",
   "author": "Music House",
@@ -10,10 +10,12 @@
   "build": {
     "appId": "cn.zqmusic.musichouse.desktop",
     "productName": "音乐小屋",
+    "afterPack": "./verify-package.cjs",
     "directories": { "output": "../data/windows/output" },
     "files": ["main.cjs", "package.json", "!node_modules{,/**/*}"],
     "extraResources": [
-      { "from": "../data/windows/runtime", "to": "runtime" },
+      { "from": "../data/windows/portable-runtime", "to": "runtime", "filter": ["**/*", "!node_modules/**/*"] },
+      { "from": "../data/windows/portable-runtime/node_modules", "to": "runtime/node_modules", "filter": ["**/*"] },
       { "from": "../data/windows/node.exe", "to": "node.exe" },
       { "from": "../data/tools/go-music-api/go-music-api-loopback.exe", "to": "music-api.exe" },
       { "from": "../public/pikachu.ico", "to": "pikachu.ico" },

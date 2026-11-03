@@ -1,6 +1,6 @@
 const { app, BrowserWindow, dialog, shell } = require('electron');
 const { spawn } = require('node:child_process');
-const { mkdirSync } = require('node:fs');
+const { mkdirSync, existsSync } = require('node:fs');
 const path = require('node:path');
 
 app.setName('MusicHouse');
@@ -14,6 +14,9 @@ async function musicReady() {
 
 async function start() {
   const resources = process.resourcesPath;
+  if (!existsSync(path.join(resources, 'runtime/node_modules/fastify/package.json'))) {
+    throw new Error('安装包缺少音乐服务组件。请使用修复版 Windows 安装包覆盖安装，用户资料无需删除。');
+  }
   const storage = app.getPath('userData');
   mkdirSync(storage, { recursive: true });
   const musicHome = path.join(storage, 'music-service');
@@ -29,10 +32,10 @@ async function start() {
       cwd: storage, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
       env: { ...safeEnv(), NODE_ENV: 'development', HOST: '127.0.0.1', PIKACHU_DB_PATH: path.join(storage, 'data/music.sqlite'), ...(ready ? { GO_MUSIC_API_URL: 'http://127.0.0.1:8080' } : {}) }
     });
-    let output = '';
+    let output = '', startupErrors = '';
     const timer = setTimeout(() => reject(new Error('本地服务启动超时')), 20000);
     backend.once('error', error => { clearTimeout(timer); reject(error); });
-    backend.once('exit', code => { clearTimeout(timer); reject(new Error(`本地服务退出（${code}）`)); if (!closing && window) { dialog.showErrorBox('音乐服务已停止', '请关闭并重新打开音乐小屋。'); app.quit(); } });
+    backend.once('exit', code => { clearTimeout(timer); reject(new Error(`本地服务退出（${code}）${startupErrors ? '\n' + startupErrors.slice(-1500) : ''}`)); if (!closing && window) { dialog.showErrorBox('音乐服务已停止', '请关闭并重新打开音乐小屋。'); app.quit(); } });
     backend.stdout.on('data', chunk => {
       output += chunk.toString();
       const lines = output.split('\n'); output = lines.pop();
@@ -40,7 +43,7 @@ async function start() {
         try { const value = JSON.parse(line); if (value.ready && Number.isInteger(value.port) && value.port > 0 && value.port <= 65535) { clearTimeout(timer); resolve(`http://127.0.0.1:${value.port}`); } } catch { /* Ignore non-protocol output. */ }
       }
     });
-    backend.stderr.on('data', () => {});
+    backend.stderr.on('data', chunk => { startupErrors = (startupErrors + chunk.toString()).slice(-4000); });
   });
   window = new BrowserWindow({ width: 1380, height: 960, minWidth: 900, minHeight: 640, show: false, backgroundColor: '#f0e4c8', icon: path.join(resources, 'pikachu.ico'), webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
   window.removeMenu();

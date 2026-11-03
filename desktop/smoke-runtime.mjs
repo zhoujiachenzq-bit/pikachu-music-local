@@ -1,13 +1,17 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, existsSync } from 'node:fs';
+import { mkdtempSync, existsSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
-const staging = resolve(import.meta.dirname, '../data/windows');
+const resources = resolve(process.argv[2] || resolve(import.meta.dirname, '../data/windows/output/win-unpacked/resources'));
 const working = mkdtempSync(join(tmpdir(), 'music-house-desktop-'));
+// Test the packaged files outside the checkout: missing modules must not fall
+// back to the developer's ancestor node_modules and produce a false pass.
+cpSync(resolve(resources, 'runtime'), resolve(working, 'runtime'), { recursive: true, dereference: true });
+assert.ok(existsSync(resolve(working, 'runtime/node_modules/fastify/package.json')), 'Packaged backend dependency fastify is missing');
 let child;
 async function boot() {
-child = spawn(resolve(staging, 'node.exe'), [resolve(staging, 'runtime/server.mjs')], {
+child = spawn(resolve(resources, 'node.exe'), [resolve(working, 'runtime/server.mjs')], {
   cwd: working, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   env: { SystemRoot: process.env.SystemRoot, PATH: process.env.PATH, NODE_ENV: 'development', PIKACHU_DB_PATH: join(working, 'music.sqlite') }
 });
