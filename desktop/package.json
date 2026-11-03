@@ -1,0 +1,26 @@
+{
+  "name": "music-house-desktop",
+  "version": "0.7.3",
+  "private": true,
+  "description": "音乐小屋 Windows 桌面版",
+  "author": "Music House",
+  "main": "main.cjs",
+  "scripts": { "dist": "electron-builder --win nsis --x64 --publish never" },
+  "devDependencies": { "electron": "45.2.1", "electron-builder": "26.18.0" },
+  "build": {
+    "appId": "cn.zqmusic.musichouse.desktop",
+    "productName": "音乐小屋",
+    "directories": { "output": "../data/windows/output" },
+    "files": ["main.cjs", "package.json", "!node_modules{,/**/*}"],
+    "extraResources": [
+      { "from": "../data/windows/runtime", "to": "runtime" },
+      { "from": "../data/windows/node.exe", "to": "node.exe" },
+      { "from": "../data/tools/go-music-api/go-music-api-loopback.exe", "to": "music-api.exe" },
+      { "from": "../public/pikachu.ico", "to": "pikachu.ico" },
+      { "from": "../third_party", "to": "third_party" },
+      { "from": "../data/windows/NODE-LICENSE", "to": "NODE-LICENSE" }
+    ],
+    "win": { "icon": "../public/pikachu.ico", "target": "nsis", "signExecutable": false, "artifactName": "music-house-${version}-windows-x64-setup.${ext}" },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "deleteAppDataOnUninstall": false }
+  }
+}
