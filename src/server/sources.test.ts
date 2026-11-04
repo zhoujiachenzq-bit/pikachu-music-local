@@ -68,6 +68,18 @@ describe('QQ search response', () => {
 
 describe('QQ catalogue recovery', () => {
   const song = { songmid: 'real-mid', songname: '晴天', singer: [{ name: '周杰伦' }], interval: 269, pay: { payplay: 1 } };
+  it('uses the official catalogue on Android when the legacy and embedded catalogues return empty', async () => {
+    vi.stubEnv('GO_MUSIC_API_URL', 'http://127.0.0.1:8080');
+    vi.stubEnv('GO_MUSIC_API_DIRECT_MEDIA', '1');
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => Response.json(
+      new URL(url).hostname === 'u.y.qq.com'
+        ? { req: { code: 0, data: { body: { song: { list: [{ mid: 'real-mid', name: '晴天', singer: song.singer, interval: 269 }] } } } } }
+        : { code: 200, data: { songs: [] } }
+    )));
+    try {
+      await expect(searchSource('qq', '周杰伦', 10)).resolves.toMatchObject([{ sourceTrackId: 'real-mid', duration: 269000 }]);
+    } finally { vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
+  });
   it('uses the public QQ catalogue before an older configured backup on desktop and phone', async () => {
     vi.stubEnv('GO_MUSIC_API_URL', 'http://127.0.0.1:8080');
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ code: 0, data: { song: { list: [song] } } })));

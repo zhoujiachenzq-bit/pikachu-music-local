@@ -30,9 +30,11 @@ describe('visual theme preferences', () => {
   it('groups every theme without changing the legacy night id', () => {
     expect(TONE_THEME_GROUPS.flatMap(group => group.themes)).toEqual(TONE_THEME_IDS);
     expect(parseVisualPreferences('{"version":1,"theme":"night","motionEnabled":true}').theme).toBe('night');
-    expect(parseVisualPreferences('{"version":1,"theme":"vinyl","motionEnabled":true}').theme).toBe('vinyl');
-    expect(parseVisualPreferences('{"version":1,"theme":"arcade","motionEnabled":false}').theme).toBe('arcade');
+    expect(parseVisualPreferences('{"version":1,"theme":"vinyl","motionEnabled":true}').theme).toBe('paper');
+    expect(parseVisualPreferences('{"version":1,"theme":"arcade","motionEnabled":false,"backgroundArtEnabled":false}')).toEqual({ version: 1, theme: 'paper', motionEnabled: false, backgroundArtEnabled: false });
     expect(parseVisualPreferences('{"version":1,"theme":"harbor","motionEnabled":true}').theme).toBe('harbor');
+    expect(parseVisualPreferences('{"version":1,"theme":"comet","motionEnabled":true}').theme).toBe('comet');
+    expect(parseVisualPreferences('{"version":1,"theme":"miku","motionEnabled":true}').theme).toBe('miku');
   });
 
   it('keeps artwork enabled for existing saved preferences without the new switch', () => {
@@ -41,8 +43,6 @@ describe('visual theme preferences', () => {
 
   it('keeps the practical default scene calm while mapping the expressive themes', () => {
     expect(sceneVariantForTheme('night')).toBe('halo');
-    expect(sceneVariantForTheme('vinyl')).toBe('vinyl');
-    expect(sceneVariantForTheme('arcade')).toBe('arcade');
     expect(sceneVariantForTheme('burgundy')).toBe('halo');
     expect(sceneVariantForTheme('cobalt')).toBe('halo');
     expect(sceneVariantForTheme('paper')).toBe('halo');

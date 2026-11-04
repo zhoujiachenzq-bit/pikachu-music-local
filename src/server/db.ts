@@ -212,10 +212,12 @@ export function createDatabase(filePath = process.env.PIKACHU_DB_PATH || resolve
 // SQLite cannot ALTER a CHECK constraint. Rebuild only the affected tables,
 // retaining every column, index, trigger and foreign-key target name.
 export function expandMusicSourceConstraints(db: Db) {
-  const oldList = "'migu','netease','qq','kuwo'";
+  const oldConstraint = /\bIN\s*\(\s*'migu'\s*,\s*'netease'\s*,\s*'qq'\s*,\s*'kuwo'\s*\)/i;
   const sourceList = SOURCES.map(source => `'${source}'`).join(',');
   const tables = db.prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name IN ('tracks','playlists','listening_sessions','source_health')").all() as Array<{ name: string; sql: string }>;
-  const affected = tables.filter(table => table.sql.includes(oldList));
+  // The expanded list starts with these same four sources. Match the whole
+  // old constraint, otherwise every startup rebuilds already-upgraded tables.
+  const affected = tables.filter(table => oldConstraint.test(table.sql));
   if (!affected.length) return;
   db.exec('PRAGMA foreign_keys=OFF');
   try {
@@ -223,7 +225,7 @@ export function expandMusicSourceConstraints(db: Db) {
       for (const table of affected) {
         const saved = db.prepare("SELECT sql FROM sqlite_master WHERE tbl_name=? AND type IN ('index','trigger') AND sql IS NOT NULL").all(table.name) as Array<{ sql: string }>;
         const temporary = `${table.name}_expanded_sources`;
-        const definition = table.sql.replace(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["`]?\w+["`]?/i, `CREATE TABLE "${temporary}"`).split(oldList).join(sourceList);
+        const definition = table.sql.replace(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["`]?\w+["`]?/i, `CREATE TABLE "${temporary}"`).replace(new RegExp(oldConstraint.source, 'gi'), `IN (${sourceList})`);
         db.exec(definition);
         db.exec(`INSERT INTO "${temporary}" SELECT * FROM "${table.name}"`);
         db.exec(`DROP TABLE "${table.name}"`);

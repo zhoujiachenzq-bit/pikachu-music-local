@@ -36,7 +36,11 @@ describe('extended source integration', () => {
       expect(db.prepare('SELECT * FROM favorites').all()).toMatchObject([{ track_id: 'old' }]);
       expect(db.prepare("SELECT name FROM sqlite_master WHERE name='track_source'").get()).toBeTruthy();
       expect(() => db.exec("INSERT INTO favorites VALUES('missing')")).toThrow();
+      const upgradedVersion = db.prepare('PRAGMA schema_version').get();
+      const upgradedSql = db.prepare("SELECT sql FROM sqlite_master WHERE name='tracks'").get();
       expandMusicSourceConstraints(db);
+      expect(db.prepare('PRAGMA schema_version').get()).toEqual(upgradedVersion);
+      expect(db.prepare("SELECT sql FROM sqlite_master WHERE name='tracks'").get()).toEqual(upgradedSql);
       expect(db.prepare('SELECT count(*) AS total FROM tracks').get()).toMatchObject({ total: 2 });
     } finally { db.close(); }
   });

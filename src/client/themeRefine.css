@@ -1,0 +1,29 @@
+/* Late refinements that sit above every theme file. */
+
+.app-shell[data-tone] :is(.ripple-circle,.ripple-circle-inner) { max-width: 260px; max-height: 260px; }
+
+/* A signature mark under the playing line, one per theme, as the meadow, diva and comet already have.
+   It is drawn once when the line changes (scaleX from 0) and never loops. Arcade and Sea and You keep their own look. */
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span { position: relative; isolation: isolate; justify-self: center; padding-bottom: var(--ul-pad, 8px); }
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { content: ''; position: absolute; z-index: -1; left: var(--ul-inset, 0); right: var(--ul-inset, 0); bottom: var(--ul-bottom, 0); height: var(--ul-h, 6px); background: var(--ul); transform: scaleX(0); transform-origin: var(--ul-origin, left center); pointer-events: none; }
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span::after { transform: scaleX(1) rotate(var(--ul-tilt, 0deg)); }
+.app-shell.motion-on:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { transition: transform .7s cubic-bezier(.4,0,.2,1); }
+/* Paper: a stroke of yellow highlighter laid behind the lower half of the words, a little crooked */
+.app-shell[data-tone='paper'] { --ul: #ffd84d; --ul-h: 46%; --ul-bottom: 2px; --ul-pad: 0px; --ul-inset: -6px; --ul-tilt: -1deg; }
+.app-shell[data-tone='paper'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span { background: none; color: #17130d; text-shadow: none; }
+/* Cobalt: a gilt double rule that opens from the centre */
+.app-shell[data-tone='cobalt'] { --ul: linear-gradient(#ffd84d, #ffd84d) 0 0 / 100% 2px no-repeat, linear-gradient(#ffd84d99, #ffd84d99) 0 100% / 100% 1px no-repeat; --ul-h: 6px; --ul-origin: center; }
+/* Summer Coast: a little sunlit wave */
+.app-shell[data-tone='night'] { --ul: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='6'%3E%3Cpath d='M0 3q4-3 8 0t8 0' fill='none' stroke='%23ffdca8' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") 0 0 / 16px 6px repeat-x; --ul-h: 6px; }
+/* Twilight Garden: a row of fallen petals */
+.app-shell[data-tone='burgundy'] { --ul: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='12'%3E%3Cpath d='M3 6C6 1 13 1 17 6C13 11 6 11 3 6Z' fill='%23ff9ec7' stroke='%23fff4f9' stroke-width='.8' transform='rotate(-14 10 6)'/%3E%3Cpath d='M17 6l3-2' stroke='%23ff9ec7' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") 0 0 / 22px 12px repeat-x; --ul-h: 12px; --ul-pad: 14px; }
+/* Twilight Garden: the stage and the phone lyrics page were under one flat violet haze. The picture now stays
+   clear; shade only gathers at the top and foot, and the lines carry their own soft shadow. */
+@media (min-width: 761px) {
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .garden-shade { background: linear-gradient(#1d0f338c, #1d0f3314 24%, #1d0f3300 46%, #1d0f3326 66%, #1d0f33b3 92%); }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .lyric-line { text-shadow: 0 1px 3px #1d0f33, 0 0 14px #1d0f33cc; }
+}
+@media (max-width: 760px) {
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .workspace .lyrics.sheet-open { background: linear-gradient(#1d0f33cc, #1d0f3326 22%, #1d0f3300 44%, #1d0f3333 70%, #1d0f33cc), var(--garden-image) center / cover no-repeat; }
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .lyrics.sheet-open .lyric-line { text-shadow: 0 1px 3px #1d0f33, 0 0 14px #1d0f33d9; }
+}

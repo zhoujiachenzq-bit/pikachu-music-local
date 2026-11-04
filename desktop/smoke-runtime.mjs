@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, existsSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -60,6 +60,19 @@ try {
   const restored = await fetch(`${origin}/api/playlists`, { headers: { cookie: login.headers.get('set-cookie').split(';')[0] } }).then(response => response.json());
   assert.equal(restored.playlists.length, 1);
   assert.equal(restored.playlists[0].id, id);
+  const electron = resolve(import.meta.dirname, 'node_modules/electron/dist/electron.exe');
+  const profile = join(working, 'electron-session');
+  const cookieEnv = { ...process.env }; delete cookieEnv.ELECTRON_RUN_AS_NODE;
+  const cookieCheck = mode => {
+    const run = spawnSync(electron, [resolve(import.meta.dirname,'cookie-persistence-check.cjs'), mode, profile, origin], { env: cookieEnv, windowsHide: true, timeout: 30000, encoding: 'utf8' });
+    assert.equal(run.status, 0, `Cookie check ${mode}: ${run.error?.message || run.stderr || run.stdout}`);
+  };
+  cookieCheck('login');
+  await stop(); origin = await boot();
+  cookieCheck('remember');
+  cookieCheck('logout');
+  cookieCheck('logged-out');
+  console.log('Electron remembered login across app/server restarts and a changed port; explicit logout stayed logged out.');
   console.log('Bundled runtime health, web assets, account/playlist writes, restart and persisted data passed.');
 } finally {
   await stop();

@@ -1,4 +1,4 @@
-export const TONE_THEME_IDS = ['paper', 'arcade', 'cobalt', 'night', 'vinyl', 'burgundy', 'harbor'] as const;
+export const TONE_THEME_IDS = ['paper', 'cobalt', 'miku', 'night', 'burgundy', 'harbor', 'comet'] as const;
 
 export type ToneThemeId = typeof TONE_THEME_IDS[number];
 
@@ -38,20 +38,6 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
     canvas: '#f7efe0', surface: '#fffcf5', sceneAccent: '#cb4630', sceneGlow: '#0f7c8a',
     swatches: ['#7fd0de', '#fffcf5', '#cb4630'],
   },
-  vinyl: {
-    id: 'vinyl',
-    name: { zh: '晴空花野', en: 'Sunny Meadow' },
-    description: { zh: '高墙远景、坡上大树与晴空花野', en: 'Sunlit meadow, hillside tree and monumental walls' },
-    canvas: '#e6ebd4', surface: '#faf8e9', sceneAccent: '#527445', sceneGlow: '#d8dda8',
-    swatches: ['#b3d6ed', '#dce6ab', '#527445'],
-  },
-  arcade: {
-    id: 'arcade',
-    name: { zh: '霓虹游戏厅', en: 'Neon Arcade' },
-    description: { zh: '街机机台、CRT 歌词屏与高分榜', en: 'An arcade cabinet with a CRT and a high-score table' },
-    canvas: '#08070f', surface: '#0f0d1c', sceneAccent: '#ff3d8b', sceneGlow: '#22e3ff',
-    swatches: ['#08070f', '#ff3d8b', '#ffd23f'],
-  },
   burgundy: {
     // Keep the stored ID compatible with existing account preferences.
     id: 'burgundy',
@@ -66,6 +52,20 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
     description: { zh: '夜海、对岸灯火与回眸', en: 'Night sea, far-shore lights and a glance back' },
     canvas: '#0b1430', surface: '#14204a', sceneAccent: '#9fd4ff', sceneGlow: '#ffc9dc',
     swatches: ['#0b1430', '#3aa8ff', '#ffe0b8'],
+  },
+  miku: {
+    id: 'miku',
+    name: { zh: '星眼歌姬', en: 'Starry Diva' },
+    description: { zh: '星星眼、故障色块与电子流行', en: 'Star eyes, glitch blocks and electro pop' },
+    canvas: '#0e0820', surface: '#1b1040', sceneAccent: '#39d5c9', sceneGlow: '#ff3fd0',
+    swatches: ['#0e0820', '#39d5c9', '#ff3fd0'],
+  },
+  comet: {
+    id: 'comet',
+    name: { zh: '彗星雨夜', en: 'Comet Rain' },
+    description: { zh: '夜雨、划过天际的彗星与红色组纽', en: 'Night rain, a comet across the sky and a red braided cord' },
+    canvas: '#060c15', surface: '#0c1d2b', sceneAccent: '#ffb45c', sceneGlow: '#6fe0ff',
+    swatches: ['#060c15', '#6fe0ff', '#e0394f'],
   },
   cobalt: {
     id: 'cobalt',
@@ -87,14 +87,14 @@ export const TONE_THEME_GROUPS: readonly ToneThemeGroupDefinition[] = [
   {
     id: 'pikachu',
     name: { zh: '经典设计', en: 'Signature Designs' },
-    description: { zh: '剪纸拼贴、霓虹与电蓝画廊', en: 'Papercut, neon and electric-blue gallery' },
-    themes: ['paper', 'arcade', 'cobalt'],
+    description: { zh: '剪纸拼贴、电蓝画廊与电子歌姬', en: 'Papercut, electric-blue gallery and electro diva' },
+    themes: ['paper', 'cobalt', 'miku'],
   },
   {
     id: 'curated',
     name: { zh: '治愈风景', en: 'Restful Landscapes' },
-    description: { zh: '海岸、花野、暮光花园与夜海', en: 'Coast, meadow, twilight garden and night sea' },
-    themes: ['night', 'vinyl', 'burgundy', 'harbor'],
+    description: { zh: '海岸、暮光花园、夜海与彗星雨夜', en: 'Coast, twilight garden, night sea and comet rain' },
+    themes: ['night', 'burgundy', 'harbor', 'comet'],
   },
 ] as const;
 
@@ -111,7 +111,8 @@ export function visualPreferencesStorageKey(userId: string): string {
 export function parseVisualPreferences(raw: string | null | undefined): VisualPreferences {
   if (!raw) return { ...DEFAULT_VISUAL_PREFERENCES };
   try {
-    const value = JSON.parse(raw) as Partial<VisualPreferences> | null;
+    const value = JSON.parse(raw) as (Omit<Partial<VisualPreferences>, 'theme'> & { theme?: unknown }) | null;
+    if (value?.theme === 'arcade' || value?.theme === 'vinyl') value.theme = DEFAULT_VISUAL_PREFERENCES.theme;
     if (!value || value.version !== 1 || !isToneThemeId(value.theme) || typeof value.motionEnabled !== 'boolean') return { ...DEFAULT_VISUAL_PREFERENCES };
     return { version: 1, theme: value.theme, motionEnabled: value.motionEnabled, backgroundArtEnabled: typeof value.backgroundArtEnabled === 'boolean' ? value.backgroundArtEnabled : true };
   } catch {
@@ -131,9 +132,7 @@ export function resolveToneTheme(committed: ToneThemeId, preview: ToneThemeId | 
   return preview || committed;
 }
 
-export function sceneVariantForTheme(theme: ToneThemeId): SceneVariant {
-  if (theme === 'vinyl') return 'vinyl';
-  if (theme === 'arcade') return 'arcade';
+export function sceneVariantForTheme(_theme: ToneThemeId): SceneVariant {
   return 'halo';
 }
 

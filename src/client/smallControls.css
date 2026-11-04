@@ -1,0 +1,57 @@
+/* Small controls share one grammar in every theme: secondary actions are quiet (a hairline, a tint on hover,
+   never a filled block), play is the only solid button, sliders are thin with a ringed thumb, and "on" is told
+   by the icon's colour. Each theme only sets the tokens; Paper keeps its ink and hard shadow, Arcade its pixel tiles.
+   The ":not(#_)" on "on" states lifts them over the many per-theme .active rules without !important. */
+.app-shell[data-tone] {
+  --sc-fg: var(--text-strong); --sc-line: color-mix(in srgb, var(--text-strong) 18%, transparent); --sc-tint: color-mix(in srgb, var(--text-strong) 8%, transparent);
+  --sc-bg: transparent; --sc-shadow: none; --sc-radius: 50%; --sc-small-radius: 8px; --sc-on: var(--brand); --sc-heart: #e8465f;
+  --sc-play-bg: var(--brand); --sc-play-fg: var(--brand-ink); --sc-play-shadow: 0 6px 16px color-mix(in srgb, var(--brand) 32%, transparent);
+  --sc-fill: var(--brand); --sc-track: color-mix(in srgb, var(--text-strong) 14%, transparent); --sc-ring: var(--surface-1);
+}
+.app-shell[data-tone='paper'] { --sc-bg: #fffdf6; --sc-fg: #17130d; --sc-line: #17130d; --sc-tint: #ffd84d4d; --sc-shadow: 2px 2px 0 #17130d; --sc-radius: 3px; --sc-small-radius: 3px; --sc-on: #e94b2a; --sc-heart: #e94b2a; --sc-play-bg: #e94b2a; --sc-play-fg: #fffdf6; --sc-play-shadow: 3px 3px 0 #17130d; --sc-fill: #e94b2a; --sc-ring: #fffdf6; }
+.app-shell[data-tone='arcade'] { --sc-radius: 0; --sc-small-radius: 0; --sc-heart: var(--brand); --sc-play-shadow: 0 4px 0 #8f1650; }
+.app-shell[data-tone='cobalt'] { --sc-line: #ffd84d40; --sc-tint: #ffd84d1a; --sc-on: #ffd84d; --sc-heart: #ff6b81; --sc-play-bg: #ffd84d; --sc-play-fg: #241c03; --sc-fill: #ffd84d; --sc-ring: #0f2a6e; }
+.app-shell[data-tone='night'] { --sc-line: #0e3a4533; --sc-tint: #0f7c8a14; --sc-on: #cb4630; --sc-heart: #e2583e; --sc-play-bg: #cb4630; --sc-play-fg: #fffaf0; --sc-fill: #cb4630; --sc-track: #0e3a4524; --sc-ring: #fffcf5; }
+.app-shell[data-tone='vinyl'] { --sc-fg: #2f4a28; --sc-line: #52744540; --sc-tint: #5274451a; --sc-on: #527445; --sc-heart: #d64560; --sc-play-bg: #527445; --sc-play-fg: #fffdf2; --sc-fill: #527445; --sc-track: #52744526; --sc-ring: #fffdf2; }
+.app-shell[data-tone='burgundy'] { --sc-line: #c0327f40; --sc-tint: #c0327f14; --sc-heart: #e0559a; --sc-ring: #fff7fb; }
+.app-shell[data-tone='harbor'] { --sc-fg: #eaf2ff; --sc-line: #bedcff38; --sc-tint: #ffffff14; --sc-heart: #ff9fb5; --sc-fill: #9fd4ff; --sc-track: #ffffff33; --sc-ring: #0b1430; }
+/* The garden's control strip and the meadow's frosted strip sit on their own grounds */
+@media (min-width: 761px) {
+  .app-shell[data-tone='burgundy'][data-background-art='on'] .stage-mode-player { --sc-fg: #fff7fb; --sc-line: #fff4f938; --sc-tint: #fff4f914; --sc-heart: #ff9ec7; --sc-track: #fff4f933; --sc-fill: #e0559a; }
+  .app-shell[data-tone='vinyl'][data-background-art='on'] .stage-mode-player { --sc-line: transparent; }
+  .app-shell[data-tone='harbor'] .player-panel .hero-actions button.active:not(#_) { background: #ffffff12; }
+}
+
+/* Secondary round actions in the player */
+.app-shell[data-tone]:not([data-tone='arcade']) .player-panel :is(.transport > button:not(.play-main):not(.mobile-volume-toggle),.hero-actions button) { border: 1px solid var(--sc-line); border-radius: var(--sc-radius); color: var(--sc-fg); background: var(--sc-bg); box-shadow: var(--sc-shadow); }
+.app-shell[data-tone='paper']:not(#_) .player-panel :is(.transport > button:not(.play-main):not(.mobile-volume-toggle),.hero-actions button) { border-width: 1.5px; }
+.app-shell[data-tone] .player-panel .hero-actions button.active:not(#_) { color: var(--sc-heart); background: var(--sc-bg); border-color: var(--sc-line); }
+.app-shell[data-tone='arcade'] .player-panel .hero-actions button.active:not(#_) { background: var(--surface-2) padding-box; }
+.app-shell[data-tone] .player-panel .hero-actions button.active:not([data-success-spark]):not(#_) { color: var(--sc-on); }
+@media (hover:hover) { .app-shell[data-tone]:not([data-tone='arcade']) .player-panel :is(.transport > button:not(.play-main):not(.mobile-volume-toggle),.hero-actions button):hover { background: var(--sc-tint); } }
+
+/* The one solid button */
+.app-shell[data-tone]:not([data-tone='arcade']):not([data-tone='harbor']) .player-panel .transport > .play-main { border: 0; border-radius: var(--sc-radius); color: var(--sc-play-fg); background: var(--sc-play-bg); box-shadow: var(--sc-play-shadow); }
+.app-shell[data-tone='paper'] .player-panel .transport > .play-main { border: 2px solid #17130d; }
+
+/* Thin sliders with a ringed thumb (Arcade keeps its segmented health bar) */
+.app-shell[data-tone]:not([data-tone='arcade']) .player-panel .player-range::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; box-shadow: none; background: linear-gradient(90deg, var(--sc-fill) 0 var(--range-progress), var(--sc-track) var(--range-progress) 100%); }
+.app-shell[data-tone]:not([data-tone='arcade']) .player-panel .player-range::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; border: 2px solid var(--sc-ring); border-radius: 50%; background: var(--sc-fill); box-shadow: 0 1px 4px #0000004d; }
+.app-shell[data-tone]:not([data-tone='arcade']) .player-panel .player-range::-moz-range-thumb { width: 8px; height: 8px; border: 2px solid var(--sc-ring); border-radius: 50%; background: var(--sc-fill); }
+.app-shell[data-tone]:not([data-tone='arcade']) .player-panel .elastic-volume-visual { height: 4px; border-radius: 4px; background: var(--sc-track); box-shadow: none; }
+.app-shell[data-tone]:not([data-tone='arcade']) .player-panel .elastic-volume-visual > span { background: var(--sc-fill); }
+.app-shell[data-tone]:not([data-tone='arcade']) .player-panel .elastic-volume-visual > span::after { top: -4px; right: -6px; width: 12px; height: 12px; border: 2px solid var(--sc-ring); border-radius: 50%; background: var(--sc-fill); box-shadow: 0 1px 4px #0000004d; }
+.app-shell[data-tone='paper'] .player-panel .elastic-volume-visual > span::after { border-color: #17130d; border-width: 1.5px; box-shadow: 1px 1px 0 #17130d; }
+
+/* Playlist corner: play modes and toolbar buttons follow the same rule */
+.app-shell[data-tone]:not([data-tone='arcade']) :is(.play-modes button,.playlist-toolbar button,.playlist-toolbar .icon-upload) { border: 1px solid var(--sc-line); border-radius: var(--sc-small-radius); color: var(--sc-fg); background: var(--sc-bg); box-shadow: var(--sc-shadow); }
+.app-shell[data-tone]:not([data-tone='arcade']) .play-modes button { border-radius: var(--sc-radius); }
+.app-shell[data-tone] .play-modes button.active:not(#_) { border-color: var(--sc-on); color: var(--sc-on); background: color-mix(in srgb, var(--sc-on) 12%, transparent); box-shadow: var(--sc-shadow); }
+@media (hover:hover) { .app-shell[data-tone]:not([data-tone='arcade']) :is(.play-modes button,.playlist-toolbar button,.playlist-toolbar .icon-upload):hover { background: var(--sc-tint); } }
+
+/* Phone: the player's round actions lose the hairline and sit quietly; play stays solid */
+@media (max-width: 760px) {
+  .app-shell[data-tone]:not([data-tone='paper']) { --sc-line: transparent; --sc-shadow: none; }
+  .app-shell[data-tone] { --sc-fill: var(--m-accent); --sc-track: var(--m-sunken); --sc-ring: var(--m-raised); }
+  .app-shell[data-tone]:not([data-tone='arcade']):not([data-tone='paper']) .player-panel :is(.transport > button:not(.play-main):not(.mobile-volume-toggle),.hero-actions button) { color: var(--m-ink); }
+}

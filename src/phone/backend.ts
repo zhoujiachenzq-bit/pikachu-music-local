@@ -38,7 +38,7 @@ function installFetch(app: PhoneApp, connect: () => Promise<void>) {
   window.fetch = async (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     if (url.startsWith('/api/')) {
-      if (/^\/api\/(platform|search)(\/|\?|$)/.test(url) || /^\/api\/(imports|playlists\/[^/]+\/sync)(\?|$)/.test(url)) await connect();
+      if (/^\/api\/(platform|search)(\/|\?|$)/.test(url) || /^\/api\/(imports|playlists\/[^/]+\/sync|tracks\/[^/]+\/(resolve|download|lyrics))(\?|$)/.test(url)) await connect();
       return app.handle(url, init);
     }
     if (/^https?:/.test(url) && !url.startsWith(location.origin)) return nativeFetch(url, init);

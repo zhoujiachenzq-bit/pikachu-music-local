@@ -16,7 +16,7 @@ export default defineConfig({
       { find: /^node:(crypto|fs|path|stream|util)$/, replacement: shim('node') }
     ]
   },
-  build: { outDir: 'dist/client', emptyOutDir: false },
+  build: { outDir: 'dist/client' },
   server: {
     host: '127.0.0.1',
     port: 5173,

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, session } = require('electron');
 const { spawn } = require('node:child_process');
 const { mkdirSync, existsSync } = require('node:fs');
 const path = require('node:path');
@@ -63,12 +63,23 @@ async function start() {
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } });
-  app.whenReady().then(start).catch(error => { dialog.showErrorBox('音乐小屋启动失败', error.message); app.quit(); });
+  app.whenReady().then(() => {
+    const cookies = session.defaultSession.cookies;
+    cookies.on('changed', (_event, cookie) => {
+      if (cookie.name === 'pikachu_session') void cookies.flushStore().catch(() => {});
+    });
+    return start();
+  }).catch(error => { dialog.showErrorBox('音乐小屋启动失败', error.message); app.quit(); });
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', event => {
     if (closing) return;
     closing = true; event.preventDefault();
-    const finish = () => { musicApi?.kill(); app.quit(); };
+    const finish = async () => {
+      // Login cookies have a 30-day expiry; force them to disk even when the
+      // window is closed soon after login, before Chromium's periodic flush.
+      try { await session.defaultSession.cookies.flushStore(); session.defaultSession.flushStorageData(); } catch {}
+      musicApi?.kill(); app.quit();
+    };
     if (backend?.connected) { backend.once('exit', finish); backend.send('shutdown'); setTimeout(() => { backend?.kill(); finish(); }, 3000).unref(); }
     else finish();
   });

@@ -14,9 +14,12 @@ import './themeDetails.css';
 import './themeFrames.css';
 import './harborTheme.css';
 import './stageDock.css';
-import './arcadeTheme.css';
+import './smallControls.css';
+import './cometTheme.css';
+import './mikuTheme.css';
+import './themeRefine.css';
 
-document.documentElement.dataset.visualRelease = '0.7.3';
+document.documentElement.dataset.visualRelease = '0.8.0';
 
 if (import.meta.env.PROD && !phoneApp && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

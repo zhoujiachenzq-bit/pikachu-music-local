@@ -10,10 +10,10 @@ const COLORS: Record<GrainientTone, readonly [string, string, string]> = {
   login: ['#846039', '#26334e', '#090e1a'],
   burgundy: ['#b792c9', '#6571b2', '#303455'],
   harbor: ['#2b5d9a', '#14204a', '#0b1430'],
-  vinyl: ['#eaf1cc', '#b8c896', '#d6e9ee'],
+  comet: ['#1f5f73', '#0c1d2b', '#060c15'],
+  miku: ['#39d5c9', '#7a2a9e', '#0e0820'],
   paper: ['#fff3d1', '#e6a36f', '#edcf99'],
   night: ['#cceaf1', '#a7dbe8', '#f4e9ce'],
-  arcade: ['#705188', '#1f5771', '#161029'],
   cobalt: ['#569ab5', '#23499d', '#071c52'],
 };
 
@@ -37,10 +37,10 @@ export function Grainient({ tone, motionEnabled, active = true, className = '' }
       const renderer = new THREE.WebGLRenderer({ alpha: false, antialias: false, powerPreference: 'low-power' });
       const geometry = new THREE.PlaneGeometry(2, 2);
       const color = (hex: string) => new THREE.Vector3(...[1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number]);
-      const light = tone === 'paper' || tone === 'vinyl';
+      const light = tone === 'paper';
       const uniforms = {
         iTime: { value: 0 }, iResolution: { value: new THREE.Vector2(1, 1) },
-        uTimeSpeed: { value: tone === 'vinyl' ? .045 : .075 }, uColorBalance: { value: 0 },
+        uTimeSpeed: { value: .075 }, uColorBalance: { value: 0 },
         uWarpStrength: { value: .65 }, uWarpFrequency: { value: 5 }, uWarpSpeed: { value: 2 }, uWarpAmplitude: { value: 50 },
         uBlendAngle: { value: -15 }, uBlendSoftness: { value: .18 }, uRotationAmount: { value: 300 }, uNoiseScale: { value: 2 },
         uGrainAmount: { value: light ? .045 : .055 }, uGrainScale: { value: 2 }, uGrainAnimated: { value: 0 },

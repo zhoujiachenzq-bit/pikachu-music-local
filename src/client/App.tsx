@@ -33,7 +33,7 @@ import { canonicalTrackKey, normalizeTrackText } from '../shared/trackIdentity';
 type Lang = 'zh' | 'en';
 type Tab = 'daily' | 'results' | 'favorites' | 'playlists';
 interface BeforeInstallPromptEvent extends Event { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
-const DEPTH_LYRIC_TONES: readonly string[] = ['paper', 'arcade', 'cobalt'];
+const DEPTH_LYRIC_TONES: readonly string[] = ['paper', 'cobalt'];
 const copy = {
   zh: {
     shortcuts: '快捷键：Space 播放/暂停 · ←/→ 跳转 · ↑/↓ 音量 · N/P 切歌 · F 收藏',
@@ -257,7 +257,7 @@ export default function App() {
   useEffect(() => {
     const timers = new Set<number>();
     const createRipple = (event: PointerEvent) => {
-      if (!(event.target instanceof Element)) return;
+      if (!event.isPrimary || event.button !== 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches || !(event.target instanceof Element)) return;
       // Text controls live inside large ripple-enabled panels. Letting the lookup
       // climb past them creates a panel-sized flash whenever the caret is placed.
       if (event.target.closest('input, textarea, select, [contenteditable="true"], [data-success-spark="true"],[data-no-ripple="true"]')) return;
@@ -743,7 +743,7 @@ export default function App() {
       </section>
 
       <section className={`player-panel panel stage-mode-${stageMode}`} data-mobile-section={stageMode === 'daily' ? 'daily' : 'player'} data-mobile-active={(mobileSection === 'daily' && stageMode === 'daily') || (mobileSection === 'player' && stageMode === 'player')}>
-        {stageMode !== 'daily' && ((activeTone === 'night' || activeTone === 'vinyl' || activeTone === 'burgundy' || activeTone === 'harbor') ? <RoomStage theme={activeTone} coverUrl={sceneTrack?.coverUrl} motionEnabled={motionActive && (!mobileLayout || mobileSection === 'player')} live={motionActive && visualPreferences.backgroundArtEnabled && !lyricsSheet.open && (mobileLayout ? mobileSection === 'player' : activeTone === 'burgundy' || activeTone === 'harbor' || activeTone === 'night')}/> : (!mobileLayout && <ImmersiveBackdrop theme={activeTone} motionEnabled={visualPreferences.motionEnabled} coverUrl={sceneTrack?.coverUrl} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>))}
+        {stageMode !== 'daily' && ((activeTone === 'night' || activeTone === 'burgundy' || activeTone === 'harbor' || activeTone === 'comet' || activeTone === 'miku') ? <RoomStage theme={activeTone} coverUrl={sceneTrack?.coverUrl} motionEnabled={motionActive && (!mobileLayout || mobileSection === 'player')} live={motionActive && visualPreferences.backgroundArtEnabled && !lyricsSheet.open && (mobileLayout ? mobileSection === 'player' : activeTone === 'burgundy' || activeTone === 'harbor' || activeTone === 'night')}/> : (!mobileLayout && <ImmersiveBackdrop theme={activeTone} motionEnabled={visualPreferences.motionEnabled} coverUrl={sceneTrack?.coverUrl} palette={visualPalette} playing={playing} progress={stageProgress} stage={stageMode}/>))}
         <div ref={stageSurfaceRef} className="stage-surface" {...lyricsSheet.touch}>
           {stageMode === 'daily' ? <>
             <div className="panel-heading player-heading"><h2><Icon name="sparkles" size={21}/>{t.dailyStage}</h2><small>{displayedDaily?.date || dailyDate}</small></div>

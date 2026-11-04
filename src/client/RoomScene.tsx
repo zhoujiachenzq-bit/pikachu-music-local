@@ -14,7 +14,7 @@ const MEADOW_SEEDS = Array.from({ length: 16 }, (_, i) => ({
 
 /** Illustrated depth without camera movement or additional WebGL. */
 export function RoomLandscape({ theme }: { theme: ToneThemeId }) {
-  if (theme !== 'night' && theme !== 'vinyl') return null;
+  if (theme !== 'night') return null;
   return <div className={`illustrated-landscape landscape-${theme}`} aria-hidden="true"/>;
 }
 
@@ -44,7 +44,15 @@ export function HarborLyricsScene({ live }: { live: boolean }) {
   return <div className="harbor-lyrics-scene" aria-hidden="true">{live && <HarborLiveScene/>}<i/></div>;
 }
 
-export function RoomStage({ theme, motionEnabled = false, live = false }: { theme: 'night' | 'vinyl' | 'burgundy' | 'harbor'; coverUrl?: string | null; motionEnabled?: boolean; live?: boolean }) {
+export function RoomStage({ theme, motionEnabled = false, live = false }: { theme: 'night' | 'vinyl' | 'burgundy' | 'harbor' | 'comet' | 'miku'; coverUrl?: string | null; motionEnabled?: boolean; live?: boolean }) {
+  // Starry Diva: the picture is a full-frame face, so the stage shows the star eyes and the lines get a solid band below.
+  if (theme === 'miku') return <div className="room-stage miku-scene" data-motion={motionEnabled} aria-hidden="true">
+    <i className="miku-shade"/>
+  </div>;
+  // Comet Rain: the still picture, a thin slanted rain over it and a veil that keeps the lines readable.
+  if (theme === 'comet') return <div className="room-stage comet-scene" data-motion={motionEnabled} aria-hidden="true">
+    <i className="comet-rain"/><i className="comet-shade"/>
+  </div>;
   if (theme === 'harbor') return <div className="room-stage harbor-scene" data-motion={motionEnabled} aria-hidden="true">
     {live && <HarborLiveScene/>}
     <i className="harbor-shade"/>

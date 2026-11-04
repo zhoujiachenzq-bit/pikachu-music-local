@@ -9,7 +9,7 @@
   --line: #436f763d; --line-strong: #287b8980; --hover-bg: #287b8912; --scene-theme-accent: #287b89; --scene-theme-glow: #a7dce5;
 }
 :where(.app-shell,.tone-panel)[data-tone='vinyl'] {
-  --landscape-image: url('/walled-meadow.webp'); --brand: #527445; --brand-bright: #3b6130; --brand-ink: #fffdf6;
+  --brand: #527445; --brand-bright: #3b6130; --brand-ink: #fffdf6;
   --text: #3e5036; --text-strong: #2b4225; --muted: #5b6c50; --quiet: #67775a;
   --surface-0: #e6ebd4; --surface-1: #faf8e9; --surface-2: #eff1dc; --surface-3: #e1e8ca;
   --panel-a: #faf9ec; --panel-b: #e6edd5; --control-bg: #e5ebd2; --input-bg: #fffdf2;

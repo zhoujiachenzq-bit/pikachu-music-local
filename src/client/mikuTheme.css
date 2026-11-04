@@ -1,0 +1,197 @@
+/* Starry Diva: glitch pop taken from a full-frame close-up of star eyes.
+   Three colours with fixed jobs: Miku teal for actions, magenta for selection, star yellow for what is playing.
+   The ornament is a short run of glitch blocks on panel edges and a light RGB split on headings.
+   The picture has no empty sky, so the stage shows the eyes and the lines sit on a solid band cut with pixel steps. */
+:where(.app-shell,.tone-panel)[data-tone='miku'] {
+  --brand: #39d5c9; --brand-bright: #8ff3ea; --brand-ink: #06201d; --magenta: #ff3fd0; --lime: #b6ff3a; --star: #ffd23f;
+  --text: #3a2366; --text-strong: #22104a; --muted: #6f5a9c; --quiet: #8a77b3; --danger: #d4145f; --ink: #22104a;
+  --surface-0: #f6efff; --surface-1: rgba(255,250,255,.96); --surface-2: rgba(246,239,255,.94); --surface-3: rgba(234,222,255,.92);
+  --panel-a: rgba(255,250,255,.96); --panel-b: rgba(248,241,255,.96); --control-bg: #f1e9ff; --input-bg: #ffffff;
+  --hover-bg: rgba(255,63,208,.08); --line: rgba(34,16,74,.18); --line-strong: rgba(57,213,201,.7);
+  --scene-theme-accent: #39d5c9; --scene-theme-glow: #ff3fd0; --radius-panel: 6px;
+  --glitch-blocks: linear-gradient(90deg, #ff3fd0 0 18px, transparent 18px 22px, #b6ff3a 22px 30px, transparent 30px 34px, #39d5c9 34px 58px, transparent 58px 62px, #ffd23f 62px 66px);
+  --rgb-split: -1.5px 0 #ff3fd0b3, 1.5px 0 #39d5c9b3;
+}
+.app-shell[data-tone='miku'] {
+  --miku-image: url('/miku-star.webp'); --edge-particle-a: #39d5c9; --edge-particle-b: #ff3fd0;
+  --collection-paper: #fffaff; --collection-input: #ffffff; --collection-ink: #22104a; --collection-muted: #6f5a9c; --collection-edge: #22104a; --collection-accent: #39d5c9; --collection-on-accent: #06201d; --collection-radius: 6px; --collection-control-radius: 4px;
+  --sc-fg: #22104a; --sc-line: #22104a59; --sc-tint: #ff3fd01a; --sc-on: #e0179f; --sc-heart: #e0179f; --sc-radius: 6px; --sc-small-radius: 4px;
+  --sc-play-bg: #39d5c9; --sc-play-fg: #06201d; --sc-play-shadow: -3px 0 0 #ff3fd0, 3px 0 0 #b6ff3a;
+  --sc-fill: #39d5c9; --sc-track: #22104a24; --sc-ring: #ffffff;
+  /* Pop, not night: a hot pink-violet-teal field under a pixel grid */
+  background: linear-gradient(#ffffff2e 1px, transparent 1px) 0 0 / 28px 28px, linear-gradient(90deg, #ffffff2e 1px, transparent 1px) 0 0 / 28px 28px, linear-gradient(135deg, #ff7ad9, #c58cff 42%, #7fb6ff 70%, #5ff0dd);
+}
+.app-shell[data-tone='miku'][data-background-art='off'] { --miku-image: none; }
+.app-shell[data-tone='miku']::before, .app-shell[data-tone='miku']::after, .app-shell[data-tone='miku'] .panel::after, .app-shell[data-tone='miku'] .particle-field, .app-shell[data-tone='miku'] :is(.search-panel,.playlist-panel)::before { display: none; }
+.app-shell[data-tone='miku'] ::-webkit-scrollbar-thumb { background: #ff3fd066; }
+.app-shell[data-tone='miku'] ::-webkit-scrollbar-track { background: transparent; }
+.app-shell[data-tone='miku'] :is(.playlist-content,.search-mini-list,.platform-body) { scrollbar-width: thin; scrollbar-color: #ff3fd04d transparent; }
+.app-shell[data-tone='miku'] .lyrics-scroll { scrollbar-width: none; }
+.app-shell[data-tone='miku'] .lyrics-scroll::-webkit-scrollbar { display: none; }
+
+/* Stage picture: the eyes sit in the upper part of the crop */
+.miku-scene { background: #0e0820 var(--miku-image) 50% 18% / cover no-repeat; }
+.miku-shade { inset: 0; background: linear-gradient(#0e082059, transparent 16%, transparent 72%, #0e0820a6); }
+.app-shell[data-tone='miku'][data-background-art='off'] .miku-scene { background: radial-gradient(ellipse 60% 40% at 30% 20%, #ff3fd033, transparent 70%), radial-gradient(ellipse 60% 40% at 75% 25%, #39d5c933, transparent 70%), #0e0820; }
+
+/* Top bar and brand */
+.app-shell[data-tone='miku'] .logo-ring { border-radius: 6px; background: #39d5c9; box-shadow: -3px 0 0 #ff3fd0, 3px 0 0 #b6ff3a; }
+.app-shell[data-tone='miku'] .logo-ring img { border-radius: 4px; }
+.app-shell[data-tone='miku'] .brand-kicker { color: #e0179f; letter-spacing: .24em; }
+.app-shell[data-tone='miku'] :is(.brand h1,.panel-heading h2,.daily-copy h2) { color: var(--ink); text-shadow: var(--rgb-split); }
+.app-shell[data-tone='miku'] .language { border-color: var(--line); border-radius: 6px; background: var(--input-bg); }
+.app-shell[data-tone='miku'] .language button { border-radius: 4px; }
+.app-shell[data-tone='miku'] .language button.active { color: #fff; background: var(--magenta); box-shadow: none; }
+.app-shell[data-tone='miku'] :is(.tone-trigger,.profile-button) { border-color: var(--line); border-radius: 6px; background: var(--surface-1); box-shadow: none; }
+.app-shell[data-tone='miku'] .profile-button > span { border-radius: 4px; color: var(--brand-ink); background: var(--brand); box-shadow: none; }
+
+/* Headings, search, sources, tabs */
+.app-shell[data-tone='miku'] .panel-heading h2 > .ui-icon { border-radius: 4px; color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='miku'] .panel-heading small { border: 1px solid var(--ink); border-radius: 4px; color: var(--ink); background: var(--star); }
+.app-shell[data-tone='miku'] .search-panel > .platform-launch { border: 2px solid var(--ink); border-radius: 6px; background: linear-gradient(120deg, #ff3fd024, transparent 55%), #fff; box-shadow: 3px 3px 0 #39d5c9; }
+.app-shell[data-tone='miku'] .platform-launch-icon { border-radius: 4px; color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='miku'] .search-box { border: 2px solid var(--ink); border-radius: 6px; background: #fff; box-shadow: 3px 3px 0 #ff3fd0; }
+.app-shell[data-tone='miku'] .search-box:focus-within { border-color: var(--magenta); box-shadow: 3px 3px 0 #39d5c9; }
+.app-shell[data-tone='miku'] .search-box > .ui-icon { color: #0f9c92; }
+.app-shell[data-tone='miku'] .search-panel .search-box > button.btn.gold { border: 0; border-radius: 4px; color: var(--brand-ink); background: var(--brand); box-shadow: -2px 0 0 #ff3fd0, 2px 0 0 #b6ff3a; font-weight: 800; }
+.app-shell[data-tone='miku'] .source-grid label { border-color: var(--line); border-radius: 4px; color: var(--muted); background: #fff; }
+.app-shell[data-tone='miku'] .source-grid label.checked { border-color: var(--ink); color: var(--ink); background: #ffe7f7; }
+.app-shell[data-tone='miku'] :is(.load-row select,.load-row .btn,.daily-tools select) { border: 1px solid var(--line); border-radius: 4px; color: var(--text); background: var(--input-bg); box-shadow: none; }
+.app-shell[data-tone='miku'] .playlist-panel .tabs { border: 2px solid var(--ink); border-radius: 6px; background: #f3ecff; box-shadow: none; }
+.app-shell[data-tone='miku'] .playlist-panel .tabs button { border-radius: 4px; color: var(--muted); }
+.app-shell[data-tone='miku'] .playlist-panel .tabs button.active { color: #fff; background: var(--magenta); box-shadow: -2px 0 0 #39d5c9; }
+.app-shell[data-tone='miku'] .playlist-panel .playlist-toolbar > strong { color: var(--ink); }
+.app-shell[data-tone='miku'] .playlist-panel .playlist-toolbar > strong::before { width: 12px; height: 12px; margin-top: -6px; background: var(--star); clip-path: polygon(50% 0,63% 35%,100% 38%,71% 61%,80% 100%,50% 78%,20% 100%,29% 61%,0 38%,37% 35%); }
+
+/* Song rows: the playing one is marked in star yellow on a magenta edge */
+.app-shell[data-tone='miku'] .track-row { border: 0; border-radius: 4px; background: transparent; box-shadow: none; }
+@media (hover:hover) { .app-shell[data-tone='miku'] .track-row:hover { background: #ff3fd012; } }
+.app-shell[data-tone='miku'] .track-row.active { border: 0; border-radius: 4px; background: #ff3fd01f; box-shadow: inset 4px 0 #ff3fd0; }
+.app-shell[data-tone='miku'] .track-row.active .track-copy strong { color: #c4128f; }
+.app-shell[data-tone='miku'] .track-source { border: 1.5px solid var(--ink); border-radius: 4px; color: #0f7f77; background: #e4fffb; }
+.app-shell[data-tone='miku'] .track-row .row-actions > .favorite-button.active { color: var(--magenta); }
+
+/* Daily page */
+.app-shell[data-tone='miku'] .daily-editorial, .app-shell[data-tone='miku'] .daily-editorial.has-grainient { border: 1px solid var(--line); border-radius: 6px; background: var(--glitch-blocks) 16px 0 / 66px 4px no-repeat, linear-gradient(90deg, #fffafff5 0 40%, #fffaff8c 66%, #fffaff00 86%), var(--miku-image) 50% 22% / cover, #fff; border: 2px solid var(--ink); box-shadow: 5px 5px 0 #39d5c9; }
+.app-shell[data-tone='miku'] .daily-editorial > .grainient { display: none; }
+.app-shell[data-tone='miku'] .daily-kicker { color: #e0179f; }
+.app-shell[data-tone='miku'] .daily-copy p { color: var(--muted); }
+.app-shell[data-tone='miku'] .daily-actions .btn { border-radius: 4px; }
+.app-shell[data-tone='miku'] .daily-actions .btn.primary { border: 0; color: var(--brand-ink); background: var(--brand); box-shadow: -2px 0 0 #ff3fd0, 2px 0 0 #b6ff3a; }
+.app-shell[data-tone='miku'] .daily-count { color: var(--brand); text-shadow: var(--rgb-split); }
+.app-shell[data-tone='miku'] .daily-collage .collage-tilt img { border: 2px solid #fff; border-radius: 4px; box-shadow: -4px 0 0 #ff3fd0, 4px 0 0 #39d5c9; }
+.app-shell[data-tone='miku'] .daily-spotlight-card { border: 2px solid var(--ink); border-radius: 6px; background: #fff; box-shadow: 3px 3px 0 #ff3fd0; }
+.app-shell[data-tone='miku'] .daily-spotlight-card.active { background: #ffe7f7; }
+.app-shell[data-tone='miku'] .spotlight-rank { color: #e0179f; }
+.app-shell[data-tone='miku'] .spotlight-copy em { color: #0f9c92; }
+
+/* Dialogs and the discovery panel */
+.app-shell[data-tone='miku'] .modal-card:not(.platform-panel) { border: 2px solid var(--ink); background: var(--glitch-blocks) 18px 0 / 66px 4px no-repeat, #fffaff; box-shadow: 6px 6px 0 #ff3fd0; }
+.app-shell[data-tone='miku'] .modal-backdrop { background: #8a3fd04d; }
+.app-shell[data-tone='miku'] .modal-card.platform-panel { --p-bg: #fffaff; --p-raised: #ffffff; --p-ink: #22104a; --p-muted: #6f5a9c; --p-line: #22104a2e; --p-accent: #39d5c9; --p-on-accent: #06201d; border: 2px solid var(--ink); border-radius: 6px; background: linear-gradient(#ff3fd012 1px, transparent 1px) 0 0 / 28px 28px, linear-gradient(90deg, #39d5c912 1px, transparent 1px) 0 0 / 28px 28px, #fffaff; box-shadow: 8px 8px 0 #ff3fd0; }
+.app-shell[data-tone='miku'] .platform-panel .platform-header { background: var(--glitch-blocks) 28px 100% / 66px 4px no-repeat; }
+.app-shell[data-tone='miku'] .platform-heading h2 { text-shadow: var(--rgb-split); }
+.app-shell[data-tone='miku'] .platform-heading-icon { border-radius: 4px; color: var(--brand-ink); background: var(--brand); }
+.app-shell[data-tone='miku'] .platform-panel .platform-close { border-radius: 6px; }
+.app-shell[data-tone='miku'] :is(.platform-type-switch,.platform-query) { border-radius: 6px; }
+.app-shell[data-tone='miku'] .platform-type-switch button { border-radius: 4px; }
+.app-shell[data-tone='miku'] .platform-type-switch button.active { color: #fff; background: var(--magenta); }
+.app-shell[data-tone='miku'] .platform-nav button.active::after { height: 4px; border-radius: 0; background: linear-gradient(90deg, #ff3fd0 0 40%, #b6ff3a 40% 55%, #39d5c9 55%); }
+.app-shell[data-tone='miku'] .platform-panel .btn { border-radius: 4px; }
+.app-shell[data-tone='miku'] .platform-collection-art { border-radius: 4px; }
+.app-shell[data-tone='miku'] .platform-collections > button:is(:hover,:focus-visible) .platform-collection-art { box-shadow: -4px 0 0 #ff3fd0, 4px 0 0 #39d5c9; }
+
+/* Progress and volume fill from teal into magenta (doubled attribute lifts over the shared slider rule) */
+.app-shell[data-tone='miku'][data-tone] .player-panel .player-range::-webkit-slider-runnable-track { background: linear-gradient(90deg, #39d5c9, #ff3fd0 var(--range-progress), #22104a1f var(--range-progress)); }
+.app-shell[data-tone='miku'][data-tone] .player-panel .elastic-volume-visual > span { background: linear-gradient(90deg, #39d5c9, #ff3fd0); }
+.app-shell[data-tone='miku'][data-tone] .player-panel .player-range::-webkit-slider-thumb { border-radius: 3px; background: #fff; border-color: #ff3fd0; }
+
+/* Sticker-strip lyrics (desktop stage and the phone lyrics page): each line is a small dark strip with a magenta
+   hard shadow; the playing line becomes a big star-yellow strip split into magenta and teal. Strips cover only the text. */
+.app-shell[data-tone='miku'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line { color: #fff; background: none; text-shadow: none; }
+.app-shell[data-tone='miku'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span { padding: 3px 10px; border-radius: 2px; background: #140a2ee0; box-shadow: 3px 3px 0 #ff3fd0b3; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.app-shell[data-tone='miku'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active { color: #140a2e; font-size: 22px; font-weight: 800; }
+.app-shell[data-tone='miku'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span { padding: 5px 14px; background: var(--star); box-shadow: -5px 0 0 #ff3fd0, 5px 0 0 #39d5c9; rotate: -1.5deg; }
+.app-shell.motion-on[data-tone='miku'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span { transition: background-color .2s steps(2), box-shadow .2s steps(2), rotate .2s steps(2), padding .2s steps(2); }
+
+/* A cover that changes glitches once (the image remounts per track); nothing loops */
+.app-shell.motion-on[data-tone='miku'] .record img { animation: miku-glitch .42s steps(2, end); }
+@keyframes miku-glitch {
+  0% { opacity: 0; clip-path: inset(10% 0 60% 0); translate: -6px 0; }
+  30% { opacity: 1; clip-path: inset(45% 0 20% 0); translate: 5px 0; filter: hue-rotate(80deg); }
+  60% { clip-path: inset(0 0 70% 0); translate: -3px 0; filter: none; }
+  100% { clip-path: inset(0); translate: 0; }
+}
+
+@media (min-width: 761px) {
+  .app-shell[data-tone='miku'] :is(.topbar.panel, .workspace > section.panel:not(.player-panel)) { border: 2px solid var(--ink); border-radius: 6px; background: var(--glitch-blocks) 16px 0 / 66px 4px no-repeat, #fffaff; box-shadow: 6px 6px 0 #ff3fd0; backdrop-filter: none; }
+  .app-shell[data-tone='miku'] .workspace > section.player-panel { border: 2px solid var(--ink); border-radius: 6px; background: var(--glitch-blocks) 16px 0 / 66px 4px no-repeat, #fffaff; box-shadow: 6px 6px 0 #39d5c9; }
+  .app-shell[data-tone='miku'] .workspace > section.player-panel.stage-mode-player { background: #0e0820; }
+  .app-shell[data-tone='miku'] .stage-mode-player .player-heading h2 { color: #fff; }
+  .app-shell[data-tone='miku'] .player-heading small { border: 1px solid var(--ink); border-radius: 4px; color: var(--ink); background: var(--star); }
+
+  /* Centred sticker captions over the whole picture */
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .lyrics { order: 1; flex: 1; min-height: 0; margin-top: 4px; }
+  .app-shell[data-tone='miku'] .lyrics { border: 0; background: none; box-shadow: none; }
+  .app-shell[data-tone='miku'] .lyrics-effects { display: none; }
+  .app-shell[data-tone='miku'] .lyric-line time { color: var(--brand); }
+  /* Only the few lines around the playing one show; the rest fade out so the eyes and the chin stay clear */
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .lyrics-scroll { padding-inline: 24px; -webkit-mask-image: linear-gradient(transparent 22%, #000 36%, #000 64%, transparent 80%); mask-image: linear-gradient(transparent 22%, #000 36%, #000 64%, transparent 80%); }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .lyric-line { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; background: none; text-shadow: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .lyric-line > span { grid-column: 1; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .lyric-line time { display: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .now-card { margin-top: 10px; }
+
+  /* The player strip at the foot, as on the other picture themes */
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .now-card { order: 2; position: relative; min-height: 0; margin: 10px 0 0; padding: 10px 14px; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 14px; align-items: center; rotate: none; border: 2px solid var(--ink); border-radius: 6px; text-align: left; background: var(--glitch-blocks) 14px 0 / 66px 4px no-repeat, #fffafff2; box-shadow: 4px 4px 0 #ff3fd0; backdrop-filter: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .record-wrap { width: 56px; padding: 0; transform: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .record-tilt { padding: 0; border: 0; border-radius: 4px; background: none; box-shadow: -3px 0 0 #ff3fd0, 3px 0 0 #39d5c9; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .record { width: 100%; height: 100%; border-radius: 4px; box-shadow: none; animation: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .record::after, .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .record-wrap::before { display: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .track-hero { min-width: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 18px; align-items: center; border: 0; background: none; box-shadow: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .now-kicker { display: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .track-hero h3 { grid-column: 1; margin: 0; color: var(--ink); font-size: 16px; line-height: 1.3; letter-spacing: 0; text-shadow: var(--rgb-split); }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .track-hero p { grid-column: 1; margin: 1px 0 4px; color: var(--muted); font-size: 11px; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .progress-row { grid-column: 1; color: var(--muted); font-size: 9px; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .transport { grid-column: 2; grid-row: 1 / span 3; margin: 0; padding: 0; gap: 6px; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .transport > button:not(.mobile-volume-toggle):not(.play-main) { width: 30px; height: 30px; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .transport > .play-main { width: 40px; height: 40px; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .volume input { width: 64px; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .hero-actions { position: static; margin: 0; padding: 0 0 0 10px; display: flex; gap: 6px; border-left: 1px solid var(--line); }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .hero-actions button { width: 30px; height: 30px; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .hero-actions span { display: none; }
+}
+@media (min-width: 761px) and (max-width: 1280px) {
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .track-hero { grid-template-columns: minmax(0, 1fr); }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .transport { grid-column: 1; grid-row: auto; margin-top: 6px; flex-wrap: nowrap; justify-content: flex-start; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .transport .volume { flex-basis: auto; margin-left: 10px; justify-content: flex-start; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .stage-mode-player .hero-actions { align-self: start; }
+}
+
+/* Phone: one star eye behind the console; the lyrics page is the picture under a deep veil */
+@media (max-width: 760px) {
+  .app-shell[data-tone='miku'] { --m-bg: #fbf5ff; --m-raised: #ffffff; --m-sunken: #f0e6ff; --m-ink: #22104a; --m-muted: #6f5a9c; --m-accent: #39d5c9; --m-on-accent: #06201d; --m-line: #22104a24; background: linear-gradient(#ffffff59 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, #ffffff59 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(160deg, #ffd2f1, #e6d9ff 50%, #ccfbf4); }
+  .app-shell[data-tone='miku'] .topbar.panel { background: var(--glitch-blocks) 14px 100% / 66px 3px no-repeat, var(--m-raised); }
+  .app-shell[data-tone='miku'] .workspace > section.panel.player-panel:not([data-mobile-section='daily']) { background: transparent !important; }
+  .app-shell[data-tone='miku'] .workspace .player-panel .room-stage { position: absolute; display: block; inset: 0 !important; }
+  .miku-scene { background-position: 33% 30%; }
+  .app-shell[data-tone='miku'] .miku-shade { background: linear-gradient(#0e082080, transparent 26%, transparent 50%, #0e0820d9); }
+  .app-shell[data-tone='miku'] :is(.record-tilt,.record) { border-radius: 6px; }
+  .app-shell[data-tone='miku'] .record-tilt { border: 0; background: none; box-shadow: -5px 0 0 #ff3fd0, 5px 0 0 #39d5c9, 0 12px 30px #000a; }
+  .app-shell[data-tone='miku'] .track-hero { padding: 14px 16px; border: 2px solid var(--ink); border-radius: 6px; background: var(--glitch-blocks) 16px 0 / 66px 4px no-repeat, #fffafff2; box-shadow: 4px 4px 0 #ff3fd0; }
+  .app-shell[data-tone='miku'] .track-hero h3 { text-shadow: var(--rgb-split); }
+  .app-shell[data-tone='miku'] .now-card .hero-actions { margin: 10px 8px 0 0; }
+  .app-shell[data-tone='miku'] .workspace .lyrics { border-radius: 6px 6px 0 0; background: var(--glitch-blocks) 16px 0 / 66px 4px no-repeat, #fff; }
+  .app-shell[data-tone='miku'] .workspace .lyrics.sheet-open { --m-ink: #ffffff; --m-muted: #e6dfff; }
+  .app-shell[data-tone='miku'] .lyrics-page-bar { background: none; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .workspace .lyrics.sheet-open { background: linear-gradient(#0e0820a6, #0e082000 18%, #0e082000 76%, #0e0820b3), var(--miku-image) 33% 30% / cover no-repeat; }
+  .app-shell[data-tone='miku'] .lyrics.sheet-open .lyric-line > span { justify-self: center; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .lyrics.sheet-open .lyrics-scroll { -webkit-mask-image: linear-gradient(transparent 32%, #000 42%, #000 60%, transparent 72%); mask-image: linear-gradient(transparent 32%, #000 42%, #000 60%, transparent 72%); }
+  .app-shell[data-tone='miku'] .lyrics-scroll { scrollbar-width: none; }
+  .app-shell[data-tone='miku'] .daily-editorial, .app-shell[data-tone='miku'] .daily-editorial.has-grainient { background: var(--glitch-blocks) 16px 0 / 66px 4px no-repeat, linear-gradient(90deg, #fffafff2 0 48%, #fffaff99 80%, #fffaff26), var(--miku-image) 33% 22% / cover, var(--m-raised); }
+  .app-shell[data-tone='miku'] .workspace > section.panel:is(.search-panel,.playlist-panel) { background: transparent; }
+  .app-shell[data-tone='miku'] .mobile-nav { border-top: 2px solid var(--ink); background: #fffafff5; }
+  .app-shell[data-tone='miku'] .mobile-nav button.active > span { border-radius: 4px; color: #fff; background: var(--magenta); }
+  .app-shell[data-tone='miku'] .mobile-mini-player { background: var(--glitch-blocks) 14px 0 / 66px 3px no-repeat, var(--m-raised); }
+}
+@media (prefers-reduced-motion: reduce) { .app-shell[data-tone='miku'] .record img { animation: none !important; } }

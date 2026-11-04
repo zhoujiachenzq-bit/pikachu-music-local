@@ -4,7 +4,7 @@ import { SOURCES, CORE_SOURCES, SOURCE_NAMES, SOURCE_PAGE_HOSTS, type ImportedPl
 import { canonicalTrackKey, hasCompatibleTrackDuration, isDerivativeTrackVersion, searchRelevance, stableMetadataId } from '../shared/trackIdentity.js';
 import { withSourceHealth } from './sourceHealth.js';
 import { abortable } from '../shared/asyncControl.js';
-import { isLikelyKuwoRestrictionAudio } from './mediaValidation.js';
+import { isLikelyKuwoRestrictionAudio, validatedAudioResponse } from './mediaValidation.js';
 import { explainEmptySearch, playlistWithGoMusicApi, resolveExactWithGoMusicApi, resolveWithGoMusicApi, searchWithGoMusicApi } from './goMusicApi.js';
 import { positiveEnvInt } from './rateLimit.js';
 import { searchGoMusicNative } from './goMusicSearch.js';
@@ -266,11 +266,11 @@ async function searchSourceRaw(source: MusicSource, query: string, limit = 10, s
     } catch { signal?.throwIfAborted(); }
   }
   if (source !== 'netease') {
-    const backup = await searchWithGoMusicApi(q, { sources: [source], limit: size });
+    const backup = await searchWithGoMusicApi(q, { sources: [source], limit: size,
+      timeoutMs: source === 'qq' && process.env.GO_MUSIC_API_DIRECT_MEDIA ? 1_500 : undefined });
     signal?.throwIfAborted();
     if (backup.length) return backup.map(item => ({ ...item, keyword: q }));
-    // On the phone QQ and Migu have nothing else to fall back on, so say what went wrong.
-    if (process.env.GO_MUSIC_API_DIRECT_MEDIA && source !== 'kuwo') throw new SourceError('LOCAL_SOURCE_EMPTY', await explainEmptySearch(source, q));
+    if (process.env.GO_MUSIC_API_DIRECT_MEDIA && source === 'migu') throw new SourceError('LOCAL_SOURCE_EMPTY', await explainEmptySearch(source, q));
   }
   if (source === 'migu') {
     const j = await fetchJson(`https://api.xcvts.cn/api/music/migu?gm=${encodeURIComponent(q)}&n=&num=${size}&type=json`, { signal });
@@ -516,10 +516,18 @@ async function resolveOriginalRaw(input: Track): Promise<ResolvedTrack> {
       sourceUrl: first(result.link, input.sourceUrl) || null, audioUrl, lyric, actualSource: 'migu', fallback: false };
   }
   const j = await fetchJson(`https://tang.api.s01s.cn/music_open_api.php?msg=${encodeURIComponent(query)}&type=json&mid=${encodeURIComponent(input.sourceTrackId)}`);
-  const item = Array.isArray(j) ? j.find(v => first(v.song_mid, v.mid) === input.sourceTrackId) || j[0] : asObject(j).data || j;
-  const audioUrl = findAudio(item); if (!audioUrl) throw new SourceError('UNPLAYABLE', 'QQ 未返回公开播放地址。');
-  return { ...input, title: first(item?.song_title, item?.title, input.title), artist: first(item?.singer_name, item?.singer, input.artist),
-    coverUrl: absolute(first(item?.cover, item?.pic, input.coverUrl)), audioUrl, lyric: findLyric(item), actualSource: 'qq', fallback: false };
+  const data = asObject(j).data || j;
+  const item = (Array.isArray(data) ? data : [data]).find(value => first(value?.song_mid, value?.songmid, value?.mid) === input.sourceTrackId);
+  const audioUrl = findAudio(item);
+  if (audioUrl) {
+    const response = await fetchWithTimeout(audioUrl, { headers: { accept: 'application/octet-stream', range: 'bytes=0-4095', referer: 'https://y.qq.com/' } }, 1);
+    const valid = await validatedAudioResponse(response, { fromStart: true, source: 'qq', durationMs: input.duration, timeoutMs: 4000 });
+    if (valid) {
+      await valid.body?.cancel().catch(() => undefined);
+      return { ...input, audioUrl: absolute(response.url) || audioUrl, lyric: findLyric(item), actualSource: 'qq', fallback: false };
+    }
+  }
+  throw new SourceError('UNPLAYABLE', 'QQ 未返回可验证的公开播放地址。');
 }
 
 async function resolveOriginal(input: Track, db?: Db): Promise<ResolvedTrack> {
