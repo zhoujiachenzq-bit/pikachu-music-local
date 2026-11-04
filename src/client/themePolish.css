@@ -1,0 +1,105 @@
+/* Detail kits for the themes that lacked the finish Papercut and Starry Diva have. Each kit restyles the same small
+   parts (logo, heading icon chip, heading badge, discover card, search field and button, tabs, source chips, song
+   source badges, top-bar buttons) in its theme's own material, so every panel reads as one designed object.
+   Loaded last; desktop and phone both, phone keeps its sizes from mobileShell. */
+
+/* ─── Cobalt Gallery: chamfered cold-light plates, cyan hairlines, corner ticks, mono labels ─── */
+.app-shell[data-tone='cobalt'] .brand-kicker { color: #a9c9e8; letter-spacing: .24em; }
+.app-shell[data-tone='cobalt'] .panel-heading h2 > .ui-icon { border-radius: 10px; color: #eef7ff; background: #ffffff14; box-shadow: inset 0 0 0 1px #ffffff1f; }
+.app-shell[data-tone='cobalt'] .panel-heading small { border: 1px solid #ffffff1f; border-radius: 999px; color: #d6e6ff; background: #ffffff0d; }
+.app-shell[data-tone='cobalt'] .search-panel > .platform-launch { border: 1px solid #ffffff1f; border-radius: 14px; background: linear-gradient(135deg, #12357f, #0b2462); box-shadow: inset 0 1px #ffffff1a; }
+.app-shell[data-tone='cobalt'] .platform-launch-icon { border-radius: 10px; color: #eef7ff; background: #ffffff14; }
+.app-shell[data-tone='cobalt'] .search-box { border: 1px solid #ffffff24; border-radius: 12px; background: #051a4dcc; box-shadow: none; }
+.app-shell[data-tone='cobalt'] .search-box:focus-within { border-color: #ffffff59; box-shadow: 0 0 0 3px #ffffff14; }
+.app-shell[data-tone='cobalt'] .search-panel .search-box > button.btn.gold { border: 0; border-radius: 9px; color: #241c03; background: #ffd84d; box-shadow: none; }
+.app-shell[data-tone='cobalt'] .source-grid label { border-color: #ffffff1f; background: #ffffff08; }
+.app-shell[data-tone='cobalt'] .source-grid label.checked { border-color: #ffffff59; background: #ffffff1a; box-shadow: none; }
+.app-shell[data-tone='cobalt'] .playlist-panel .tabs { border-color: #ffffff1f; background: #051a4dcc; }
+.app-shell[data-tone='cobalt'] .playlist-panel .tabs button.active { color: #0b2462; background: #eef7ff; box-shadow: none; }
+.app-shell[data-tone='cobalt'] :is(.tone-trigger,.profile-button) { border-color: #ffffff24; }
+/* Plain record and rows: no gold frames, a neutral spindle */
+.app-shell[data-tone='cobalt']:not(#_) .record-tilt { border: 1px solid #ffffff2e; box-shadow: 0 14px 34px #00103a80; }
+.app-shell[data-tone='cobalt']:not(#_) .record::after { background: radial-gradient(circle, #0b1a3c 0 16%, #eef7ff 18% 44%, #b9cbe6 47%); box-shadow: 0 0 10px #00000059; }
+.app-shell[data-tone='cobalt']:not(#_) .track-row { border: 1px solid transparent; border-image: none; border-radius: 10px; background: transparent; }
+.app-shell[data-tone='cobalt']:not(#_) .track-row.active { border: 1px solid #ffffff2e; border-image: none; border-radius: 10px; background: #ffffff14; box-shadow: none; }
+.app-shell[data-tone='cobalt']:not(#_) .modal-card:not(.platform-panel) { border: 1px solid #ffffff24; border-image: none; border-radius: 16px; background-clip: border-box; }
+@media (max-width: 760px) { .app-shell[data-tone='cobalt']:not(#_) .track-hero { padding: 14px 16px; border: 1px solid #ffffff24; border-image: none; border-radius: 16px; } }
+/* ─── Summer Coast: postcard material, perforated stamp chips, airmail stripes, dashed postmark labels ─── */
+.app-shell[data-tone='night'] { --stamp-edge: radial-gradient(circle at center, #0000 2.4px, #000 2.8px) -4px -4px / 8px 8px, linear-gradient(#000 0 0) content-box; }
+.app-shell[data-tone='night'] .logo-ring { padding: 4px; border-radius: 0; background: #fffefa; -webkit-mask: var(--stamp-edge); mask: var(--stamp-edge); mask-composite: add; }
+.app-shell[data-tone='night'] .logo-ring img { border-radius: 0; }
+.app-shell[data-tone='night'] .panel-heading h2 > .ui-icon { padding: 6px; border-radius: 0; color: #fffcf5; background: #0f7c8a; -webkit-mask: radial-gradient(circle at center, #0000 1.8px, #000 2.2px) -3px -3px / 6px 6px, linear-gradient(#000 0 0) 0 0 / 100% 100% content-box; mask: radial-gradient(circle at center, #0000 1.8px, #000 2.2px) -3px -3px / 6px 6px, linear-gradient(#000 0 0) 0 0 / 100% 100% content-box; mask-composite: add; }
+.app-shell[data-tone='night'] .panel-heading small { border: 1.5px dashed #cb463099; border-radius: 999px; color: #b23a26; background: #fff6ee; font-weight: 650; letter-spacing: .04em; rotate: -2deg; }
+.app-shell[data-tone='night'] .search-panel > .platform-launch { border: 0; border-radius: 4px; background: repeating-linear-gradient(115deg, #e2583e 0 8px, #fffcf5 8px 13px, #0f7c8a 13px 21px, #fffcf5 21px 26px) 0 0 / 100% 4px no-repeat, #fffcf5; box-shadow: 0 6px 16px #0b3a4526, inset 0 0 0 1px #0e3a451f; }
+.app-shell[data-tone='night'] .platform-launch-icon { border-radius: 0; color: #fffcf5; background: #cb4630; -webkit-mask: radial-gradient(circle at center, #0000 1.8px, #000 2.2px) -3px -3px / 6px 6px, linear-gradient(#000 0 0) 0 0 / 100% 100% content-box; mask: radial-gradient(circle at center, #0000 1.8px, #000 2.2px) -3px -3px / 6px 6px, linear-gradient(#000 0 0) 0 0 / 100% 100% content-box; mask-composite: add; padding: 3px; }
+.app-shell[data-tone='night'] .search-box { border: 1.5px solid #0b2f39; border-radius: 4px; background: linear-gradient(90deg, #e2583e 0 4px, #fffcf5 4px 7px, #0f7c8a 7px 11px, transparent 11px), #fffefa; padding-left: 20px; box-shadow: 3px 3px 0 #0f7c8a33; }
+.app-shell[data-tone='night'] .search-box > button { border-radius: 3px; box-shadow: 0 2px 0 #8e2c1c; }
+.app-shell[data-tone='night'] .source-grid label { border: 1px dashed #0e3a4559; border-radius: 3px; background: #fffcf5; }
+.app-shell[data-tone='night'] .source-grid label.checked { border-style: solid; border-color: #0b2f39; background: #e9f6f4; }
+.app-shell[data-tone='night'] .playlist-panel .tabs { border: 1px solid #0e3a4526; background: #f6eedf; }
+.app-shell[data-tone='night'] .playlist-panel .tabs button.active { box-shadow: 2px 2px 0 #cb4630; }
+.app-shell[data-tone='night'] :is(.tone-trigger,.profile-button) { border: 1.5px solid #0b2f39; border-radius: 4px; box-shadow: 2px 2px 0 #0f7c8a59; }
+
+/* ─── Twilight Garden: soft blossom paper, gate-light rims, petal badges, arched chips ─── */
+.app-shell[data-tone='burgundy'] { --gate: linear-gradient(135deg, #ff9ec7, #c14dff 52%, #3fd8e0); }
+.app-shell[data-tone='burgundy'] .logo-ring { padding: 3px; background: var(--gate); box-shadow: 0 0 18px #ff9ec766; }
+.app-shell[data-tone='burgundy'] .panel-heading h2 > .ui-icon { border-radius: 14px 14px 6px 6px; color: #fff; background: linear-gradient(160deg, #ff9ec7, #c14dff); box-shadow: 0 4px 12px #c14dff40; }
+.app-shell[data-tone='burgundy'] .panel-heading small { border: 1px solid transparent; border-radius: 999px; color: #a12a78; background: linear-gradient(#fff4f9, #fff4f9) padding-box, var(--gate) border-box; font-weight: 600; }
+.app-shell[data-tone='burgundy'] .panel-heading small::before { content: '✿ '; color: #ff9ec7; }
+.app-shell[data-tone='burgundy'] .search-panel > .platform-launch { border: 1.5px solid transparent; border-radius: 22px 22px 12px 12px; background: radial-gradient(ellipse 60% 80% at 100% 0%, #ffd2e480, transparent 70%) padding-box, linear-gradient(#fffafd, #fff4f9) padding-box, var(--gate) border-box; box-shadow: 0 8px 22px #c14dff1f; }
+.app-shell[data-tone='burgundy'] .platform-launch-icon { border-radius: 14px 14px 6px 6px; color: #fff; background: linear-gradient(160deg, #ff9ec7, #c14dff); }
+.app-shell[data-tone='burgundy'] .search-box { border: 1.5px solid transparent; border-radius: 999px; background: linear-gradient(#fffafd, #fffafd) padding-box, var(--gate) border-box; box-shadow: 0 4px 14px #c14dff1a; }
+.app-shell[data-tone='burgundy'] .search-box > button { box-shadow: 0 4px 12px #c0327f40; }
+.app-shell[data-tone='burgundy'] .source-grid label { border-color: #c0327f2e; background: #fffafd; }
+.app-shell[data-tone='burgundy'] .source-grid label.checked { border-color: transparent; background: linear-gradient(#ffeef6, #ffeef6) padding-box, var(--gate) border-box; }
+.app-shell[data-tone='burgundy'] .playlist-panel .tabs { border: 1.5px solid transparent; border-radius: 18px; background: linear-gradient(#fff4f9, #fff4f9) padding-box, var(--gate) border-box; }
+.app-shell[data-tone='burgundy'] .playlist-panel .tabs button.active { border-radius: 14px 14px 6px 6px; background: linear-gradient(160deg, #e0559a, #c14dff); box-shadow: 0 4px 12px #c14dff4d; }
+.app-shell[data-tone='burgundy'] :is(.tone-trigger,.profile-button) { border: 1.5px solid transparent; background: linear-gradient(#fffafd, #fffafd) padding-box, var(--gate) border-box; }
+
+/* ─── Sea and You: night glass, a moon-light rim on every surface, far-shore glints ─── */
+.app-shell[data-tone='harbor'] { --rim: linear-gradient(160deg, #cfe6ff8c, #cfe6ff14 40%, #ffc9dc33); }
+.app-shell[data-tone='harbor'] .logo-ring { padding: 3px; background: linear-gradient(160deg, #eaf4ff, #6fa8ff 60%, #ffc9dc); box-shadow: 0 0 22px #6fa8ff59; }
+.app-shell[data-tone='harbor'] .panel-heading h2 > .ui-icon { border: 1px solid transparent; border-radius: 50%; color: #eaf4ff; background: radial-gradient(circle at 35% 30%, #6fa8ff59, #0b1430cc) padding-box, var(--rim) border-box; box-shadow: 0 0 14px #6fa8ff33; }
+.app-shell[data-tone='harbor'] .panel-heading small { border: 1px solid transparent; border-radius: 999px; color: #dbe9ff; background: linear-gradient(#0b1430cc, #0b1430cc) padding-box, var(--rim) border-box; }
+.app-shell[data-tone='harbor'] .panel-heading small::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 6px; border-radius: 50%; vertical-align: 1px; background: #ffe6c2; box-shadow: 0 0 6px #ffd39a; }
+.app-shell[data-tone='harbor'] .search-panel > .platform-launch { border: 1px solid transparent; border-radius: 16px; background: radial-gradient(ellipse 70% 90% at 100% 0%, #6fa8ff33, transparent 70%) padding-box, linear-gradient(160deg, #16244ee6, #0b1430e6) padding-box, var(--rim) border-box; box-shadow: 0 10px 26px #0206154d; }
+.app-shell[data-tone='harbor'] .platform-launch-icon { border-radius: 50%; color: #eaf4ff; background: radial-gradient(circle at 35% 30%, #6fa8ff66, #0b1430); box-shadow: 0 0 12px #6fa8ff40; }
+.app-shell[data-tone='harbor'] .search-box { border: 1px solid transparent; border-radius: 999px; background: linear-gradient(#08102acc, #08102acc) padding-box, var(--rim) border-box; box-shadow: inset 0 1px 8px #0006; }
+.app-shell[data-tone='harbor'] .search-box:focus-within { box-shadow: inset 0 1px 8px #0006, 0 0 0 3px #6fa8ff33; }
+.app-shell[data-tone='harbor'] .search-box > button { border-radius: 999px; box-shadow: 0 0 16px #9fd4ff59; }
+.app-shell[data-tone='harbor'] .source-grid label { border-color: #bedcff26; background: #0b14308c; }
+.app-shell[data-tone='harbor'] .source-grid label.checked { border-color: transparent; background: linear-gradient(#16244e, #16244e) padding-box, var(--rim) border-box; }
+.app-shell[data-tone='harbor'] .playlist-panel .tabs { border: 1px solid transparent; background: linear-gradient(#08102acc, #08102acc) padding-box, var(--rim) border-box; }
+.app-shell[data-tone='harbor'] .playlist-panel .tabs button.active { box-shadow: 0 0 16px #9fd4ff4d, inset 0 1px #ffffff80; }
+.app-shell[data-tone='harbor'] :is(.tone-trigger,.profile-button) { border: 1px solid transparent; background: linear-gradient(#0b1430e6, #0b1430e6) padding-box, var(--rim) border-box; }
+
+/* ─── Comet Rain: night sky. The ornament is starlight: a four-point star as the marker, and meteor streaks (a fading
+   cyan tail running into a white head) instead of solid rules. No braid, no stripes. ─── */
+.app-shell[data-tone='comet'] {
+  --meteor: linear-gradient(90deg, transparent 8%, #7fe6ff33 40%, #7fe6ffcc 86%, #ffffff 97%, transparent 98%);
+  --meteor-v: linear-gradient(transparent 6%, #7fe6ff40 40%, #7fe6ffd9 88%, #ffffff 98%, transparent);
+  --star4: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0l1.7 6.3L16 8l-6.3 1.7L8 16l-1.7-6.3L0 8l6.3-1.7z' fill='%23fff'/%3E%3C/svg%3E");
+  --cord: var(--meteor);
+}
+.app-shell[data-tone='comet'] .logo-ring { padding: 2px; background: linear-gradient(140deg, #ffffff, #7fe6ff 45%, #ff8ac0); box-shadow: 0 0 18px #7fe6ff4d; }
+.app-shell[data-tone='comet'] .panel-heading h2 > .ui-icon { border-radius: 10px; color: #ffffff; background: var(--star4) calc(100% - 3px) 3px / 6px 6px no-repeat, radial-gradient(circle at 70% 25%, #2f6f8a, #0f2a3a 70%); box-shadow: inset 0 0 0 1px #aae1f040; }
+.app-shell[data-tone='comet'] .panel-heading small { border: 1px solid #aae1f02e; border-radius: 999px; color: #e6f6fa; background: var(--star4) 9px 50% / 8px 8px no-repeat, #0f2a3acc; padding-left: 22px; }
+.app-shell[data-tone='comet'] .search-panel > .platform-launch { border: 1px solid #aae1f033; border-radius: 14px; background: radial-gradient(1px 1px at 62% 30%, #fff, transparent), radial-gradient(1.4px 1.4px at 78% 68%, #fff, transparent), radial-gradient(1px 1px at 90% 22%, #bfefff, transparent), linear-gradient(-22deg, transparent 47%, #7fe6ff 49.6%, #ffffff 50%, transparent 50.4%) 100% 0 / 46% 100% no-repeat, linear-gradient(120deg, #1d4a5ef2, #12303ff2); box-shadow: 0 10px 24px #04121c59; }
+.app-shell[data-tone='comet'] .platform-launch-icon { border-radius: 10px; color: #ffb45c; background: #0b2232; box-shadow: inset 0 0 0 1px #ffb45c40; }
+.app-shell[data-tone='comet'] .search-box { border: 1px solid #aae1f033; border-radius: 12px; background: #0b2232cc; }
+.app-shell[data-tone='comet'] .search-box:focus-within { border-color: #aae1f080; box-shadow: 0 0 0 3px #7fe6ff26; }
+.app-shell[data-tone='comet'] .source-grid label { border-color: #aae1f02e; background: #0b2232aa; }
+.app-shell[data-tone='comet'] .source-grid label.checked { border-color: #aae1f080; background: #1d4a5e; box-shadow: 0 0 10px #7fe6ff26; }
+.app-shell[data-tone='comet'] .playlist-panel .tabs { border-color: #aae1f033; background: #0b2232cc; }
+.app-shell[data-tone='comet'] .playlist-panel .tabs button.active { background: #ffffff; box-shadow: 0 0 14px #7fe6ff40; }
+.app-shell[data-tone='comet'] :is(.tone-trigger,.profile-button) { border-color: #aae1f040; background: #0f2a3acc; }
+.app-shell[data-tone='comet']:not(#_) .playlist-panel .playlist-toolbar > strong::before { width: 11px; height: 11px; margin-top: -5.5px; border-radius: 0; background: var(--star4) center / contain no-repeat; filter: drop-shadow(0 0 4px #7fe6ff); }
+.app-shell[data-tone='comet']:not(#_) .track-row.active { background: var(--meteor-v) 0 0 / 2px 100% no-repeat, #ffffff21; }
+.app-shell[data-tone='comet']:not(#_) .platform-notice { border-left: 2px solid #7fe6ff; border-image: none; }.app-shell[data-tone='cobalt']:not(#_) :is(.now-card,.daily-editorial) { border-radius: 18px; border-color: #ffffff24; }
+/* Cobalt without gold: white is the only accent, on clean blues */
+:where(.app-shell,.tone-panel)[data-tone='cobalt']:not(#_) { --brand: #eef7ff; --brand-bright: #ffffff; --brand-ink: #0b2462; --line-strong: #ffffff59; --scene-theme-accent: #9cc4ff; --scene-theme-glow: #6aa8ff; }
+.app-shell[data-tone='cobalt']:not(#_) { --sc-line: #ffffff33; --sc-tint: #ffffff14; --sc-on: #ffffff; --sc-play-bg: #ffd84d; --sc-play-fg: #241c03; --sc-fill: #ffd84d; --ctl-play: #ffd84d; --ctl-play-fg: #241c03; --m-accent: #ffd84d; --m-on-accent: #241c03; }
+.app-shell[data-tone='cobalt']:not(#_) .logo-ring { background: linear-gradient(145deg, #ffffff, #9cc4ff); box-shadow: 0 0 22px #6aa8ff40; }
+.app-shell[data-tone='cobalt']:not(#_) :is(.btn.gold,.btn.primary) { color: #241c03; border-color: #ffd84d; background: #ffd84d; box-shadow: 0 6px 18px #ffd84d29; }
+.app-shell[data-tone='cobalt']:not(#_) .spotlight-copy em { color: #ffe27a; }
+.app-shell[data-tone='cobalt']:not(#_) .daily-spotlight-card.active { border-color: #ffffff59; }

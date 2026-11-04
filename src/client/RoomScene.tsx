@@ -44,7 +44,11 @@ export function HarborLyricsScene({ live }: { live: boolean }) {
   return <div className="harbor-lyrics-scene" aria-hidden="true">{live && <HarborLiveScene/>}<i/></div>;
 }
 
-export function RoomStage({ theme, motionEnabled = false, live = false }: { theme: 'night' | 'vinyl' | 'burgundy' | 'harbor' | 'comet' | 'miku'; coverUrl?: string | null; motionEnabled?: boolean; live?: boolean }) {
+export function RoomStage({ theme, motionEnabled = false, live = false }: { theme: 'night' | 'vinyl' | 'burgundy' | 'harbor' | 'comet' | 'miku' | 'skyroom'; coverUrl?: string | null; motionEnabled?: boolean; live?: boolean }) {
+  // Beyond Time: the ivy-grown room with the summer window; a light shaft and slow dust motes in the room's air.
+  if (theme === 'skyroom') return <div className="room-stage skyroom-scene" data-motion={motionEnabled} aria-hidden="true">
+    <i className="skyroom-shaft"/><i className="skyroom-dust"/><i className="skyroom-shade"/>
+  </div>;
   // Starry Diva: the picture is a full-frame face, so the stage shows the star eyes and the lines get a solid band below.
   if (theme === 'miku') return <div className="room-stage miku-scene" data-motion={motionEnabled} aria-hidden="true">
     <i className="miku-shade"/>

@@ -1,0 +1,178 @@
+/* Beyond Time (skyroom): an ivy-grown room at blue hour, and through its great window a bright summer sky, a sea
+   line and grassland. The room is the material: panels are window panes (a pale frame, a transom mullion under the
+   heading, a sill at the foot), ivy creeps in at the corners, the warm old sofa gives the one warm accent.
+   Colour jobs: sky blue marks selection and state, ivy green marks what is playing, sofa amber marks actions. */
+:where(.app-shell,.tone-panel)[data-tone='skyroom'] {
+  --brand: #36aaff; --brand-bright: #9fd8ff; --brand-ink: #062048; --ivy: #86d65f; --ivy-deep: #2f8f5b; --sofa: #e0a074; --cloud: #f4fbff;
+  --text: #e3eeff; --text-strong: #ffffff; --muted: #a9c0e6; --quiet: #8199c4; --danger: #ffa4a4;
+  --surface-0: #0f2559; --surface-1: rgba(22,53,122,.9); --surface-2: rgba(30,66,140,.86); --surface-3: rgba(44,86,166,.8);
+  --panel-a: rgba(21,48,110,.9); --panel-b: rgba(14,36,86,.94); --control-bg: rgba(54,170,255,.12); --input-bg: rgba(8,24,62,.72);
+  --hover-bg: rgba(54,170,255,.1); --line: rgba(160,205,255,.2); --line-strong: rgba(159,216,255,.55);
+  --scene-theme-accent: #36aaff; --scene-theme-glow: #86d65f; --radius-panel: 10px;
+  --frame: #b9dcff; --ivy-sprig: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M2 2C10 6 16 14 18 24S26 40 40 46' fill='none' stroke='%232f8f5b' stroke-width='1.6' stroke-linecap='round'/%3E%3Cg fill='%2386d65f'%3E%3Cpath d='M8 6c5-3 9 0 8 5-5 1-8-1-8-5z'/%3E%3Cpath d='M15 15c-5-1-8 3-6 7 5 0 7-3 6-7z'/%3E%3Cpath d='M19 25c5-2 9 1 8 6-5 1-8-2-8-6z'/%3E%3Cpath d='M26 35c-5 0-7 4-5 8 5-1 7-4 5-8z'/%3E%3C/g%3E%3Cg fill='%232f8f5b'%3E%3Cpath d='M12 3c3-1 5 1 4 3-2 1-4 0-4-3z'/%3E%3Cpath d='M33 41c3-2 6 0 5 3-3 1-5-1-5-3z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.app-shell[data-tone='skyroom'] {
+  --sky-image: url('/tide-room.webp'); --edge-particle-a: #9fd8ff; --edge-particle-b: #86d65f;
+  --collection-paper: #16357ae6; --collection-input: #0c2152; --collection-ink: #ffffff; --collection-muted: #a9c0e6; --collection-edge: #b9dcff40; --collection-accent: #36aaff; --collection-on-accent: #062048; --collection-radius: 10px; --collection-control-radius: 6px;
+  --sc-fg: #e3eeff; --sc-line: #b9dcff40; --sc-tint: #36aaff1a; --sc-on: #36aaff; --sc-heart: #ff8fa3; --sc-fill: #36aaff; --sc-track: #ffffff26; --sc-ring: #0f2559;
+  --ctl-fg: #eaf3ff; --ctl-play: #e0a074; --ctl-play-fg: #2a1406; --ctl-heart: #ff8fa3;
+  --ripple-ring: #b9dcffcc; --ripple-fill: #86d65f33;
+  background: #0f2559;
+}
+.app-shell[data-tone='skyroom'][data-background-art='off'] { --sky-image: none; }
+.app-shell[data-tone='skyroom'] .panel::after, .app-shell[data-tone='skyroom'] .particle-field { display: none; }
+.app-shell[data-tone='skyroom'] ::-webkit-scrollbar-thumb { background: #b9dcff4d; }
+.app-shell[data-tone='skyroom'] :is(.playlist-content,.search-mini-list,.platform-body) { scrollbar-width: thin; scrollbar-color: #b9dcff4d transparent; }
+.app-shell[data-tone='skyroom'] .lyrics-scroll { scrollbar-width: none; }
+.app-shell[data-tone='skyroom'] .lyrics-scroll::-webkit-scrollbar { display: none; }
+
+/* Stage: the room with its window centred, a slant of light from the upper left, dust drifting in it */
+.skyroom-scene { background: #0f2559 var(--sky-image) 50% 46% / cover no-repeat; overflow: hidden; }
+.skyroom-shaft { inset: -10% 30% 20% -20%; background: linear-gradient(118deg, transparent 30%, #e9f6ff26 42%, #e9f6ff0d 54%, transparent 62%); mix-blend-mode: screen; }
+.skyroom-dust { inset: 0; opacity: .7; background: radial-gradient(1.5px 1.5px at 22% 30%, #f4fbffcc, transparent), radial-gradient(1px 1px at 36% 48%, #f4fbffaa, transparent), radial-gradient(1.5px 1.5px at 58% 22%, #f4fbffbb, transparent), radial-gradient(1px 1px at 70% 58%, #f4fbff99, transparent), radial-gradient(1.5px 1.5px at 44% 66%, #f4fbffaa, transparent), radial-gradient(1px 1px at 82% 36%, #f4fbff99, transparent); }
+.skyroom-scene[data-motion='true'] .skyroom-dust { animation: skyroom-dust 16s ease-in-out infinite alternate; }
+@keyframes skyroom-dust { to { transform: translate3d(14px, -18px, 0); opacity: .45; } }
+.skyroom-shade { inset: 0; background: linear-gradient(#0f255999, transparent 20%, transparent 70%, #0f2559c7); }
+.app-shell[data-tone='skyroom'][data-background-art='off'] .skyroom-scene { background: radial-gradient(ellipse 50% 40% at 50% 40%, #36aaff55, transparent 70%), linear-gradient(#16357a, #0f2559); }
+
+/* Top bar, logo and headings */
+.app-shell[data-tone='skyroom'] .logo-ring { padding: 3px; border-radius: 10px; background: linear-gradient(#9fd8ff, #36aaff 55%, #86d65f); box-shadow: 0 0 0 2px #0f2559, 0 0 0 3px #b9dcff66; }
+.app-shell[data-tone='skyroom'] .logo-ring img { border-radius: 8px; }
+.app-shell[data-tone='skyroom'] .brand-kicker { color: var(--ivy); letter-spacing: .26em; }
+.app-shell[data-tone='skyroom'] .brand h1 { color: #fff; }
+.app-shell[data-tone='skyroom'] .language { border-color: var(--line); background: var(--input-bg); }
+.app-shell[data-tone='skyroom'] .language button.active { color: var(--brand-ink); background: var(--cloud); box-shadow: none; }
+.app-shell[data-tone='skyroom'] :is(.tone-trigger,.profile-button) { border: 1px solid #b9dcff40; border-radius: 8px; background: var(--surface-1); box-shadow: inset 0 -2px #b9dcff26; }
+.app-shell[data-tone='skyroom'] .profile-button > span { border-radius: 6px; color: #2a1406; background: var(--sofa); box-shadow: none; }
+.app-shell[data-tone='skyroom'] .panel-heading { padding-bottom: 10px; border-bottom: 2px solid #b9dcff2e; }
+.app-shell[data-tone='skyroom'] .panel-heading h2 { color: #fff; }
+/* heading chip: a small four-pane window with the sky in it */
+.app-shell[data-tone='skyroom'] .panel-heading h2 > .ui-icon { border-radius: 4px; color: #fff; background: linear-gradient(#b9dcff 0 0) 50% 0 / 1px 100% no-repeat, linear-gradient(#b9dcff 0 0) 0 50% / 100% 1px no-repeat, linear-gradient(#5cc0ff, #2a86e0 70%, #6cc25a); box-shadow: inset 0 0 0 1.5px #b9dcff; }
+/* badge: a leaf tag */
+.app-shell[data-tone='skyroom'] .panel-heading small { padding-left: 20px; border: 1px solid #b9dcff40; border-radius: 999px; color: #d6e8ff; background: radial-gradient(circle 3px at 10px 50%, #9fd8ff 0 2.5px, transparent 3px), #0c2152cc; }
+
+/* Discover card: a window opened onto the summer outside */
+.app-shell[data-tone='skyroom'] .search-panel > .platform-launch { position: relative; border: 1.5px solid #b9dcff73; border-radius: 10px; background: linear-gradient(90deg, #0f2559f0 0 46%, #0f255999 70%, #0f255900), var(--sky-image) 50% 30% / 220% auto no-repeat, #16357a; box-shadow: inset 0 -4px #b9dcff33, 0 8px 22px #04102d66; }
+.app-shell[data-tone='skyroom'] .platform-launch-icon { border-radius: 4px; color: #2a1406; background: var(--sofa); }
+.app-shell[data-tone='skyroom'] .platform-launch-copy small { color: #c6dbff; }
+
+/* Search: a sill-edged field */
+.app-shell[data-tone='skyroom'] .search-box { border: 1px solid #b9dcff40; border-bottom: 3px solid #b9dcff66; border-radius: 10px 10px 4px 4px; background: #0a1d4ad9; box-shadow: none; }
+.app-shell[data-tone='skyroom'] .search-box:focus-within { border-color: #9fd8ff; box-shadow: 0 0 0 3px #36aaff2e; }
+.app-shell[data-tone='skyroom'] .search-box > .ui-icon { color: #9fd8ff; }
+.app-shell[data-tone='skyroom'] .search-panel .search-box > button.btn.gold, .app-shell[data-tone='skyroom'] .daily-actions .btn.primary { border: 0; border-radius: 7px; color: #2a1406; background: linear-gradient(#f0b78c, #e0a074); box-shadow: 0 3px 0 #a86a43; font-weight: 700; }
+.app-shell[data-tone='skyroom'] .source-grid label { border-color: #b9dcff2e; border-radius: 6px; color: var(--muted); background: #0a1d4a99; }
+.app-shell[data-tone='skyroom'] .source-grid label.checked { border-color: #9fd8ffb3; color: #fff; background: #36aaff2e; }
+.app-shell[data-tone='skyroom'] :is(.load-row select,.load-row .btn,.daily-tools select) { border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--input-bg); box-shadow: none; }
+
+/* Playlist: tabs as window panes, the playing row climbed by ivy */
+.app-shell[data-tone='skyroom'] .playlist-panel .tabs { gap: 2px; padding: 3px; border: 1.5px solid #b9dcff59; border-radius: 8px; background: #b9dcff26; }
+.app-shell[data-tone='skyroom'] .playlist-panel .tabs button { border-radius: 4px; color: var(--muted); background: #0c2152d9; }
+.app-shell[data-tone='skyroom'] .playlist-panel .tabs button.active { color: var(--brand-ink); background: linear-gradient(#9fd8ff, #36aaff); box-shadow: none; }
+.app-shell[data-tone='skyroom'] .playlist-panel .playlist-toolbar > strong { color: #fff; }
+.app-shell[data-tone='skyroom'] .playlist-panel .playlist-toolbar > strong::before { width: 11px; height: 11px; margin-top: -5.5px; border-radius: 2px; background: linear-gradient(#b9dcff 0 0) 50% 0 / 1px 100% no-repeat, linear-gradient(#b9dcff 0 0) 0 50% / 100% 1px no-repeat, linear-gradient(#5cc0ff, #2a86e0); box-shadow: 0 0 0 1px #b9dcff; }
+.app-shell[data-tone='skyroom'] .track-row { border: 0; border-radius: 8px; background: transparent; box-shadow: none; }
+@media (hover:hover) { .app-shell[data-tone='skyroom'] .track-row:hover { background: #36aaff14; } }
+.app-shell[data-tone='skyroom'] .track-row.active { border: 0; background: linear-gradient(90deg, #86d65f2e, #86d65f08); box-shadow: inset 3px 0 var(--ivy); }
+.app-shell[data-tone='skyroom'] .track-row.active .track-copy strong { color: #d9f5c8; }
+.app-shell[data-tone='skyroom'] .track-source { border: 1px solid #b9dcff59; border-radius: 4px; color: #cfe6ff; background: linear-gradient(#b9dcff4d 0 0) 50% 0 / 1px 100% no-repeat, #16357a; }
+.app-shell[data-tone='skyroom'] .track-row .row-actions > .favorite-button.active { color: #ff8fa3; }
+.app-shell[data-tone='skyroom'] .play-modes button.active:not(#_) { border-color: var(--ivy); color: var(--ivy); background: #86d65f1f; }
+
+/* Daily page */
+.app-shell[data-tone='skyroom'] .daily-editorial, .app-shell[data-tone='skyroom'] .daily-editorial.has-grainient { border: 1.5px solid #b9dcff59; border-radius: 12px; background: linear-gradient(90deg, #0f2559e6 0 30%, #0f255940 62%, #0f255900), var(--sky-image) 50% 42% / 150% auto no-repeat, #16357a; box-shadow: inset 0 -5px #b9dcff33; }
+.app-shell[data-tone='skyroom'] .daily-editorial > .grainient { display: none; }
+.app-shell[data-tone='skyroom'] .daily-kicker { color: var(--ivy); }
+.app-shell[data-tone='skyroom'] .daily-copy h2 { color: #fff; text-shadow: 0 2px 16px #0f2559; }
+.app-shell[data-tone='skyroom'] .daily-copy p { color: var(--muted); }
+.app-shell[data-tone='skyroom'] .daily-count { color: var(--cloud); text-shadow: 0 0 22px #36aaff; }
+.app-shell[data-tone='skyroom'] .daily-collage .collage-tilt img { border: 3px solid #b9dcff; border-radius: 4px; box-shadow: 0 12px 26px #04102d99; }
+.app-shell[data-tone='skyroom'] .daily-spotlight-card { border: 1px solid #b9dcff33; border-radius: 10px; background: #16357ad9; box-shadow: inset 0 -3px #b9dcff1f; }
+.app-shell[data-tone='skyroom'] .daily-spotlight-card.active { border-color: #86d65f99; background: #86d65f1f; }
+.app-shell[data-tone='skyroom'] .spotlight-rank { color: var(--sofa); }
+.app-shell[data-tone='skyroom'] .spotlight-copy em { color: var(--ivy); }
+
+/* Dialogs and discovery */
+.app-shell[data-tone='skyroom'] .modal-backdrop { background: #04102dad; }
+.app-shell[data-tone='skyroom'] .modal-card:not(.platform-panel) { border: 1.5px solid #b9dcff73; border-radius: 12px; background: linear-gradient(#b9dcff40 0 0) 0 56px / 100% 2px no-repeat, linear-gradient(170deg, #1a3d86, #0f2559); box-shadow: 0 24px 60px #04102d99; }
+.app-shell[data-tone='skyroom'] .modal-card.platform-panel { --p-bg: #0f2559; --p-raised: #16357a; --p-ink: #ffffff; --p-muted: #a9c0e6; --p-line: #b9dcff33; --p-accent: #36aaff; --p-on-accent: #062048; border: 1.5px solid #b9dcff73; border-radius: 12px; background: linear-gradient(#0f2559f2, #0f2559f7), var(--sky-image) 50% 40% / cover; }
+.app-shell[data-tone='skyroom'] .platform-panel .platform-header { border-bottom: 2px solid #b9dcff33; }
+.app-shell[data-tone='skyroom'] .platform-heading-icon { border-radius: 4px; color: #fff; background: linear-gradient(#b9dcff 0 0) 50% 0 / 1px 100% no-repeat, linear-gradient(#b9dcff 0 0) 0 50% / 100% 1px no-repeat, linear-gradient(#5cc0ff, #2a86e0 70%, #6cc25a); }
+.app-shell[data-tone='skyroom'] .platform-nav button.active::after { background: var(--ivy); }
+.app-shell[data-tone='skyroom'] .platform-type-switch button.active { color: var(--brand-ink); background: var(--cloud); }
+.app-shell[data-tone='skyroom'] .platform-panel .btn.primary { color: #2a1406; border-color: var(--sofa); background: var(--sofa); }
+.app-shell[data-tone='skyroom'] .platform-collections > button:is(:hover,:focus-visible) .platform-collection-art { box-shadow: 0 0 0 2px #b9dcff, 0 12px 26px #36aaff40; }
+
+/* Sliders: sky to ivy, like the view from sky down to grass */
+.app-shell[data-tone='skyroom'][data-tone] .player-panel .player-range::-webkit-slider-runnable-track { background: linear-gradient(180deg, transparent, transparent), linear-gradient(90deg, #9fd8ff, #36aaff calc(var(--range-progress) * .7), #86d65f var(--range-progress), #ffffff26 var(--range-progress)); }
+.app-shell[data-tone='skyroom'][data-tone] .player-panel .elastic-volume-visual > span { background: linear-gradient(90deg, #9fd8ff, #36aaff 70%, #86d65f); }
+
+/* Current line: the words take the cloud white and a small bird glides in to settle at the end of the line */
+.app-shell[data-tone='skyroom'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line { overflow: visible; color: #eef5ffd9; text-shadow: 0 0 2px #0f2559, 0 1px 10px #0f2559f2, 0 0 22px #0f2559b3; }
+.app-shell[data-tone='skyroom'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span { position: relative; justify-self: center; }
+.app-shell[data-tone='skyroom'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span { color: #ffffff; text-shadow: 0 0 18px #9fd8ff99, 0 1px 8px #0f2559; }
+.app-shell[data-tone='skyroom'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { content: ''; position: absolute; right: -34px; top: -10px; width: 26px; height: 16px; pointer-events: none; opacity: 0; transform: translate(-60px, 14px) rotate(-12deg) scale(.6); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 16'%3E%3Cpath d='M1 9C5 4 9 3 13 8c4-5 8-6 12-1-4 0-7 1-9 4-1 1-2 1-3 0-2-3-5-3-12-2z' fill='%23f4fbff'/%3E%3C/svg%3E") center / contain no-repeat; filter: drop-shadow(0 1px 3px #0f2559); }
+.app-shell[data-tone='skyroom'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span::after { opacity: 1; transform: none; }
+.app-shell.motion-on[data-tone='skyroom'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { transition: opacity .35s ease, transform .9s cubic-bezier(.2,.8,.2,1); }
+
+@media (min-width: 761px) {
+  /* The room itself surrounds the panels, dim enough that they read as lit panes inside it */
+  .app-shell[data-tone='skyroom'][data-background-art='on'] { background: linear-gradient(#0f2559d1, #0f2559c4), var(--sky-image) 50% 46% / cover fixed, #0f2559; }
+  .app-shell[data-tone='skyroom'] :is(.topbar.panel, .workspace > section.panel:not(.player-panel)) { border: 1.5px solid #b9dcff4d; border-radius: 12px; background: linear-gradient(170deg, #1a3d86eb, #0f2559f2); box-shadow: inset 0 -5px #b9dcff1f, 0 18px 40px #04102d73; backdrop-filter: blur(10px); }
+  /* ivy creeping over the top corner of the side panels */
+  .app-shell[data-tone='skyroom'] .workspace > section:is(.search-panel,.playlist-panel)::before { content: ''; display: block; position: absolute; z-index: 3; top: -14px; right: -10px; left: auto; width: 56px; height: 56px; border: 0; opacity: 1; pointer-events: none; transform: scaleX(-1); background: var(--ivy-sprig) center / contain no-repeat; }
+  .app-shell[data-tone='skyroom'] .workspace > section.playlist-panel::before { right: auto; left: auto; right: -10px; transform: scaleX(-1); }
+  .app-shell[data-tone='skyroom'] .workspace > section.player-panel { border: 2px solid #b9dcff73; border-radius: 12px; background: #0f2559; box-shadow: 0 0 0 5px #0f2559, 0 0 0 6px #b9dcff33, 0 22px 48px #04102d99; }
+  .app-shell[data-tone='skyroom'] .player-heading h2 { color: #fff; }
+  .app-shell[data-tone='skyroom'] .player-heading small { color: #d9f5c8; }
+  .app-shell[data-tone='skyroom'] .lyrics { border: 0; background: none; box-shadow: none; }
+  .app-shell[data-tone='skyroom'] .lyrics-effects, .app-shell[data-tone='skyroom'] .stage-mode-player .lyrics .immersive-backdrop { display: none; }
+  /* lines sit in the window, over the bright summer sky */
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .lyrics { order: 1; flex: 1; min-height: 0; margin-top: 4px; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .lyrics-scroll { padding-inline: 18%; -webkit-mask-image: linear-gradient(transparent 4%, #000 20%, #000 80%, transparent 96%); mask-image: linear-gradient(transparent 4%, #000 20%, #000 80%, transparent 96%); }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .lyric-line { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .lyric-line > span { grid-column: 1; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .lyric-line time { display: none; }
+  /* the player as a window sill along the foot of the stage */
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .now-card { order: 2; position: relative; min-height: 0; margin: 10px 0 0; padding: 10px 14px 12px; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 14px; align-items: center; rotate: none; border: 1.5px solid #b9dcff59; border-bottom: 5px solid #b9dcff80; border-radius: 10px 10px 4px 4px; text-align: left; background: linear-gradient(170deg, #1a3d86e6, #0f2559f0); box-shadow: 0 12px 28px #04102d80; backdrop-filter: blur(12px); }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .record-wrap { width: 56px; padding: 0; transform: none; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .record-tilt { padding: 0; border: 0; border-radius: 6px; background: none; box-shadow: 0 0 0 2px #b9dcff, 0 4px 12px #04102d99; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .record { width: 100%; height: 100%; border-radius: 6px; box-shadow: none; animation: none; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .record::after, .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .record-wrap::before { display: none; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .track-hero { min-width: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 18px; align-items: center; border: 0; background: none; box-shadow: none; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .now-kicker { display: none; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .track-hero h3 { grid-column: 1; margin: 0; color: #fff; font-size: 16px; line-height: 1.3; letter-spacing: 0; text-shadow: none; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .track-hero p { grid-column: 1; margin: 1px 0 4px; color: var(--muted); font-size: 11px; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .progress-row { grid-column: 1; color: var(--muted); font-size: 9px; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .transport { grid-column: 2; grid-row: 1 / span 3; margin: 0; padding: 0; gap: 6px; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .volume input { width: 64px; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .hero-actions { position: static; margin: 0; padding: 0 0 0 10px; display: flex; gap: 6px; border-left: 1px solid var(--line); }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .hero-actions span { display: none; }
+}
+@media (min-width: 761px) and (max-width: 1280px) {
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .track-hero { grid-template-columns: minmax(0, 1fr); }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .transport { grid-column: 1; grid-row: auto; margin-top: 6px; flex-wrap: nowrap; justify-content: flex-start; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .transport .volume { flex-basis: auto; margin-left: 10px; justify-content: flex-start; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .stage-mode-player .hero-actions { align-self: start; }
+}
+
+@media (max-width: 760px) {
+  .app-shell[data-tone='skyroom'] { --m-bg: #0f2559; --m-raised: #16357a; --m-sunken: #0b1d4a; --m-ink: #ffffff; --m-muted: #a9c0e6; --m-accent: #36aaff; --m-on-accent: #062048; --m-line: #b9dcff2e; --ctl-play: #e0a074; --ctl-play-fg: #2a1406; background: var(--m-bg); }
+  .app-shell[data-tone='skyroom'] .topbar.panel { border-bottom: 2px solid #b9dcff40; }
+  .app-shell[data-tone='skyroom'] .workspace > section.panel.player-panel:not([data-mobile-section='daily']) { background: transparent !important; }
+  .app-shell[data-tone='skyroom'] .workspace .player-panel .room-stage { position: absolute; display: block; inset: 0 !important; }
+  .skyroom-scene { background-position: 50% 50%; }
+  .app-shell[data-tone='skyroom'] .skyroom-shade { background: linear-gradient(#0f255999, transparent 26%, transparent 56%, #0f2559d9); }
+  .app-shell[data-tone='skyroom'] .track-hero { padding: 14px 16px; border: 1.5px solid #b9dcff59; border-bottom: 5px solid #b9dcff80; border-radius: 12px 12px 4px 4px; background: #16357ae6; }
+  .app-shell[data-tone='skyroom'] .now-card .hero-actions { margin: 10px 8px 0 0; }
+  .app-shell[data-tone='skyroom'] .record-tilt { border: 0; background: none; box-shadow: 0 0 0 3px #b9dcff, 0 12px 30px #04102d99; }
+  .app-shell[data-tone='skyroom'] .workspace .lyrics { border-top: 2px solid #b9dcff59; background: #16357a; }
+  .app-shell[data-tone='skyroom'] .lyrics-page-bar { background: none; }
+  .app-shell[data-tone='skyroom'][data-background-art='on'] .workspace .lyrics.sheet-open { background: linear-gradient(#0f2559c7, #0f255966 24%, #0f255966 70%, #0f2559d9), var(--sky-image) 50% 50% / cover no-repeat; }
+  .app-shell[data-tone='skyroom'] .daily-editorial, .app-shell[data-tone='skyroom'] .daily-editorial.has-grainient { background: linear-gradient(90deg, #0f2559f0 0 48%, #0f255999 80%, #0f255933), var(--sky-image) 50% 44% / cover, var(--m-raised); }
+  .app-shell[data-tone='skyroom'] .mobile-nav { border-top: 2px solid #b9dcff40; background: #0f2559f5; }
+  .app-shell[data-tone='skyroom'] .mobile-nav button.active > span { color: var(--brand-ink); background: var(--cloud); }
+  .app-shell[data-tone='skyroom'] .mobile-mini-player { border-top: 1px solid #b9dcff40; background: #16357a; }
+}
+@media (prefers-reduced-motion: reduce) { .skyroom-scene .skyroom-dust { animation: none !important; } }
+@media (min-width: 761px) { .app-shell[data-tone='skyroom']:not(#_) .workspace > section:is(.search-panel,.playlist-panel)::before { display: none; } }

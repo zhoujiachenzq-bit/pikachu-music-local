@@ -2,21 +2,99 @@
 
 .app-shell[data-tone] :is(.ripple-circle,.ripple-circle-inner) { max-width: 260px; max-height: 260px; }
 
-/* A signature mark under the playing line, one per theme, as the meadow, diva and comet already have.
-   It is drawn once when the line changes (scaleX from 0) and never loops. Arcade and Sea and You keep their own look. */
-.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span { position: relative; isolation: isolate; justify-self: center; padding-bottom: var(--ul-pad, 8px); }
-.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { content: ''; position: absolute; z-index: -1; left: var(--ul-inset, 0); right: var(--ul-inset, 0); bottom: var(--ul-bottom, 0); height: var(--ul-h, 6px); background: var(--ul); transform: scaleX(0); transform-origin: var(--ul-origin, left center); pointer-events: none; }
-.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span::after { transform: scaleX(1) rotate(var(--ul-tilt, 0deg)); }
-.app-shell.motion-on:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { transition: transform .7s cubic-bezier(.4,0,.2,1); }
-/* Paper: a stroke of yellow highlighter laid behind the lower half of the words, a little crooked */
-.app-shell[data-tone='paper'] { --ul: #ffd84d; --ul-h: 46%; --ul-bottom: 2px; --ul-pad: 0px; --ul-inset: -6px; --ul-tilt: -1deg; }
-.app-shell[data-tone='paper'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span { background: none; color: #17130d; text-shadow: none; }
-/* Cobalt: a gilt double rule that opens from the centre */
-.app-shell[data-tone='cobalt'] { --ul: linear-gradient(#ffd84d, #ffd84d) 0 0 / 100% 2px no-repeat, linear-gradient(#ffd84d99, #ffd84d99) 0 100% / 100% 1px no-repeat; --ul-h: 6px; --ul-origin: center; }
-/* Summer Coast: a little sunlit wave */
-.app-shell[data-tone='night'] { --ul: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='6'%3E%3Cpath d='M0 3q4-3 8 0t8 0' fill='none' stroke='%23ffdca8' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") 0 0 / 16px 6px repeat-x; --ul-h: 6px; }
-/* Twilight Garden: a row of fallen petals */
-.app-shell[data-tone='burgundy'] { --ul: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='12'%3E%3Cpath d='M3 6C6 1 13 1 17 6C13 11 6 11 3 6Z' fill='%23ff9ec7' stroke='%23fff4f9' stroke-width='.8' transform='rotate(-14 10 6)'/%3E%3Cpath d='M17 6l3-2' stroke='%23ff9ec7' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") 0 0 / 22px 12px repeat-x; --ul-h: 12px; --ul-pad: 14px; }
+/* Player controls, rebuilt on the pattern of the premium players (Apple Music, Spotify, Tidal): hierarchy comes from
+   size and fill, never from frames. Previous and next are bare glyphs with a large touch area; play is the one solid
+   circle with a soft coloured shadow; favourite, download and timer are quiet outline glyphs that brighten on hover,
+   and "on" is told by colour and a filled heart. No rings, boxes or hard offset blocks around single buttons.
+   Each theme only supplies the glyph colour for the ground the controls sit on, the play colour and the heart.
+   ":not(#_)" lifts these over the many per-theme control rules written earlier. */
+.app-shell[data-tone] { --ctl-fg: var(--text-strong); --ctl-play: var(--brand); --ctl-play-fg: var(--brand-ink); --ctl-heart: #ff4d6d; --ctl-hover: color-mix(in srgb, var(--ctl-fg) 10%, transparent); }
+.app-shell[data-tone='paper'] { --ctl-fg: #fff6df; --ctl-play: #e94b2a; --ctl-play-fg: #fffaf0; --ctl-heart: #ff6a4d; }
+.app-shell[data-tone='arcade'] { --ctl-fg: #f2f0ff; --ctl-play: #ff3d8b; --ctl-play-fg: #16040d; --ctl-heart: #ff3d8b; }
+.app-shell[data-tone='cobalt'] { --ctl-fg: #eef7ff; --ctl-play: #ffd84d; --ctl-play-fg: #241c03; --ctl-heart: #ff6b81; }
+.app-shell[data-tone='night'] { --ctl-fg: #0b2f39; --ctl-play: #cb4630; --ctl-play-fg: #fffaf0; --ctl-heart: #e2583e; }
+.app-shell[data-tone='vinyl'] { --ctl-fg: #2f4a28; --ctl-play: #527445; --ctl-play-fg: #fffdf2; --ctl-heart: #d64560; }
+.app-shell[data-tone='burgundy'] { --ctl-fg: #fff7fb; --ctl-play: #ff9ec7; --ctl-play-fg: #3a1030; --ctl-heart: #ff9ec7; }
+.app-shell[data-tone='harbor'] { --ctl-fg: #eaf2ff; --ctl-play: #eaf4ff; --ctl-play-fg: #0b1430; --ctl-heart: #ff9fb5; }
+.app-shell[data-tone='comet'] { --ctl-fg: #ffffff; --ctl-play: #ffb45c; --ctl-play-fg: #1a0d05; --ctl-heart: #ff8ab5; }
+.app-shell[data-tone='miku'] { --ctl-fg: #22104a; --ctl-play: #22104a; --ctl-play-fg: #ffffff; --ctl-heart: #e0179f; }
+@media (max-width: 760px) { .app-shell[data-tone] { --ctl-fg: var(--m-ink); --ctl-play: var(--m-accent); --ctl-play-fg: var(--m-on-accent); } }
+
+/* the bar the buttons sit in carries no box of its own */
+.app-shell[data-tone]:not(#_) .player-panel .transport { gap: 6px; border: 0; background: none; box-shadow: none; backdrop-filter: none; }
+.app-shell[data-tone]:not(#_) .player-panel :is(.transport > button:not(.mobile-volume-toggle), .hero-actions button) { display: grid; place-items: center; padding: 0; border: 0; border-image: none; outline-offset: 2px; box-shadow: none; translate: none; transition: background-color .16s ease, color .16s ease, opacity .16s ease, scale .2s var(--ease-spring, ease); }
+/* previous / next */
+.app-shell[data-tone]:not(#_) .player-panel .transport > button:not(.play-main):not(.mobile-volume-toggle) { width: 40px; height: 40px; border-radius: 50%; color: var(--ctl-fg); background: transparent; }
+.app-shell[data-tone]:not(#_) .player-panel .transport > button:not(.play-main):not(.mobile-volume-toggle) .ui-icon { width: 22px; height: 22px; }
+/* play */
+.app-shell[data-tone]:not(#_) .player-panel .transport > .play-main { width: 48px; height: 48px; border-radius: 50%; color: var(--ctl-play-fg); background: var(--ctl-play); box-shadow: 0 6px 18px color-mix(in srgb, var(--ctl-play) 38%, transparent), inset 0 1px 0 #ffffff33; }
+.app-shell[data-tone]:not(#_) .player-panel .transport > .play-main .ui-icon { width: 22px; height: 22px; }
+/* favourite / download / timer */
+.app-shell[data-tone]:not(#_) .player-panel .hero-actions { gap: 2px; }
+.app-shell[data-tone]:not(#_) .player-panel .hero-actions button { width: 36px; height: 36px; border-radius: 50%; color: var(--ctl-fg); background: transparent; opacity: .72; }
+.app-shell[data-tone]:not(#_) .player-panel .hero-actions button .ui-icon { width: 20px; height: 20px; }
+.app-shell[data-tone]:not(#_) .player-panel .hero-actions button.active { opacity: 1; color: var(--ctl-play); background: transparent; }
+.app-shell[data-tone]:not(#_) .player-panel .hero-actions button.active[data-success-spark] { color: var(--ctl-heart); }
+/* outline glyphs: drop the duotone tint layer so the icons read as clean line art */
+.app-shell[data-tone] .player-panel .hero-actions .ui-icon [opacity] { opacity: 0; }
+@media (hover:hover) {
+  .app-shell[data-tone]:not(#_) .player-panel :is(.transport > button:not(.play-main):not(.mobile-volume-toggle), .hero-actions button):hover { opacity: 1; background: var(--ctl-hover); }
+  .app-shell[data-tone]:not(#_) .player-panel .transport > .play-main:hover { scale: 1.05; }
+}
+.app-shell[data-tone]:not(#_) .player-panel :is(.transport > button, .hero-actions button):active:not(:disabled) { scale: .92; }
+/* the two themes with their own hand keep it at the one solid button only */
+.app-shell[data-tone='paper']:not(#_) .player-panel .transport > .play-main { box-shadow: 0 0 0 2px #17130d, 3px 3px 0 2px #17130d; }
+.app-shell[data-tone='arcade']:not(#_) .player-panel .transport > .play-main { border-radius: 6px; box-shadow: 0 4px 0 #8f1650; }
+.app-shell[data-tone='arcade']:not(#_) .player-panel :is(.transport > button:not(.play-main):not(.mobile-volume-toggle), .hero-actions button) { border-radius: 4px; }
+@media (max-width: 760px) {
+  .app-shell[data-tone]:not(#_) .player-panel .transport { gap: 28px; }
+  .app-shell[data-tone]:not(#_) .player-panel .transport > button:not(.play-main):not(.mobile-volume-toggle) { width: 48px; height: 48px; }
+  .app-shell[data-tone]:not(#_) .player-panel .transport > button:not(.play-main):not(.mobile-volume-toggle) .ui-icon { width: 26px; height: 26px; }
+  .app-shell[data-tone]:not(#_) .player-panel .transport > .play-main { width: 64px; height: 64px; }
+  .app-shell[data-tone]:not(#_) .player-panel .transport > .play-main .ui-icon { width: 28px; height: 28px; }
+  .app-shell[data-tone]:not(#_) .player-panel .hero-actions button { width: 40px; height: 40px; }
+  .app-shell[data-tone]:not(#_) .player-panel .hero-actions button .ui-icon { width: 22px; height: 22px; }
+}
+
+/* Current-line marks, one per theme, each taken from the theme's own world and kept off the letters:
+   Paper pins the line on a torn scrap of card, Cobalt lets the words themselves fill with cold light, Summer Coast stamps it
+   with a postmark and cancel waves, Twilight Garden raises the moon gate over it with a blossom at its end.
+   They appear with a short move when the line changes and never loop. Arcade and Sea and You keep their own look. */
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span { position: relative; isolation: isolate; justify-self: center; }
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line { overflow: visible; }
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::before,
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { content: ''; position: absolute; pointer-events: none; opacity: 0; background-repeat: no-repeat; background-size: 100% 100%; }
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span::before,
+.app-shell:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span::after { opacity: 1; transform: var(--mk-on, none); }
+.app-shell.motion-on:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::before,
+.app-shell.motion-on:is([data-tone='paper'],[data-tone='cobalt'],[data-tone='night'],[data-tone='burgundy']) :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { transition: opacity .3s ease, transform .5s cubic-bezier(.34,1.56,.64,1); }
+
+/* Paper: the playing line is cut out on a cream scrap with a torn edge, a blue offset shadow and a strip of tape */
+.app-shell[data-tone='paper'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span { padding: 5px 16px; color: #17130d; background: none; text-shadow: none; filter: drop-shadow(3px 3px 0 #1768ff); }
+.app-shell[data-tone='paper'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::before { z-index: -1; inset: 0; background: #fff6df; clip-path: polygon(0 10%, 6% 0, 14% 7%, 25% 1%, 37% 6%, 49% 0, 61% 6%, 73% 1%, 85% 7%, 95% 0, 100% 12%, 98% 52%, 100% 90%, 91% 100%, 78% 94%, 64% 100%, 50% 95%, 36% 100%, 22% 94%, 10% 100%, 0 88%, 2% 50%); transform: rotate(-4deg) scale(.7); --mk-on: rotate(-1.2deg); }
+.app-shell[data-tone='paper'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { z-index: 1; left: -8px; top: -7px; width: 30px; height: 11px; background: #f24b2acc; transform: rotate(-24deg) translateY(-6px); --mk-on: rotate(-16deg); }
+.app-shell[data-tone='paper'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span::after { transform: rotate(-16deg); }
+
+/* Cobalt: no frame or mark at all. The playing line grows and its words fill with cold light, white into cyan;
+   the other lines step back. The size change eases in once per line. */
+.app-shell[data-tone='cobalt'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::before,
+.app-shell[data-tone='cobalt'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { display: none; }
+.app-shell[data-tone='cobalt'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line { color: #a9c9e899; }
+.app-shell[data-tone='cobalt'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active { transform: none; background: none; }
+.app-shell[data-tone='cobalt'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span { padding: 2px 2px 4px; font-size: 1.3em; font-weight: 700; letter-spacing: .02em; color: transparent; background: linear-gradient(90deg, #ffffff 0%, #d6f7ff 45%, #72e4ff 100%); -webkit-background-clip: text; background-clip: text; text-shadow: none; filter: drop-shadow(0 0 10px #72e4ff59); }
+.app-shell.motion-on[data-tone='cobalt'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span { transition: font-size .35s cubic-bezier(.2,.8,.2,1); }
+
+/* Summer Coast: a round postmark is stamped beside the line and cancel waves trail after it */
+.app-shell[data-tone='night'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::before { left: -42px; top: 50%; width: 32px; height: 32px; margin-top: -16px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none' stroke='%23ffdca8'%3E%3Ccircle cx='16' cy='16' r='14.5' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='10.5' stroke-width='.8' stroke-dasharray='2 1.6'/%3E%3Cpath d='M9 16h14' stroke-width='1.3'/%3E%3Cpath d='M16 9.5l1.4 3h-2.8z' fill='%23ffdca8' stroke='none'/%3E%3Cpath d='M13 19.5h6' stroke-width='1'/%3E%3C/svg%3E"); transform: scale(1.7) rotate(-30deg); --mk-on: scale(1) rotate(-12deg); }
+.app-shell[data-tone='night'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { right: -48px; top: 50%; width: 38px; height: 16px; margin-top: -8px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 16' fill='none' stroke='%23ffdca8' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M1 3q4.5-3 9 0t9 0 9 0 9 0'/%3E%3Cpath d='M1 8q4.5-3 9 0t9 0 9 0 9 0'/%3E%3Cpath d='M1 13q4.5-3 9 0t9 0 9 0 9 0'/%3E%3C/svg%3E"); transform: translateX(-10px); clip-path: inset(0 100% 0 0); --mk-on: none; }
+.app-shell[data-tone='night'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span::after { clip-path: inset(0); }
+.app-shell.motion-on[data-tone='night'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { transition: opacity .2s ease, transform .5s ease, clip-path .6s ease .15s; }
+.app-shell[data-tone='night'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span { color: #ffe6c2; }
+
+/* Twilight Garden: the moon gate's glowing arc rises over the line, a blossom settles at its end */
+.app-shell[data-tone='burgundy'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line.active > span { color: #fff2f8; }
+.app-shell[data-tone='burgundy'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::before { left: -18px; right: -18px; top: -12px; height: 16px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 16' preserveAspectRatio='none'%3E%3Cpath d='M1 15Q50 -8 99 15' fill='none' stroke='%23ffc2e0' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M30 4.6Q50 0.6 70 4.6' fill='none' stroke='%238ff4f4' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"); filter: drop-shadow(0 0 5px #ff9ec7) drop-shadow(0 0 2px #fff4f9); transform: scaleX(.3); --mk-on: none; }
+.app-shell[data-tone='burgundy'] :is(.stage-mode-player,.lyrics.sheet-open) .lyric-line > span::after { right: -32px; top: 50%; width: 24px; height: 24px; margin-top: -12px; filter: drop-shadow(0 0 4px #ff9ec7); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cg fill='%23ffb7d5' stroke='%23fff4f9' stroke-width='.6'%3E%3Cpath d='M10 10C8 6 8 3 10 1c2 2 2 5 0 9z'/%3E%3Cpath d='M10 10C8 6 8 3 10 1c2 2 2 5 0 9z' transform='rotate(72 10 10)'/%3E%3Cpath d='M10 10C8 6 8 3 10 1c2 2 2 5 0 9z' transform='rotate(144 10 10)'/%3E%3Cpath d='M10 10C8 6 8 3 10 1c2 2 2 5 0 9z' transform='rotate(216 10 10)'/%3E%3Cpath d='M10 10C8 6 8 3 10 1c2 2 2 5 0 9z' transform='rotate(288 10 10)'/%3E%3C/g%3E%3Ccircle cx='10' cy='10' r='1.8' fill='%23ffd84d'/%3E%3C/svg%3E"); transform: rotate(-120deg) scale(.4); --mk-on: rotate(0) scale(1); }
 /* Twilight Garden: the stage and the phone lyrics page were under one flat violet haze. The picture now stays
    clear; shade only gathers at the top and foot, and the lines carry their own soft shadow. */
 @media (min-width: 761px) {
@@ -26,4 +104,12 @@
 @media (max-width: 760px) {
   .app-shell[data-tone='burgundy'][data-background-art='on'] .workspace .lyrics.sheet-open { background: linear-gradient(#1d0f33cc, #1d0f3326 22%, #1d0f3300 44%, #1d0f3333 70%, #1d0f33cc), var(--garden-image) center / cover no-repeat; }
   .app-shell[data-tone='burgundy'][data-background-art='on'] .lyrics.sheet-open .lyric-line { text-shadow: 0 1px 3px #1d0f33, 0 0 14px #1d0f33d9; }
+}
+
+/* Twilight Garden page ground: the flat violet field with a big disc and a slanted bar is replaced by the garden
+   picture itself, blurred into soft pink blossom and lake light behind the panels, under a plum veil. Static. */
+@media (min-width: 761px) {
+  .app-shell[data-tone='burgundy'][data-background-art='on'] { background: #2a1838; }
+  .app-shell[data-tone='burgundy'][data-background-art='on']::before { content: ''; display: block; position: fixed; z-index: 0; inset: -90px; width: auto; height: auto; aspect-ratio: auto; border: 0; border-radius: 0; opacity: 1; transform: none; clip-path: none; mask-image: none; mix-blend-mode: normal; pointer-events: none; background: var(--garden-image) center 45% / cover no-repeat; filter: blur(46px) saturate(1.35) brightness(1.02); }
+  .app-shell[data-tone='burgundy'][data-background-art='on']::after { content: ''; display: block; position: fixed; z-index: 0; inset: 0; width: auto; height: auto; padding: 0; border: 0; opacity: 1; transform: none; clip-path: none; pointer-events: none; background: radial-gradient(ellipse 85% 75% at 50% 45%, transparent, #3a1f4a66 100%), linear-gradient(#3a1f4a26, transparent 45%, #3a1f4a4d); }
 }

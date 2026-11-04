@@ -12,6 +12,7 @@ const COLORS: Record<GrainientTone, readonly [string, string, string]> = {
   harbor: ['#2b5d9a', '#14204a', '#0b1430'],
   comet: ['#1f5f73', '#0c1d2b', '#060c15'],
   miku: ['#39d5c9', '#7a2a9e', '#0e0820'],
+  skyroom: ['#36aaff', '#16357a', '#0f2559'],
   paper: ['#fff3d1', '#e6a36f', '#edcf99'],
   night: ['#cceaf1', '#a7dbe8', '#f4e9ce'],
   cobalt: ['#569ab5', '#23499d', '#071c52'],

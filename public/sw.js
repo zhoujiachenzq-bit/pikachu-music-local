@@ -1,5 +1,5 @@
-const CACHE_NAME = 'pikachu-music-shell-v0.8.0';
-const STATIC_PATHS = new Set(['/manifest.webmanifest', '/pikachu.svg', '/pikachu.gif', '/pikachu.ico', '/pikachu-192.png', '/pikachu-512.png', '/summer-coast.webp', '/holiday-coast.webp', '/holiday-coast-mask.webp', '/holiday-coast-bird.webp', '/coast-sea.webp', '/coast-sea-weed-left.webp', '/coast-sea-weed-right.webp', '/coast-sea-fish-far.webp', '/coast-sea-fish-near.webp', '/twilight-garden.webp', '/moon-gate-garden.webp', '/lofi-gate.webp', '/lofi-gate-mask.webp', '/harbor-night.jpg', '/harbor-night-mask.webp', '/comet-rain.webp', '/miku-star.webp']);
+const CACHE_NAME = 'pikachu-music-shell-v0.8.1';
+const STATIC_PATHS = new Set(['/manifest.webmanifest', '/pikachu.svg', '/pikachu.gif', '/pikachu.ico', '/pikachu-192.png', '/pikachu-512.png', '/summer-coast.webp', '/holiday-coast.webp', '/holiday-coast-mask.webp', '/holiday-coast-bird.webp', '/coast-sea.webp', '/coast-sea-weed-left.webp', '/coast-sea-weed-right.webp', '/coast-sea-fish-far.webp', '/coast-sea-fish-near.webp', '/twilight-garden.webp', '/moon-gate-garden.webp', '/lofi-gate.webp', '/lofi-gate-mask.webp', '/harbor-night.jpg', '/harbor-night-mask.webp', '/comet-rain.webp', '/miku-star.webp', '/tide-room.webp']);
 
 function isCacheableResponse(response, url) {
   if (!response.ok) return false;

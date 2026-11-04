@@ -174,7 +174,17 @@
   .app-shell[data-tone='miku'] .topbar.panel { background: var(--glitch-blocks) 14px 100% / 66px 3px no-repeat, var(--m-raised); }
   .app-shell[data-tone='miku'] .workspace > section.panel.player-panel:not([data-mobile-section='daily']) { background: transparent !important; }
   .app-shell[data-tone='miku'] .workspace .player-panel .room-stage { position: absolute; display: block; inset: 0 !important; }
-  .miku-scene { background-position: 33% 30%; }
+  /* A 16:9 close-up cannot show both eyes in a portrait cover crop: the player page gets the picture as a soft
+     ambient wash behind the cover and card, the lyrics page shows the whole face across the top. */
+  /* Player page: the desktop page's pop field (pink-violet-teal under a white pixel grid) with glitch blocks and stars,
+     instead of a crop that shows half an eye */
+  .app-shell[data-tone='miku'][data-background-art='on'] .miku-scene { filter: none; background:
+    radial-gradient(circle at 14% 18%, #ffd23f 0 3px, transparent 3.5px), radial-gradient(circle at 86% 30%, #ffffff 0 2.5px, transparent 3px), radial-gradient(circle at 80% 78%, #ffd23f 0 2.5px, transparent 3px),
+    linear-gradient(90deg, #ff3fd0 0 22px, transparent 22px 28px, #b6ff3a 28px 38px, transparent 38px 44px, #39d5c9 44px 74px) 8% 12% / 74px 6px no-repeat,
+    linear-gradient(90deg, #39d5c9 0 30px, transparent 30px 36px, #ff3fd0 36px 48px) 92% 86% / 48px 6px no-repeat,
+    linear-gradient(#ffffff40 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, #ffffff40 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(160deg, #ff7ad9, #c58cff 45%, #7fb6ff 72%, #5ff0dd); }
+  .app-shell[data-tone='miku'][data-background-art='on'] .miku-shade { background: none; }
   .app-shell[data-tone='miku'] .miku-shade { background: linear-gradient(#0e082080, transparent 26%, transparent 50%, #0e0820d9); }
   .app-shell[data-tone='miku'] :is(.record-tilt,.record) { border-radius: 6px; }
   .app-shell[data-tone='miku'] .record-tilt { border: 0; background: none; box-shadow: -5px 0 0 #ff3fd0, 5px 0 0 #39d5c9, 0 12px 30px #000a; }
@@ -184,9 +194,17 @@
   .app-shell[data-tone='miku'] .workspace .lyrics { border-radius: 6px 6px 0 0; background: var(--glitch-blocks) 16px 0 / 66px 4px no-repeat, #fff; }
   .app-shell[data-tone='miku'] .workspace .lyrics.sheet-open { --m-ink: #ffffff; --m-muted: #e6dfff; }
   .app-shell[data-tone='miku'] .lyrics-page-bar { background: none; }
-  .app-shell[data-tone='miku'][data-background-art='on'] .workspace .lyrics.sheet-open { background: linear-gradient(#0e0820a6, #0e082000 18%, #0e082000 76%, #0e0820b3), var(--miku-image) 33% 30% / cover no-repeat; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .workspace .lyrics.sheet-open { background:
+    var(--miku-image) 50% 50% / 142% auto no-repeat,
+    linear-gradient(90deg, #ff3fd0 0 22px, transparent 22px 28px, #b6ff3a 28px 38px, transparent 38px 44px, #39d5c9 44px 74px) 18px calc(50% - 40vw - 14px) / 74px 6px no-repeat,
+    linear-gradient(90deg, #39d5c9 0 30px, transparent 30px 36px, #ff3fd0 36px 48px) calc(100% - 18px) calc(50% + 40vw + 14px) / 48px 6px no-repeat,
+    linear-gradient(#ffffff40 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, #ffffff40 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(160deg, #ff7ad9, #c58cff 45%, #7fb6ff 72%, #5ff0dd); }
+  /* The face band sits at the vertical centre with a white rule above and below it, like a framed still on the grid */
+  .app-shell[data-tone='miku'][data-background-art='on'] .workspace .lyrics.sheet-open .lyrics-page-bar :is(strong,small,button) { color: #22104a; }
+  .app-shell[data-tone='miku'][data-background-art='on'] .workspace .lyrics.sheet-open::before { content: ''; position: absolute; z-index: 0; left: 0; right: 0; top: calc(50% - 40vw - 3px); height: calc(80vw + 6px); border-top: 3px solid #22104a; border-bottom: 3px solid #22104a; box-shadow: 0 6px 0 #ff3fd0, 0 -6px 0 #39d5c9; pointer-events: none; }
   .app-shell[data-tone='miku'] .lyrics.sheet-open .lyric-line > span { justify-self: center; }
-  .app-shell[data-tone='miku'][data-background-art='on'] .lyrics.sheet-open .lyrics-scroll { -webkit-mask-image: linear-gradient(transparent 32%, #000 42%, #000 60%, transparent 72%); mask-image: linear-gradient(transparent 32%, #000 42%, #000 60%, transparent 72%); }
+  .app-shell[data-tone='miku'][data-background-art='on'] .lyrics.sheet-open .lyrics-scroll { -webkit-mask-image: linear-gradient(transparent calc(var(--m-safe-top) + 70px), #000 calc(var(--m-safe-top) + 130px), #000 calc(100% - 120px), transparent calc(100% - 60px)); mask-image: linear-gradient(transparent calc(var(--m-safe-top) + 70px), #000 calc(var(--m-safe-top) + 130px), #000 calc(100% - 120px), transparent calc(100% - 60px)); }
   .app-shell[data-tone='miku'] .lyrics-scroll { scrollbar-width: none; }
   .app-shell[data-tone='miku'] .daily-editorial, .app-shell[data-tone='miku'] .daily-editorial.has-grainient { background: var(--glitch-blocks) 16px 0 / 66px 4px no-repeat, linear-gradient(90deg, #fffafff2 0 48%, #fffaff99 80%, #fffaff26), var(--miku-image) 33% 22% / cover, var(--m-raised); }
   .app-shell[data-tone='miku'] .workspace > section.panel:is(.search-panel,.playlist-panel) { background: transparent; }

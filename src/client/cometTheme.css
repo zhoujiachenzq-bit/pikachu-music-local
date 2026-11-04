@@ -1,24 +1,24 @@
-/* Comet Rain: the stage keeps the rainy-night picture, everything around it takes the vivid magic-hour sky of the film:
-   cobalt into sky blue, a violet-pink-orange horizon, white clouds, a comet trail running cyan to pink to orange.
-   Jobs: white marks selection on the blue, the warm ember marks actions, the red braided cord is the one ornament
-   (panel tops, the playing row, the list marker). Progress and volume fill like the comet's tail. */
+/* Comet Rain: everything around the stage takes the picture's own rain-night teal (deep, never black), with the
+   comet's cyan, the warm ember from her hand and the red braided cord. Jobs: white marks selection, the ember marks
+   actions, the cord is the one ornament (panel tops, the playing row, the list marker). Progress and volume fill like
+   the comet's tail. */
 :where(.app-shell,.tone-panel)[data-tone='comet'] {
-  --brand: #ffb45c; --brand-bright: #ffd59a; --brand-ink: #1a0d05; --cyan: #7fe6ff; --cord-red: #e0394f; --sky-ink: #143fae;
-  --text: #f2f7ff; --text-strong: #ffffff; --muted: #d2e2ff; --quiet: #b3caf5; --danger: #ffd0d6;
-  --surface-0: #1a4ad0; --surface-1: rgba(36,96,234,.94); --surface-2: rgba(56,118,246,.9); --surface-3: rgba(96,146,255,.82);
-  --panel-a: rgba(44,108,242,.95); --panel-b: rgba(30,79,214,.95); --control-bg: rgba(255,255,255,.16); --input-bg: rgba(14,52,170,.62);
-  --hover-bg: rgba(255,255,255,.12); --line: rgba(255,255,255,.26); --line-strong: rgba(255,214,140,.75);
+  --brand: #ffb45c; --brand-bright: #ffd59a; --brand-ink: #1a0d05; --cyan: #7fe6ff; --cord-red: #e0394f; --sky-ink: #0d2f40;
+  --text: #f2f7ff; --text-strong: #ffffff; --muted: #b9d3dc; --quiet: #93b2bd; --danger: #ffd0d6;
+  --surface-0: #102a38; --surface-1: rgba(22,56,72,.9); --surface-2: rgba(30,70,88,.86); --surface-3: rgba(44,92,112,.8);
+  --panel-a: rgba(26,64,82,.9); --panel-b: rgba(18,46,62,.92); --control-bg: rgba(255,255,255,.1); --input-bg: rgba(10,30,42,.62);
+  --hover-bg: rgba(255,255,255,.12); --line: rgba(170,225,240,.2); --line-strong: rgba(255,214,140,.75);
   --scene-theme-accent: #ffb45c; --scene-theme-glow: #ff8ac0; --radius-panel: 16px;
-  --cord: repeating-linear-gradient(135deg, #e0394f 0 3px, #9e1f37 3px 5px, #f0707f 5px 7px, #9e1f37 7px 9px);
+  --cord: linear-gradient(90deg, transparent 8%, #7fe6ff33 40%, #7fe6ffcc 86%, #ffffff 97%, transparent 98%);
   --comet-trail: linear-gradient(90deg, #7fe6ff, #ff8ac0 52%, #ffb45c 82%, #ff7a3d);
 }
 .app-shell[data-tone='comet'] {
   --comet-image: url('/comet-rain.webp'); --edge-particle-a: #ffffff; --edge-particle-b: #ffb45c;
-  --collection-paper: #2c6cf2f2; --collection-input: #1a4ad0; --collection-ink: #ffffff; --collection-muted: #d2e2ff; --collection-edge: #ffffff47; --collection-accent: #ffb45c; --collection-on-accent: #1a0d05; --collection-radius: 16px; --collection-control-radius: 10px;
+  --collection-paper: #1d4a5ef2; --collection-input: #12303f; --collection-ink: #ffffff; --collection-muted: #b9d3dc; --collection-edge: #ffffff47; --collection-accent: #ffb45c; --collection-on-accent: #1a0d05; --collection-radius: 16px; --collection-control-radius: 10px;
   --sc-fg: #ffffff; --sc-line: #ffffff52; --sc-tint: #ffffff1f; --sc-on: #ffffff; --sc-heart: #ff7aa8;
   --sc-play-bg: radial-gradient(circle at 40% 34%, #ffe0b0, #ffb45c 58%, #ff7a3d); --sc-play-fg: #1a0d05; --sc-play-shadow: 0 0 24px #ffb45c80;
-  --sc-fill: #ffb45c; --sc-track: #ffffff3d; --sc-ring: #1f4fd6;
-  background: radial-gradient(ellipse 34% 14% at 18% 12%, #ffffff59, transparent 70%), radial-gradient(ellipse 26% 10% at 30% 16%, #ffffff40, transparent 70%), radial-gradient(ellipse 30% 12% at 84% 22%, #ffffff4d, transparent 70%), linear-gradient(118deg, transparent 0 46%, #ffffff4d 46.2% 46.5%, transparent 46.8%), linear-gradient(#0f3fc4, #2a7cff 42%, #6c8cff 66%, #c58cf0 80%, #ff9fc4 90%, #ffc27a);
+  --sc-fill: #ffb45c; --sc-track: #ffffff3d; --sc-ring: #163b4d;
+  background: linear-gradient(118deg, transparent 0 46%, #7fe6ff40 46.2% 46.4%, transparent 46.6%), radial-gradient(ellipse 70% 40% at 50% 100%, #2a6378a6, transparent 72%), linear-gradient(#0b2131, #12324a 55%, #18405a);
 }
 .app-shell[data-tone='comet'][data-background-art='off'] { --comet-image: none; }
 .app-shell[data-tone='comet']::before, .app-shell[data-tone='comet']::after, .app-shell[data-tone='comet'] .panel::after, .app-shell[data-tone='comet'] .particle-field, .app-shell[data-tone='comet'] :is(.search-panel,.playlist-panel)::before { display: none; }
@@ -32,9 +32,9 @@
 .app-shell[data-tone='comet'] :is(.playlist-content,.search-mini-list) { scrollbar-width: thin; scrollbar-color: #ffffff59 transparent; }
 .app-shell[data-tone='comet'] .lyrics-scroll { scrollbar-width: none; }
 .app-shell[data-tone='comet'] .lyrics-scroll::-webkit-scrollbar { display: none; }
-.comet-rain { inset: -180px -60px 0 -60px; opacity: .3; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='180'%3E%3Cg stroke='%23d8f2ff' stroke-width='1.1' stroke-linecap='round'%3E%3Cpath d='M20 10l5 30' opacity='.8'/%3E%3Cpath d='M62 70l4 24' opacity='.55'/%3E%3Cpath d='M38 118l6 36' opacity='.7'/%3E%3Cpath d='M80 150l3 18' opacity='.4'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 90px 180px; }
+.comet-rain { inset: -180px 0 0 -80px; opacity: .3; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='76' height='180'%3E%3Cg stroke='%23d8f2ff' stroke-width='1.1' stroke-linecap='round'%3E%3Cpath d='M14 10l12.6 30' opacity='.8'/%3E%3Cpath d='M50 70l10 24' opacity='.55'/%3E%3Cpath d='M24 118l15 36' opacity='.7'/%3E%3Cpath d='M64 148l7.5 18' opacity='.4'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 76px 180px; }
 .comet-scene[data-motion='true'] .comet-rain { animation: comet-rain-fall .9s linear infinite; will-change: transform; }
-@keyframes comet-rain-fall { to { transform: translate3d(30px, 180px, 0); } }
+@keyframes comet-rain-fall { to { transform: translate3d(76px, 180px, 0); } }
 /* She looks up at the comet, so the lines live in that sky: a pool of night over the upper left, her and the light in her hand left clear */
 .comet-shade { inset: 0; background: radial-gradient(ellipse 72% 52% at 18% 30%, #060c15c7, #060c1559 55%, transparent 80%), linear-gradient(#060c1573, transparent 22%, transparent 78%, #060c15a6); }
 .app-shell[data-tone='comet'][data-background-art='off'] .comet-scene { background: radial-gradient(ellipse 70% 50% at 60% 30%, #1f5f7340, transparent 70%), linear-gradient(#05090f, #0c1d2b); }
@@ -57,14 +57,14 @@
 .app-shell[data-tone='comet'] .search-box { border: 1px solid var(--line); border-radius: 12px; background: var(--input-bg); box-shadow: none; }
 .app-shell[data-tone='comet'] .search-box:focus-within { border-color: #fff; box-shadow: 0 0 0 3px #ffffff38; }
 .app-shell[data-tone='comet'] .search-box > .ui-icon { color: #fff; }
-.app-shell[data-tone='comet'] .search-box input::placeholder { color: #d2e2ffcc; }
+.app-shell[data-tone='comet'] .search-box input::placeholder { color: #b9d3dccc; }
 .app-shell[data-tone='comet'] .search-panel .search-box > button.btn.gold { border: 0; border-radius: 9px; color: var(--brand-ink); background: linear-gradient(135deg, #ffd59a, #ffb45c 55%, #ff8a4a); box-shadow: 0 0 16px #ffb45c40; font-weight: 700; }
 .app-shell[data-tone='comet'] .source-grid label { border-color: var(--line); color: var(--muted); background: #ffffff08; }
 .app-shell[data-tone='comet'] .source-grid label.checked { border-color: #ffffffb3; color: #fff; background: #ffffff2e; }
 .app-shell[data-tone='comet'] :is(.load-row select,.load-row .btn,.daily-tools select) { border: 1px solid var(--line); color: var(--text); background: var(--input-bg); box-shadow: none; }
 .app-shell[data-tone='comet'] .playlist-panel .tabs { border-color: var(--line); background: var(--input-bg); box-shadow: none; }
 .app-shell[data-tone='comet'] .playlist-panel .tabs button { color: var(--muted); }
-.app-shell[data-tone='comet'] .playlist-panel .tabs button.active { color: var(--sky-ink); background: #fff; box-shadow: 0 4px 14px #0f3fc44d; }
+.app-shell[data-tone='comet'] .playlist-panel .tabs button.active { color: var(--sky-ink); background: #fff; box-shadow: 0 4px 14px #071b284d; }
 .app-shell[data-tone='comet'] .playlist-panel .playlist-toolbar > strong { color: #e6f2f6; }
 .app-shell[data-tone='comet'] .playlist-panel .playlist-toolbar > strong::before { width: 12px; height: 5px; margin-top: -2.5px; border-radius: 3px; background: var(--cord); }
 
@@ -78,10 +78,10 @@
 .app-shell[data-tone='comet'] :is(.empty-state,.empty-state .ui-icon) { color: #e3edff; }
 
 /* Daily page */
-.app-shell[data-tone='comet'] .daily-editorial, .app-shell[data-tone='comet'] .daily-editorial.has-grainient { border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(90deg, #1f4fd6f2 0 40%, #1f4fd680 72%, #1f4fd626), var(--comet-image) 58% 36% / cover, #1a4ad0; box-shadow: 0 18px 40px #0f3fc44d; }
+.app-shell[data-tone='comet'] .daily-editorial, .app-shell[data-tone='comet'] .daily-editorial.has-grainient { border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(90deg, #163b4df2 0 40%, #163b4d80 72%, #163b4d26), var(--comet-image) 58% 36% / cover, #12303f; box-shadow: 0 18px 40px #071b284d; }
 .app-shell[data-tone='comet'] .daily-editorial > .grainient { display: none; }
 .app-shell[data-tone='comet'] .daily-kicker { color: #ffe2b8; }
-.app-shell[data-tone='comet'] .daily-copy h2 { color: #fff; text-shadow: 0 2px 18px #0f3fc4; }
+.app-shell[data-tone='comet'] .daily-copy h2 { color: #fff; text-shadow: 0 2px 18px #071b28; }
 .app-shell[data-tone='comet'] .daily-copy p { color: var(--muted); }
 .app-shell[data-tone='comet'] .daily-actions .btn.primary { border: 0; color: var(--brand-ink); background: linear-gradient(135deg, #ffd59a, #ffb45c 55%, #ff8a4a); box-shadow: 0 0 18px #ffb45c40; }
 .app-shell[data-tone='comet'] .daily-count { color: var(--brand); text-shadow: 0 0 26px #ffb45c66; }
@@ -92,9 +92,9 @@
 .app-shell[data-tone='comet'] .spotlight-copy em { color: #ffe2b8; }
 
 /* Dialogs and the discovery panel: the same night glass, the comet's tail under the header */
-.app-shell[data-tone='comet'] .modal-card:not(.platform-panel) { background: var(--cord) 0 0 / 100% 3px no-repeat, linear-gradient(165deg, #2c6cf2, #4b4fd6); }
-.app-shell[data-tone='comet'] .modal-backdrop { background: #0a2a8a8c; }
-.app-shell[data-tone='comet'] .modal-card.platform-panel { --p-bg: #1f4fd6; --p-raised: #2c63ea; --p-ink: #ffffff; --p-muted: #d2e2ff; --p-line: #ffffff38; --p-accent: #ffb45c; --p-on-accent: #1a0d05; border: 1px solid #ffffff4d; background: radial-gradient(ellipse 40% 18% at 16% 4%, #ffffff40, transparent 70%), radial-gradient(ellipse 34% 14% at 86% 8%, #ffffff33, transparent 70%), linear-gradient(#1f5be8, #2f7cff 48%, #6c6ee8 82%, #b77ad8); }
+.app-shell[data-tone='comet'] .modal-card:not(.platform-panel) { background: var(--cord) 0 0 / 100% 3px no-repeat, linear-gradient(165deg, #1d4a5e, #4b4fd6); }
+.app-shell[data-tone='comet'] .modal-backdrop { background: #04121c8c; }
+.app-shell[data-tone='comet'] .modal-card.platform-panel { --p-bg: #163b4d; --p-raised: #2c63ea; --p-ink: #ffffff; --p-muted: #b9d3dc; --p-line: #ffffff38; --p-accent: #ffb45c; --p-on-accent: #1a0d05; border: 1px solid #ffffff4d; background: radial-gradient(ellipse 40% 18% at 16% 4%, #ffffff40, transparent 70%), radial-gradient(ellipse 34% 14% at 86% 8%, #ffffff33, transparent 70%), linear-gradient(#17405a, #245a70 48%, #24445e 82%, #3a3a5c); }
 .app-shell[data-tone='comet'] .platform-panel .platform-header { background: var(--comet-trail) 0 100% / 100% 1.5px no-repeat; border-bottom-color: transparent; }
 .app-shell[data-tone='comet'] .platform-heading-icon { color: var(--brand); background: #ffb45c14; }
 .app-shell[data-tone='comet'] .platform-nav button.active::after { background: var(--comet-trail); }
@@ -108,8 +108,8 @@
 .app-shell[data-tone='comet'][data-tone] .player-panel .player-range::-webkit-slider-thumb { box-shadow: 0 0 10px #ffb45c99; }
 
 @media (min-width: 761px) {
-  .app-shell[data-tone='comet'] :is(.topbar.panel, .workspace > section.panel:not(.player-panel)) { border: 1px solid var(--line); border-radius: 16px; background: var(--cord) 0 0 / 100% 3px no-repeat, radial-gradient(ellipse 70% 30% at 88% 0%, #ffffff33, transparent 70%), linear-gradient(170deg, #2f74f6f2, #2158dcf2 55%, #4e4fd8f2); box-shadow: 0 18px 40px #0f3fc459, inset 0 1px #ffffff40; backdrop-filter: blur(14px) saturate(1.2); }
-  .app-shell[data-tone='comet'] .workspace > section.player-panel { border: 1px solid #ffffff59; border-radius: 16px; background: #060c15; box-shadow: 0 22px 48px #0f3fc466, inset 0 1px #ffffff14; }
+  .app-shell[data-tone='comet'] :is(.topbar.panel, .workspace > section.panel:not(.player-panel)) { border: 1px solid var(--line); border-radius: 16px; background: var(--cord) 0 0 / 100% 3px no-repeat, radial-gradient(ellipse 70% 30% at 88% 0%, #ffffff33, transparent 70%), linear-gradient(170deg, #1f4d62f2, #18405af2 55%, #1a3550f2); box-shadow: 0 18px 40px #071b2859, inset 0 1px #ffffff40; backdrop-filter: blur(14px) saturate(1.2); }
+  .app-shell[data-tone='comet'] .workspace > section.player-panel { border: 1px solid #ffffff59; border-radius: 16px; background: #060c15; box-shadow: 0 22px 48px #071b2866, inset 0 1px #ffffff14; }
   .app-shell[data-tone='comet'] .player-heading h2 { color: #fff; }
   .app-shell[data-tone='comet'] .player-heading small { border-color: var(--line); color: #cfefff; background: #060c1566; }
 
@@ -132,7 +132,7 @@
   /* The player folds into one glass strip at the stage's foot, as on the coast and the night sea */
   /* The lyric box takes only the upper sky; the scroll centres the playing line in it, so that line rides at about a third of the stage */
   .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .lyrics { order: 1; flex: 0 0 auto; height: 58%; min-height: 0; margin-top: 4px; }
-  .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .now-card { order: 2; position: relative; min-height: 0; margin: auto 0 0; padding: 10px 14px; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 14px; align-items: center; rotate: none; border: 1px solid var(--line); border-radius: 16px; text-align: left; background: linear-gradient(90deg, #7fe6ff00, #7fe6ffd9 25%, #ff8ac0d9 55%, #ffb45cd9 80%, #ff7a3d00) 0 0 / 100% 2px no-repeat, linear-gradient(120deg, #2c6cf2d9, #4e4fd8d9); box-shadow: 0 12px 28px #02061066; backdrop-filter: blur(14px) saturate(1.2); }
+  .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .now-card { order: 2; position: relative; min-height: 0; margin: auto 0 0; padding: 10px 14px; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 14px; align-items: center; rotate: none; border: 1px solid var(--line); border-radius: 16px; text-align: left; background: linear-gradient(90deg, #7fe6ff00, #7fe6ffd9 25%, #ff8ac0d9 55%, #ffb45cd9 80%, #ff7a3d00) 0 0 / 100% 2px no-repeat, linear-gradient(120deg, #1d4a5ed9, #1a3550d9); box-shadow: 0 12px 28px #02061066; backdrop-filter: blur(14px) saturate(1.2); }
   .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .record-wrap { width: 56px; padding: 0; transform: none; }
   .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .record-tilt { padding: 0; border: 0; border-radius: 10px; background: none; box-shadow: 0 0 0 1px #ffffff26, 0 4px 14px #00000080; }
   .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .record { width: 100%; height: 100%; border-radius: 10px; box-shadow: none; animation: none; }
@@ -160,30 +160,30 @@
 
 /* Phone: the picture behind the console, glass cards, the lyrics page is the picture itself */
 @media (max-width: 760px) {
-  .app-shell[data-tone='comet'] { --m-bg: #1f56dc; --m-raised: #2f6ef0; --m-sunken: #1846c4; --m-ink: #ffffff; --m-muted: #d2e2ff; --m-accent: #ffb45c; --m-on-accent: #1a0d05; --m-line: #ffffff33; background: linear-gradient(#1846c4, #2f7cff 60%, #6c8cff); }
+  .app-shell[data-tone='comet'] { --m-bg: #1f56dc; --m-raised: #1d4a5e; --m-sunken: #10293a; --m-ink: #ffffff; --m-muted: #b9d3dc; --m-accent: #ffb45c; --m-on-accent: #1a0d05; --m-line: #ffffff33; background: linear-gradient(#10293a, #245a70 60%, #2c4d68); }
   .app-shell[data-tone='comet'] .topbar.panel { background: var(--cord) 0 100% / 100% 2px no-repeat, var(--m-raised); }
   .app-shell[data-tone='comet'] .workspace > section.panel.player-panel:not([data-mobile-section='daily']) { background: transparent !important; }
   .app-shell[data-tone='comet'] .workspace .player-panel .room-stage { position: absolute; display: block; inset: 0 !important; }
   .comet-scene { background-position: 54% 34%; }
   .app-shell[data-tone='comet'] .comet-shade { background: linear-gradient(#060c1580, transparent 28%, transparent 55%, #060c15c7); }
   .app-shell[data-tone='comet'] .comet-rain { opacity: .22; }
-  .app-shell[data-tone='comet'] .track-hero { padding: 14px 16px; border: 1px solid var(--m-line); border-radius: 14px; background: linear-gradient(90deg, #7fe6ff00, #7fe6ffd9 25%, #ff8ac0d9 55%, #ffb45cd9 80%, #ff7a3d00) 0 0 / 100% 2px no-repeat, linear-gradient(120deg, #2c6cf2eb, #4e4fd8eb); }
+  .app-shell[data-tone='comet'] .track-hero { padding: 14px 16px; border: 1px solid var(--m-line); border-radius: 14px; background: linear-gradient(90deg, #7fe6ff00, #7fe6ffd9 25%, #ff8ac0d9 55%, #ffb45cd9 80%, #ff7a3d00) 0 0 / 100% 2px no-repeat, linear-gradient(120deg, #1d4a5eeb, #1a3550eb); }
   .app-shell[data-tone='comet'] .now-card .hero-actions { margin: 10px 8px 0 0; }
   .app-shell[data-tone='comet'] .record-tilt { border: 0; background: none; box-shadow: 0 10px 28px #000a, 0 0 0 1px #ffffff1f; }
-  .app-shell[data-tone='comet'] .workspace .lyrics { background: linear-gradient(#2f6ef0, #4e4fd8); }
+  .app-shell[data-tone='comet'] .workspace .lyrics { background: linear-gradient(#1d4a5e, #1a3550); }
   .app-shell[data-tone='comet'] .lyrics-page-bar { background: none; }
-  .app-shell[data-tone='comet'][data-background-art='on'] .workspace .lyrics.sheet-open { background: linear-gradient(#060c15d1, #060c1599 30%, #060c1500 50%, #060c1500 82%, #060c15a6), var(--comet-image) 52% center / cover no-repeat; }
-  /* On the phone page the lines sit in the comet sky above her, not across her face */
-  .app-shell[data-tone='comet'][data-background-art='on'] .lyrics.sheet-open .lyrics-scroll { inset: calc(var(--m-safe-top) + 64px) 0 50% 0; height: auto; padding-block: 18cqh; -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 80%, transparent); mask-image: linear-gradient(transparent, #000 18%, #000 80%, transparent); }
+  .app-shell[data-tone='comet'][data-background-art='on'] .workspace .lyrics.sheet-open { background: linear-gradient(#0a1e2cc7, #0a1e2c8c 30%, #0a1e2c80 70%, #0a1e2cd1), var(--comet-image) 52% center / cover no-repeat; }
+
+
   .app-shell[data-tone='comet'] .lyrics.sheet-open .lyric-line { text-shadow: 0 1px 10px #060c15f0; }
   .app-shell[data-tone='comet'] .lyrics.sheet-open .lyric-line.active { color: #ffe2b8; text-shadow: 0 0 18px #ffb45c8c, 0 1px 10px #060c15f0; }
   .app-shell[data-tone='comet'] .lyrics.sheet-open .lyric-line > span { justify-self: center; padding-bottom: 6px; background: var(--comet-trail) left bottom / 0% 2px no-repeat; }
   .app-shell[data-tone='comet'] .lyrics.sheet-open .lyric-line.active > span { background-size: 100% 2px; }
   .app-shell.motion-on[data-tone='comet'] .lyrics.sheet-open .lyric-line > span { transition: background-size .8s cubic-bezier(.4,0,.2,1); }
   .app-shell[data-tone='comet'] .lyrics-scroll { scrollbar-width: none; }
-  .app-shell[data-tone='comet'] .daily-editorial, .app-shell[data-tone='comet'] .daily-editorial.has-grainient { background: linear-gradient(90deg, #1f4fd6f0 0 46%, #1f4fd699 78%, #1f4fd640), var(--comet-image) 58% 36% / cover, var(--m-raised); }
+  .app-shell[data-tone='comet'] .daily-editorial, .app-shell[data-tone='comet'] .daily-editorial.has-grainient { background: linear-gradient(90deg, #163b4df0 0 46%, #163b4d99 78%, #163b4d40), var(--comet-image) 58% 36% / cover, var(--m-raised); }
   .app-shell[data-tone='comet'] .workspace > section.panel:is(.search-panel,.playlist-panel) { background: var(--m-bg); }
-  .app-shell[data-tone='comet'] .mobile-nav { border-top: 1px solid var(--m-line); background: #1846c4f5; }
+  .app-shell[data-tone='comet'] .mobile-nav { border-top: 1px solid var(--m-line); background: #10293af5; }
   .app-shell[data-tone='comet'] .mobile-nav button.active > span { color: var(--sky-ink); background: #fff; }
   .app-shell[data-tone='comet'] .mobile-mini-player { background: linear-gradient(90deg, #7fe6ff00, #7fe6ffd9 25%, #ff8ac0d9 55%, #ffb45cd9 80%, #ff7a3d00) 0 0 / 100% 2px no-repeat, var(--m-raised); }
 }
@@ -196,10 +196,18 @@
   .app-shell[data-tone='comet'][data-background-art='on'] .comet-shade { background: radial-gradient(ellipse 62% 58% at 80% 48%, #060c15b8, #060c1566 52%, transparent 78%), linear-gradient(#060c1580, transparent 18%, transparent 80%, #060c15b3); }
   .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .lyrics { flex: 1; height: auto; min-height: 0; margin-top: 4px; }
   .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .lyrics-scroll { padding-inline: 54% 24px; -webkit-mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent); mask-image: linear-gradient(transparent, #000 16%, #000 84%, transparent); }
-  .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .lyric-line { justify-items: start; text-align: left; }
+  .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .lyric-line { justify-items: center; text-align: center; }
+  .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .lyric-line > span { justify-self: center; background-position: center bottom; }
+  .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .lyric-line.active { transform-origin: 50% 50%; }
   .app-shell[data-tone='comet'][data-background-art='on'] .stage-mode-player .now-card { margin-top: 10px; }
 }
 @media (max-width: 760px) {
   /* Player page: the figure centred behind the console instead of a sideways crop */
   .app-shell[data-tone='comet'][data-background-art='on'] .comet-scene { background-position: 50% 40%; }
+}
+/* Page ground: the picture itself, blown up and blurred into soft teal cloud and comet light behind the panels,
+   under a veil that keeps it deep but not black. Static (no animation); desktop only, the phone shell hides it. */
+@media (min-width: 761px) {
+  .app-shell[data-tone='comet'][data-background-art='on']::before { content: ''; display: block; position: fixed; z-index: 0; inset: -90px; width: auto; height: auto; border: 0; border-radius: 0; opacity: 1; transform: none; clip-path: none; mask-image: none; mix-blend-mode: normal; pointer-events: none; background: var(--comet-image) 40% 40% / cover no-repeat; filter: blur(48px) saturate(1.3) brightness(.85); }
+  .app-shell[data-tone='comet'][data-background-art='on']::after { content: ''; display: block; position: fixed; z-index: 0; inset: 0; width: auto; height: auto; border: 0; opacity: 1; transform: none; pointer-events: none; background: radial-gradient(ellipse 80% 70% at 50% 45%, transparent, #0a1e2c99 100%), linear-gradient(#0a1e2c59, #0a1e2c33 40%, #0a1e2c80); }
 }

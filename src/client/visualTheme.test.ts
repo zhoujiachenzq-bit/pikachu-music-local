@@ -35,6 +35,7 @@ describe('visual theme preferences', () => {
     expect(parseVisualPreferences('{"version":1,"theme":"harbor","motionEnabled":true}').theme).toBe('harbor');
     expect(parseVisualPreferences('{"version":1,"theme":"comet","motionEnabled":true}').theme).toBe('comet');
     expect(parseVisualPreferences('{"version":1,"theme":"miku","motionEnabled":true}').theme).toBe('miku');
+    expect(parseVisualPreferences('{"version":1,"theme":"skyroom","motionEnabled":true}').theme).toBe('skyroom');
   });
 
   it('keeps artwork enabled for existing saved preferences without the new switch', () => {

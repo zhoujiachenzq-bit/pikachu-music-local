@@ -1,6 +1,6 @@
 # Windows 桌面安装包
 
-Windows v0.8.0 使用 Electron 独立窗口，内置 Node 24 和本地音源服务。后台只监听本机，登录状态在变更和退出时保存。
+Windows v0.8.1 使用 Electron 独立窗口，内置 Node 24 和本地音源服务。后台只监听本机，登录状态在变更和退出时保存。
 
 用户数据固定保存到 `%APPDATA%\MusicHouse`，与安装目录分开。更新时保持 appId 和此目录，不卸载清数据。安装器也不会默认删除该目录。首次创建自己的账户；原网页的数据可通过现有音乐备份恢复功能导入，不自动复制真实数据库或模型密钥。
 
@@ -22,7 +22,7 @@ pnpm exec electron-builder --win nsis --x64 --publish never
 Pop-Location
 ```
 
-输出：`data/windows/output/music-house-0.8.0-windows-x64-setup.exe`。`afterPack` 会自动在仓库以外的临时目录运行实际打包资源检查，失败即停止构建；手动复查可执行 `node desktop/smoke-runtime.mjs`。包含真实 Electron 会话存储的登录、退出、重启和端口变化检查。
+输出：`data/windows/output/music-house-0.8.1-windows-x64-setup.exe`。`afterPack` 会自动在仓库以外的临时目录运行实际打包资源检查，失败即停止构建；手动复查可执行 `node desktop/smoke-runtime.mjs`。包含真实 Electron 会话存储的登录、退出、重启和端口变化检查。
 
 只分发静态构建、已提交的公共素材、生产依赖、运行程序和许可证；不分发 `.env`、本机数据库、日志、签名密钥及模型配置。
 

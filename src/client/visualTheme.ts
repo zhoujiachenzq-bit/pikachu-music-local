@@ -1,4 +1,4 @@
-export const TONE_THEME_IDS = ['paper', 'cobalt', 'miku', 'night', 'burgundy', 'harbor', 'comet'] as const;
+export const TONE_THEME_IDS = ['paper', 'cobalt', 'night', 'burgundy', 'skyroom', 'harbor', 'comet', 'miku'] as const;
 
 export type ToneThemeId = typeof TONE_THEME_IDS[number];
 
@@ -14,7 +14,7 @@ export interface ToneThemeDefinition {
 }
 
 export interface ToneThemeGroupDefinition {
-  id: 'pikachu' | 'curated';
+  id: 'pikachu' | 'curated' | 'anime';
   name: { zh: string; en: string };
   description: { zh: string; en: string };
   themes: readonly ToneThemeId[];
@@ -67,6 +67,13 @@ export const TONE_THEMES: Record<ToneThemeId, ToneThemeDefinition> = {
     canvas: '#060c15', surface: '#0c1d2b', sceneAccent: '#ffb45c', sceneGlow: '#6fe0ff',
     swatches: ['#060c15', '#6fe0ff', '#e0394f'],
   },
+  skyroom: {
+    id: 'skyroom',
+    name: { zh: '时之彼方', en: 'Beyond Time' },
+    description: { zh: '爬满常春藤的旧屋、大窗外的夏日晴空与草海', en: 'An ivy-grown room, and summer sky and grassland through its great window' },
+    canvas: '#0f2559', surface: '#16357a', sceneAccent: '#36aaff', sceneGlow: '#86d65f',
+    swatches: ['#0f2559', '#36aaff', '#86d65f'],
+  },
   cobalt: {
     id: 'cobalt',
     name: { zh: '钴蓝画廊', en: 'Cobalt Gallery' },
@@ -87,14 +94,20 @@ export const TONE_THEME_GROUPS: readonly ToneThemeGroupDefinition[] = [
   {
     id: 'pikachu',
     name: { zh: '经典设计', en: 'Signature Designs' },
-    description: { zh: '剪纸拼贴、电蓝画廊与电子歌姬', en: 'Papercut, electric-blue gallery and electro diva' },
-    themes: ['paper', 'cobalt', 'miku'],
+    description: { zh: '剪纸拼贴与电蓝画廊', en: 'Papercut and electric-blue gallery' },
+    themes: ['paper', 'cobalt'],
   },
   {
     id: 'curated',
     name: { zh: '治愈风景', en: 'Restful Landscapes' },
-    description: { zh: '海岸、暮光花园、夜海与彗星雨夜', en: 'Coast, twilight garden, night sea and comet rain' },
-    themes: ['night', 'burgundy', 'harbor', 'comet'],
+    description: { zh: '海岸、暮光花园与窗外的夏天', en: 'Coast, twilight garden and summer through a window' },
+    themes: ['night', 'burgundy', 'skyroom'],
+  },
+  {
+    id: 'anime',
+    name: { zh: '动漫剧照', en: 'Anime Stills' },
+    description: { zh: '海与你、彗星雨夜与星眼歌姬', en: 'Sea and you, comet rain and starry diva' },
+    themes: ['harbor', 'comet', 'miku'],
   },
 ] as const;
 

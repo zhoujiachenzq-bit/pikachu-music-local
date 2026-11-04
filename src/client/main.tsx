@@ -18,8 +18,11 @@ import './smallControls.css';
 import './cometTheme.css';
 import './mikuTheme.css';
 import './themeRefine.css';
+import './themePolish.css';
+import './skyroomTheme.css';
+import './pageGrounds.css';
 
-document.documentElement.dataset.visualRelease = '0.8.0';
+document.documentElement.dataset.visualRelease = '0.8.1';
 
 if (import.meta.env.PROD && !phoneApp && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
